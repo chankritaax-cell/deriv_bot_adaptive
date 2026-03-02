@@ -1,0 +1,26 @@
+🚀 Verifying Stake Proposal Logic (Variations)...
+✅ Authorized: VRTC15211306
+
+--- Testing: Float 0.75 (Basis: stake) ---
+🔄 Request: {'proposal': 1, 'amount': 0.75, 'basis': 'stake', 'contract_type': 'CALL', 'currency': 'USD', 'duration': 60, 'duration_unit': 's', 'symbol': 'R_75'}
+❌ Exception: ResponseError: Please enter a stake amount that's at least 0.35.
+
+--- Testing: Float 1.00 (Basis: stake) ---
+🔄 Request: {'proposal': 1, 'amount': 1.0, 'basis': 'stake', 'contract_type': 'CALL', 'currency': 'USD', 'duration': 60, 'duration_unit': 's', 'symbol': 'R_75'}
+✅ Success! ID: cdb80d7a-0b60-aa01-a779-dc3b82550526
+   Ask Price: 1
+   Payout: 1.95
+
+--- Testing: String '0.75' (Basis: stake) ---
+🔄 Request: {'proposal': 1, 'amount': '0.75', 'basis': 'stake', 'contract_type': 'CALL', 'currency': 'USD', 'duration': 60, 'duration_unit': 's', 'symbol': 'R_75'}
+❌ Exception: ResponseError: Please enter a stake amount that's at least 0.35.
+
+--- Testing: Float 0.35 (Basis: stake) ---
+🔄 Request: {'proposal': 1, 'amount': 0.35, 'basis': 'stake', 'contract_type': 'CALL', 'currency': 'USD', 'duration': 60, 'duration_unit': 's', 'symbol': 'R_75'}
+❌ Exception: ResponseError: Please enter a stake amount that's at least 0.35.
+
+--- Testing: Payout ~1.50 (Stake 0.75) (Basis: payout) ---
+🔄 Request: {'proposal': 1, 'amount': 1.5, 'basis': 'payout', 'contract_type': 'CALL', 'currency': 'USD', 'duration': 60, 'duration_unit': 's', 'symbol': 'R_75'}
+✅ Success! ID: 551cdeb1-dfb3-aae9-67db-8b59feaad32b
+   Ask Price: 0.52
+   Payout: 1

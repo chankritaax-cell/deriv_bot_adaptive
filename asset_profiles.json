@@ -1,0 +1,172 @@
+{
+    "R_75": {
+        "strategy": "PULLBACK_ENTRY",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0,
+            "pullback_put_lo": 45.0,
+            "pullback_put_hi": 58.0,
+            "pullback_put_max": 65.0,
+            "pullback_call_lo": 42.0,
+            "pullback_call_hi": 55.0,
+            "pullback_call_min": 35.0
+        },
+        "bounce_limit": 10.0,
+        "ma_slope_min": 0.025,
+        "min_trades_before_trust": 0
+    },
+    "1HZ100V": {
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 55.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
+            "put_max": 45.0
+        },
+        "bounce_limit": 8.0,
+        "ma_slope_min": 0.025,
+        "min_trades_before_trust": 0
+    },
+    "R_25": {
+        "enabled": false,
+        "disabled_reason": "42% WR 69 trades PnL -11.49",
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 55,
+            "call_max": 65,
+            "put_min": 35,
+            "put_max": 45
+        },
+        "bounce_limit": 6.0,
+        "ma_slope_min": 0.025,
+        "min_trades_before_trust": 150
+    },
+    "R_50": {
+        "enabled": false,
+        "disabled_reason": "43% WR 76 trades PnL -10.70",
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 55,
+            "call_max": 65,
+            "put_min": 35,
+            "put_max": 45
+        },
+        "bounce_limit": 6.0,
+        "ma_slope_min": 0.025,
+        "min_trades_before_trust": 150
+    },
+    "1HZ75V": {
+        "enabled": false,
+        "disabled_reason": "47% WR 110 trades PnL -8.60",
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 55,
+            "call_max": 65,
+            "put_min": 35,
+            "put_max": 45
+        },
+        "bounce_limit": 6.0,
+        "ma_slope_min": 0.025,
+        "min_trades_before_trust": 150
+    },
+    "1HZ25V": {
+        "enabled": false,
+        "disabled_reason": "50% WR 114 trades BEP -2.85",
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL"
+        ],
+        "rsi_bounds": {
+            "call_min": 55,
+            "call_max": 65,
+            "put_min": 35,
+            "put_max": 45
+        },
+        "bounce_limit": 6.0,
+        "ma_slope_min": 0.025,
+        "min_trades_before_trust": 150
+    },
+    "1HZ50V": {
+        "enabled": true,
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 55,
+            "call_max": 65,
+            "put_min": 32,
+            "put_max": 48
+        },
+        "bounce_limit": 6.0,
+        "ma_slope_min": 0.025,
+        "min_trades_before_trust": 0
+    },
+    "1HZ10V": {
+        "enabled": true,
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 55.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
+            "put_max": 45.0,
+            "pullback_put_lo": 42.0,
+            "pullback_put_hi": 55.0,
+            "pullback_put_max": 62.0,
+            "pullback_call_lo": 45.0,
+            "pullback_call_hi": 58.0,
+            "pullback_call_min": 38.0
+        },
+        "bounce_limit": 5.0,
+        "ma_slope_min": 0.010,
+        "min_trades_before_trust": 0,
+        "notes": "Low volatility asset, tight ATR. Use lower slope threshold."
+    },
+    "DEFAULT": {
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 55.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
+            "put_max": 45.0,
+            "pullback_put_lo": 44.0,
+            "pullback_put_hi": 56.0,
+            "pullback_put_max": 63.0,
+            "pullback_call_lo": 44.0,
+            "pullback_call_hi": 56.0,
+            "pullback_call_min": 37.0
+        },
+        "bounce_limit": 6.0,
+        "ma_slope_min": 0.025,
+        "min_trades_before_trust": 0
+    }
+}

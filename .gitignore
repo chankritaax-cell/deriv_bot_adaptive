@@ -1,0 +1,8 @@
+.env
+backup/
+logs/
+.venv/
+__pycache__/
+*.pyc
+test_results.log
+contract_info.json

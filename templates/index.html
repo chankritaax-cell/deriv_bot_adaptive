@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deriv AI Bot v3.4.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0b0e14;
+            color: #e2e8f0;
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
+
+        .card {
+            background-color: #151921;
+            border: 1px solid #1e2736;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .log-box {
+            background-color: #0a0c10;
+            color: #22c55e;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+            font-size: 0.7rem;
+            height: 320px;
+            overflow-y: auto;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #1e2736;
+        }
+
+        .glow-green {
+            text-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+        }
+
+        .glow-red {
+            text-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0b0e14;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            animation: pulse-anim 2s infinite;
+        }
+
+        @keyframes pulse-anim {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        .cooldown-bar {
+            height: 3px;
+            border-radius: 2px;
+            transition: width 1s linear;
+        }
+    </style>
+</head>
+
+<body class="p-3 md:p-6 max-w-[1600px] mx-auto">
+
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-6">
+        <div class="flex items-center gap-3">
+            <div
+                class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
+                <i class="fa-solid fa-robot text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-white">Deriv AI Bot <span id="header-version-title">v3.4.1</span></h1>
+                <p class="text-gray-500 text-xs" id="header-version">v3.4.1</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <!-- Documentation Buttons -->
+            <div class="flex items-center gap-1.5 md:gap-2 mr-1 md:mr-2 border-r border-gray-800 pr-2 md:pr-4">
+                <button onclick="showDoc('README.md')"
+                    class="px-1.5 md:px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-book"></i> <span class="hidden sm:inline">README</span>
+                </button>
+                <button onclick="scrollToLogViewer()"
+                    class="px-1.5 md:px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-list-ul"></i> <span class="hidden sm:inline">LOGS</span>
+                </button>
+                <button onclick="showDoc('FEATURES.md')"
+                    class="px-1.5 md:px-2 py-1 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded text-[10px] font-bold transition flex items-center gap-1 border border-blue-500/20">
+                    <i class="fa-solid fa-star text-blue-400"></i> <span class="hidden sm:inline">FEATURES</span>
+                </button>
+                <button onclick="showDoc('CHANGELOG.md')"
+                    class="px-1.5 md:px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-clock-rotate-left"></i> <span class="hidden sm:inline">CHANGELOG</span>
+                </button>
+            </div>
+
+            <div id="cooldown-indicator" class="hidden">
+                <div class="badge bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                    <i class="fa-solid fa-pause mr-1.5"></i>
+                    <span id="cooldown-text">HOLD</span>
+                </div>
+            </div>
+            <div id="status-badge" class="badge bg-green-500/10 text-green-400 border border-green-500/20">
+                <span class="pulse-dot bg-green-400 mr-1.5"></span>
+                <span id="status-text">RUNNING</span>
+            </div>
+            <div class="text-right">
+                <p id="clock" class="font-mono text-sm text-white">--:--:--</p>
+                <p id="uptime" class="text-[10px] text-gray-500">Uptime: --</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stats Grid (4 cards) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+
+        <!-- Balance -->
+        <div class="card group relative overflow-hidden">
+            <div class="absolute -top-2 -right-2 opacity-5 group-hover:opacity-10 transition-opacity">
+                <i class="fa-solid fa-wallet fa-4x text-blue-400"></i>
+            </div>
+            <p class="stat-label">Balance</p>
+            <p id="balance" class="stat-value text-white mt-1">$--.--</p>
+            <div class="mt-3 flex items-center gap-2">
+                <span id="profit-badge" class="badge bg-gray-800 text-gray-400">
+                    <i class="fa-solid fa-arrow-trend-up mr-1"></i> $0.00
+                </span>
+            </div>
+        </div>
+
+        <!-- Asset & Strategy -->
+        <div class="card group relative overflow-hidden">
+            <div class="absolute -top-2 -right-2 opacity-5 group-hover:opacity-10 transition-opacity">
+                <i class="fa-solid fa-crosshairs fa-4x text-purple-400"></i>
+            </div>
+            <p class="stat-label">Active Asset</p>
+            <p id="asset" class="stat-value text-yellow-400 mt-1 truncate">---</p>
+            <div class="mt-3 flex items-center gap-2">
+                <span id="strategy"
+                    class="badge bg-purple-500/10 text-purple-300 border border-purple-500/20">---</span>
+                <span id="last-signal" class="badge bg-gray-800 text-gray-400">---</span>
+            </div>
+        </div>
+
+        <!-- Win/Loss -->
+        <div class="card group relative overflow-hidden">
+            <div class="absolute -top-2 -right-2 opacity-5 group-hover:opacity-10 transition-opacity">
+                <i class="fa-solid fa-trophy fa-4x text-yellow-400"></i>
+            </div>
+            <p class="stat-label">Performance</p>
+            <div class="flex items-baseline gap-3 mt-1">
+                <div>
+                    <span id="total-wins" class="stat-value text-green-400">0</span>
+                    <span class="text-green-400/50 text-xs">W</span>
+                </div>
+                <span class="text-gray-600">/</span>
+                <div>
+                    <span id="total-losses" class="stat-value text-red-400">0</span>
+                    <span class="text-red-400/50 text-xs">L</span>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="w-full bg-gray-800 rounded-full h-1.5">
+                    <div id="win-rate-bar"
+                        class="bg-gradient-to-r from-green-500 to-emerald-400 h-1.5 rounded-full transition-all duration-500"
+                        style="width: 50%"></div>
+                </div>
+                <p id="win-rate-text" class="text-[10px] text-right mt-1 text-gray-500">50% Win Rate</p>
+            </div>
+        </div>
+
+        <!-- Today P/L -->
+        <div class="card group relative overflow-hidden">
+            <div class="absolute -top-2 -right-2 opacity-5 group-hover:opacity-10 transition-opacity">
+                <i class="fa-solid fa-chart-line fa-4x text-cyan-400"></i>
+            </div>
+            <p class="stat-label">Session P/L</p>
+            <p id="session-pl" class="stat-value text-gray-400 mt-1">$0.00</p>
+            <div class="mt-3 flex items-center gap-2">
+                <span id="total-trades-badge" class="badge bg-gray-800 text-gray-400">
+                    <i class="fa-solid fa-repeat mr-1"></i> 0 trades
+                </span>
+                <span id="last-trade-time" class="text-[10px] text-gray-600">Last: --</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Pulse Bar -->
+    <div class="card mb-6 py-3 px-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-wave-square text-cyan-400 text-sm"></i>
+                <span class="text-xs font-bold text-gray-300 uppercase tracking-wider">AI Pulse</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-6 text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-xs">Provider</span>
+                    <span id="ai-provider"
+                        class="font-mono text-xs text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded">---</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-xs">Confidence</span>
+                    <span id="ai-confidence" class="font-mono text-xs text-gray-400">0.00</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-xs">Regime</span>
+                    <span id="ai-regime" class="font-mono text-xs text-gray-400">UNKNOWN</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-xs">Streaks</span>
+                    <span class="font-mono text-xs">
+                        <span id="win-streak" class="text-green-400">0</span>W
+                        <span class="text-gray-600 mx-0.5">/</span>
+                        <span id="loss-streak" class="text-red-400">0</span>L
+                    </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-500 text-xs">Next Scan</span>
+                    <span id="scan-countdown"
+                        class="font-mono text-xs text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded">---</span>
+                </div>
+            </div>
+            <div id="cooldown-bar-container" class="hidden mt-2">
+                <div class="w-full bg-gray-800 rounded-full h-1">
+                    <div id="cooldown-bar" class="cooldown-bar bg-yellow-500" style="width: 100%"></div>
+                </div>
+                <p id="cooldown-reason" class="text-[10px] text-yellow-500/70 mt-0.5"></p>
+            </div>
+        </div>
+
+
+        <!-- Intelligence Level -->
+        <div class="card mb-6">
+            <div class="flex flex-wrap justify-between items-center mb-4">
+                <h2 class="text-sm font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-amber-400"></i> Bot Intelligence Level
+                </h2>
+                <span id="intel-timestamp" class="text-[10px] text-gray-600 font-mono">--:--</span>
+            </div>
+            <div class="flex items-center gap-6">
+                <!-- Circular Gauge -->
+                <div class="relative flex-shrink-0" style="width:100px;height:100px;">
+                    <svg viewBox="0 0 36 36" class="w-full h-full -rotate-90">
+                        <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none" stroke="#1e2736" stroke-width="3" />
+                        <path id="intel-ring"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none" stroke="#64748b" stroke-width="3" stroke-dasharray="0, 100"
+                            stroke-linecap="round" class="transition-all duration-1000" />
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span id="intel-score" class="text-2xl font-bold text-gray-400">0</span>
+                        <span class="text-[8px] text-gray-600 -mt-0.5">/100</span>
+                    </div>
+                </div>
+                <!-- Level Info -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span id="intel-emoji" class="text-xl">🐣</span>
+                        <span id="intel-level" class="text-base font-bold text-white">Newborn</span>
+                    </div>
+                    <p id="intel-desc" class="text-xs text-gray-400 mb-3">รอการคำนวณ...</p>
+                    <!-- Component Bars -->
+                    <div class="space-y-1.5" id="intel-components">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] text-gray-500 w-20 text-right">Win Rate</span>
+                            <div class="flex-1 bg-gray-800 rounded-full h-1.5">
+                                <div class="bg-green-500 h-1.5 rounded-full transition-all duration-700"
+                                    style="width:0%">
+                                </div>
+                            </div>
+                            <span class="text-[9px] text-gray-500 w-10">0/30</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] text-gray-500 w-20 text-right">RL Brain</span>
+                            <div class="flex-1 bg-gray-800 rounded-full h-1.5">
+                                <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-700"
+                                    style="width:0%">
+                                </div>
+                            </div>
+                            <span class="text-[9px] text-gray-500 w-10">0/25</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] text-gray-500 w-20 text-right">Experience</span>
+                            <div class="flex-1 bg-gray-800 rounded-full h-1.5">
+                                <div class="bg-purple-500 h-1.5 rounded-full transition-all duration-700"
+                                    style="width:0%">
+                                </div>
+                            </div>
+                            <span class="text-[9px] text-gray-500 w-10">0/15</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] text-gray-500 w-20 text-right">Profit Factor</span>
+                            <div class="flex-1 bg-gray-800 rounded-full h-1.5">
+                                <div class="bg-yellow-500 h-1.5 rounded-full transition-all duration-700"
+                                    style="width:0%">
+                                </div>
+                            </div>
+                            <span class="text-[9px] text-gray-500 w-10">0/15</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] text-gray-500 w-20 text-right">Consistency</span>
+                            <div class="flex-1 bg-gray-800 rounded-full h-1.5">
+                                <div class="bg-cyan-500 h-1.5 rounded-full transition-all duration-700"
+                                    style="width:0%">
+                                </div>
+                            </div>
+                            <span class="text-[9px] text-gray-500 w-10">0/15</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Summary Section -->
+        <div class="card mb-6">
+            <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                <h2 class="text-sm font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-brain text-purple-400"></i> AI Trading Supervisor
+                </h2>
+                <div class="flex items-center gap-2">
+                    <select id="time-range"
+                        class="bg-gray-800 text-gray-300 text-xs rounded px-2 py-1 border border-gray-700 focus:outline-none focus:border-blue-500">
+                        <option value="1">1h</option>
+                        <option value="3">3h</option>
+                        <option value="6" selected>6h</option>
+                        <option value="12">12h</option>
+                        <option value="24">24h</option>
+                    </select>
+                    <button onclick="requestAISummary()" id="btn-analyze"
+                        class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-bolt"></i> Analyze
+                    </button>
+                    <button onclick="showTradingHistory()"
+                        class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-clock-rotate-left"></i> History
+                    </button>
+                    <button onclick="openAIStatusModal()"
+                        class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-bold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-robot"></i> Status
+                    </button>
+                </div>
+            </div>
+            <div id="ai-summary-content"
+                class="min-h-[120px] bg-black/40 p-4 rounded border border-gray-800 text-sm text-gray-300 overflow-y-auto max-h-[300px]">
+                <p class="text-gray-600 italic text-xs">Click 'Analyze' to get AI insights on recent performance...</p>
+            </div>
+        </div>
+
+        <!-- Main Layout: Logs + Sidebar -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+            <!-- Left: Console + Trades (2 cols) -->
+            <div class="lg:col-span-2 space-y-4">
+
+                <!-- Live Console -->
+                <div>
+                    <h2 class="text-sm font-bold flex items-center gap-2 mb-2">
+                        <i class="fa-solid fa-terminal text-green-500"></i> Live Console
+                    </h2>
+                    <div id="console-logs" class="log-box space-y-0.5">
+                        <div class="text-gray-600">Waiting for logs...</div>
+                    </div>
+                </div>
+
+                <!-- Recent Trades -->
+                <div class="card">
+                    <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-indigo-400"></i> Recent Trades
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-left text-gray-400">
+                            <thead class="text-[10px] text-gray-500 uppercase bg-gray-800/50">
+                                <tr>
+                                    <th class="px-3 py-2">Time</th>
+                                    <th class="px-3 py-2">Asset</th>
+                                    <th class="px-3 py-2">Strategy</th>
+                                    <th class="px-3 py-2 text-center">Result</th>
+                                    <th class="px-3 py-2 text-right">Profit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-gray-600 italic text-xs">No trades
+                                        yet...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Log Viewer -->
+                <div class="card">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-file-lines text-yellow-500"></i> Log Viewer
+                        </h3>
+                        <div class="flex gap-2">
+                            <select id="log-file-select"
+                                class="bg-gray-800 text-gray-300 text-xs rounded px-2 py-1 border border-gray-700 outline-none focus:border-blue-500">
+                                <option value="">Select file...</option>
+                            </select>
+                            <button onclick="refreshLogViewer()"
+                                class="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white transition">
+                                <i class="fa-solid fa-sync"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <textarea id="log-viewer-content"
+                        class="w-full h-48 bg-black/60 text-gray-300 font-mono text-[11px] p-3 rounded border border-gray-800 focus:outline-none resize-y"
+                        readonly placeholder="Select a file to view..."></textarea>
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="space-y-4">
+
+                <!-- Bot Config -->
+                <div class="card border border-blue-500/10">
+                    <h3 class="text-sm font-bold mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-gears text-blue-400"></i> Configuration
+                    </h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Account</label>
+                            <select id="config-balance-type"
+                                class="w-full bg-gray-800 text-white rounded p-1.5 border border-gray-700 text-xs">
+                                <option value="PRACTICE">PRACTICE (Demo)</option>
+                                <option value="REAL">REAL (Live)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Profile</label>
+                            <select id="config-active-profile"
+                                class="w-full bg-gray-800 text-white rounded p-1.5 border border-gray-700 text-xs">
+                                <option value="TIER_1">TIER 1 ($1.0 Base)</option>
+                                <option value="TIER_2">TIER 2 ($1.0 Stable)</option>
+                                <option value="TIER_MICRO">TIER MICRO ($0.35 Min)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Profit Target</label>
+                            <div class="flex items-center gap-1">
+                                <span class="text-gray-500 text-xs">$</span>
+                                <input type="number" id="config-profit-target" step="0.5"
+                                    class="w-full bg-gray-800 text-white rounded p-1.5 border border-gray-700 text-xs"
+                                    placeholder="5.0">
+                            </div>
+                        </div>
+
+                        <!-- [v3.4.1] Strategy Tuning -->
+                        <div class="border-t border-gray-800 pt-3 mt-1">
+                            <label class="text-[10px] font-bold text-emerald-400 uppercase mb-2 block">Strategy Tuning (v3.4.1)</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[9px] text-gray-500 mb-0.5">Min Stake ($)</label>
+                                    <input type="number" id="config-min-stake" step="0.1" min="0.35"
+                                        class="w-full bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]"
+                                        value="1.0">
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] text-gray-500 mb-0.5">L2 Threshold</label>
+                                    <input type="number" id="config-l2-threshold" step="0.05" min="0.1" max="0.9"
+                                        class="w-full bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]"
+                                        value="0.35">
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] text-gray-500 mb-0.5">Scan Interval (min)</label>
+                                    <input type="number" id="config-scan-interval" step="5" min="5" max="60"
+                                        class="w-full bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]"
+                                        value="20">
+                                </div>
+                                <div class="flex items-end pb-0.5">
+                                    <label class="flex items-center gap-1.5 cursor-pointer">
+                                        <input type="checkbox" id="config-allow-put" checked
+                                            class="w-3.5 h-3.5 rounded bg-gray-700 border-gray-600 text-emerald-500 focus:ring-0">
+                                        <span class="text-[9px] text-gray-400">Allow PUT</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- [v3.2.12] AI Advanced Routing -->
+                        <div class="border-t border-gray-800 pt-3 mt-1">
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-[10px] font-bold text-blue-400 uppercase">AI Task Routing</label>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="config-ai-routing" class="sr-only peer">
+                                    <div
+                                        class="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600">
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="space-y-2.5">
+                                <!-- Scanner -->
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] text-gray-500 w-16">Scanner</span>
+                                    <select id="route-scanner-1"
+                                        class="flex-1 bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]">
+                                        <option value="GEMINI">GEMINI</option>
+                                        <option value="CHATGPT">CHATGPT</option>
+                                        <option value="CLAUDE">CLAUDE</option>
+                                        <option value="OLLAMA">OLLAMA</option>
+                                    </select>
+                                    <select id="route-scanner-2"
+                                        class="flex-1 bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]">
+                                        <option value="NONE">None</option>
+                                        <option value="OLLAMA">OLLAMA</option>
+                                        <option value="GEMINI">GEMINI</option>
+                                        <option value="CHATGPT">CHATGPT</option>
+                                        <option value="CLAUDE">CLAUDE</option>
+                                    </select>
+                                </div>
+                                <!-- Filter -->
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] text-gray-500 w-16">Filter</span>
+                                    <select id="route-filter-1"
+                                        class="flex-1 bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]">
+                                        <option value="CHATGPT">CHATGPT</option>
+                                        <option value="GEMINI">GEMINI</option>
+                                        <option value="CLAUDE">CLAUDE</option>
+                                        <option value="OLLAMA">OLLAMA</option>
+                                    </select>
+                                    <select id="route-filter-2"
+                                        class="flex-1 bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]">
+                                        <option value="NONE">None</option>
+                                        <option value="GEMINI">GEMINI</option>
+                                        <option value="CHATGPT">CHATGPT</option>
+                                        <option value="CLAUDE">CLAUDE</option>
+                                        <option value="OLLAMA">OLLAMA</option>
+                                    </select>
+                                </div>
+                                <!-- Analyst -->
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] text-gray-500 w-16">Analyst</span>
+                                    <select id="route-analyst-1"
+                                        class="flex-1 bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]">
+                                        <option value="GEMINI">GEMINI</option>
+                                        <option value="CHATGPT">CHATGPT</option>
+                                        <option value="CLAUDE">CLAUDE</option>
+                                        <option value="OLLAMA">OLLAMA</option>
+                                    </select>
+                                    <select id="route-analyst-2"
+                                        class="flex-1 bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]">
+                                        <option value="NONE">None</option>
+                                        <option value="CHATGPT">CHATGPT</option>
+                                        <option value="GEMINI">GEMINI</option>
+                                        <option value="CLAUDE">CLAUDE</option>
+                                        <option value="OLLAMA">OLLAMA</option>
+                                    </select>
+                                </div>
+                                <!-- Risk -->
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] text-gray-500 w-16">Risk</span>
+                                    <select id="route-risk-1"
+                                        class="flex-1 bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]">
+                                        <option value="CHATGPT">CHATGPT</option>
+                                        <option value="CLAUDE">CLAUDE</option>
+                                        <option value="GEMINI">GEMINI</option>
+                                        <option value="OLLAMA">OLLAMA</option>
+                                    </select>
+                                    <select id="route-risk-2"
+                                        class="flex-1 bg-gray-900 text-white rounded p-1 border border-gray-700 text-[10px]">
+                                        <option value="NONE">None</option>
+                                        <option value="CLAUDE">CLAUDE</option>
+                                        <option value="CHATGPT">CHATGPT</option>
+                                        <option value="GEMINI">GEMINI</option>
+                                        <option value="OLLAMA">OLLAMA</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onclick="confirmUpdateConfig()" id="btn-update-config"
+                            class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition flex items-center justify-center gap-1.5 mt-2">
+                            <i class="fa-solid fa-rotate"></i> Apply & Restart
+                        </button>
+                    </div>
+                </div>
+
+                <!-- AI Code Monitor -->
+                <div class="card border border-purple-500/10">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-stethoscope text-pink-400"></i> Code Health
+                        </h3>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="triggerAIReview()" id="btn-review-now"
+                                class="px-2 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded text-[10px] font-bold transition">
+                                <i class="fa-solid fa-play"></i> Review
+                            </button>
+                            <button onclick="showReviewHistory()"
+                                class="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[10px] font-bold transition">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4 mb-3">
+                        <div class="text-center">
+                            <div id="ai-review-score" class="text-4xl font-bold text-gray-600">--</div>
+                            <div class="text-[10px] text-gray-600">/10</div>
+                        </div>
+                        <div class="flex-1">
+                            <div id="ai-review-status" class="text-[10px] font-mono text-gray-500 mb-1">Waiting...</div>
+                            <div id="ai-review-summary" class="text-xs text-gray-400 line-clamp-3">Waiting for first
+                                review...</div>
+                            <span class="text-[10px] text-gray-600" id="ai-review-time">--:--</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-[10px] font-bold text-yellow-500 uppercase mb-1 flex items-center gap-1">
+                            <i class="fa-solid fa-bolt"></i> Recommendations
+                        </h4>
+                        <ul id="ai-review-recs" class="list-disc list-inside text-[11px] text-gray-500 space-y-0.5">
+                            <li>Initializing...</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- AI Editor — SAFE Mode -->
+                <div class="card border border-emerald-500/10">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> AI Editor
+                        </h3>
+                        <div class="flex items-center gap-1.5">
+                            <span id="editor-health-badge"
+                                class="badge bg-gray-800 text-gray-500 border border-gray-700">
+                                <span class="pulse-dot bg-gray-500 mr-1"></span> NO DATA
+                            </span>
+                            <button onclick="forceAIEditorScan()" id="btn-editor-scan"
+                                class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition">
+                                <i class="fa-solid fa-search"></i> Scan
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Health Stats -->
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <div class="bg-black/30 rounded p-2 text-center">
+                            <div id="editor-wr" class="text-sm font-bold text-gray-400">--%</div>
+                            <div class="text-[9px] text-gray-600">Win Rate</div>
+                        </div>
+                        <div class="bg-black/30 rounded p-2 text-center">
+                            <div id="editor-errors" class="text-sm font-bold text-gray-400">0</div>
+                            <div class="text-[9px] text-gray-600">Errors</div>
+                        </div>
+                        <div class="bg-black/30 rounded p-2 text-center">
+                            <div id="editor-issues" class="text-sm font-bold text-gray-400">0</div>
+                            <div class="text-[9px] text-gray-600">Issues</div>
+                        </div>
+                    </div>
+                    <div class="text-[9px] text-gray-600 mb-2" id="editor-last-scan">Last scan: --</div>
+                    <!-- Proposals List -->
+                    <div>
+                        <h4 class="text-[10px] font-bold text-yellow-500 uppercase mb-1.5 flex items-center gap-1">
+                            <i class="fa-solid fa-file-pen"></i> Proposals
+                            <span id="editor-proposal-count" class="ml-auto text-gray-500 font-normal">0 pending</span>
+                        </h4>
+                        <div id="editor-proposals-list" class="space-y-2 max-h-[250px] overflow-y-auto">
+                            <div class="text-[10px] text-gray-600 italic py-2 text-center">No proposals yet</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🏛️ AI Council — Auto-Fixer (v3.3.0) -->
+                <div class="card border border-blue-500/20 bg-blue-500/5">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-sm font-bold flex items-center gap-2 text-blue-400">
+                            <i class="fa-solid fa-gavel"></i> AI Council
+                        </h3>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="showCouncilHistory()"
+                                class="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded text-[10px] font-bold transition">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- [v3.5.1] User Command Input -->
+                    <div class="mb-3">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase mb-1 block">
+                            <i class="fa-solid fa-terminal mr-1"></i> Send Command to AI Council
+                        </label>
+                        <textarea id="council-command-input"
+                            class="w-full bg-black/40 text-gray-200 text-xs rounded-lg p-2.5 border border-gray-700 focus:border-blue-500 focus:outline-none resize-none placeholder-gray-600"
+                            rows="2" placeholder="e.g. ลด AI_CONFIDENCE_THRESHOLD เหลือ 0.55 / เพิ่ม guard ใน bot.py ..."></textarea>
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <button onclick="sendCouncilCommand()" id="btn-council-command"
+                                class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold transition flex items-center gap-1.5 shadow-lg shadow-blue-600/10">
+                                <i class="fa-solid fa-paper-plane"></i> Execute
+                            </button>
+                            <span id="council-command-status" class="text-[10px] text-gray-500"></span>
+                        </div>
+                    </div>
+
+                    <div id="council-pending-container" class="space-y-2">
+                        <!-- Pending approvals will appear here -->
+                        <div class="text-[11px] text-gray-500 italic text-center py-2">
+                            No pending interventions
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stop Bot -->
+                <button onclick="confirmStopBot()"
+                    class="w-full py-2 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs font-bold transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-power-off"></i> STOP BOT
+                </button>
+            </div>
+        </div>
+
+        <!-- Review History Modal -->
+        <div id="history-modal"
+            class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div
+                class="bg-gray-900 border border-gray-700 rounded-xl w-11/12 max-w-4xl max-h-[85vh] flex flex-col p-5 relative">
+                <button onclick="closeReviewHistory()" class="absolute top-3 right-3 text-gray-400 hover:text-white"><i
+                        class="fa-solid fa-xmark fa-lg"></i></button>
+                <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-white">
+                    <i class="fa-solid fa-clock-rotate-left text-blue-400"></i> Code Review History
+                </h2>
+                <div class="overflow-auto flex-1">
+                    <table class="w-full text-xs text-left text-gray-300">
+                        <thead class="text-[10px] text-gray-500 uppercase bg-gray-800 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2">Time</th>
+                                <th class="px-3 py-2 text-center">Score</th>
+                                <th class="px-3 py-2">Status</th>
+                                <th class="px-3 py-2">Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody id="review-history-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trading History Modal -->
+        <div id="trading-history-modal"
+            class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div
+                class="bg-gray-900 border border-gray-700 rounded-xl w-11/12 max-w-4xl max-h-[85vh] flex flex-col p-5 relative">
+                <button onclick="closeTradingHistory()" class="absolute top-3 right-3 text-gray-400 hover:text-white"><i
+                        class="fa-solid fa-xmark fa-lg"></i></button>
+                <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-white">
+                    <i class="fa-solid fa-chart-line text-blue-400"></i> AI Analysis History
+                </h2>
+                <div class="overflow-auto flex-1 space-y-3" id="trading-history-body"></div>
+            </div>
+        </div>
+
+        <!-- Document Modal -->
+        <div id="doc-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div
+                class="bg-gray-900 border border-gray-700 rounded-xl w-11/12 max-w-4xl max-h-[85vh] flex flex-col p-5 relative">
+                <button onclick="closeDocModal()" class="absolute top-3 right-3 text-gray-400 hover:text-white"><i
+                        class="fa-solid fa-xmark fa-lg"></i></button>
+                <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-white">
+                    <i class="fa-solid fa-file-lines text-blue-400"></i> <span id="doc-title">Document</span>
+                </h2>
+                <div id="doc-content"
+                    class="overflow-auto flex-1 prose prose-invert max-w-none text-gray-300 text-sm p-4 bg-black/20 rounded">
+                    Loading...
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 🏛️ AI Council History Modal -->
+    <div id="council-history-modal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div
+            class="bg-gray-900 border border-gray-700 rounded-xl w-11/12 max-w-4xl max-h-[85vh] flex flex-col p-5 relative">
+            <button onclick="closeCouncilHistory()" class="absolute top-3 right-3 text-gray-400 hover:text-white"><i
+                    class="fa-solid fa-xmark fa-lg"></i></button>
+            <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-blue-400">
+                <i class="fa-solid fa-gavel"></i> AI Council History
+            </h2>
+            <div class="overflow-auto flex-1 space-y-3" id="council-history-body">
+                <!-- History records -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 🏛️ AI Council Approval Detail Modal -->
+    <div id="council-approval-modal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-[60]">
+        <div
+            class="bg-gray-900 border border-blue-900/50 rounded-xl w-11/12 max-w-2xl max-h-[85vh] flex flex-col p-6 relative shadow-2xl shadow-blue-900/20">
+            <button onclick="closeCouncilApproval()" class="absolute top-3 right-3 text-gray-400 hover:text-white"><i
+                    class="fa-solid fa-xmark fa-lg"></i></button>
+            <h2 class="text-xl font-bold mb-1 text-blue-400">AI Council Intervention</h2>
+            <p class="text-xs text-gray-500 mb-4 border-b border-gray-800 pb-2">Proposed code fix for critical event</p>
+
+            <div class="overflow-auto flex-1 space-y-4 pr-1">
+                <div>
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Problem Analysis</label>
+                    <p id="council-analysis"
+                        class="text-sm text-gray-300 bg-black/20 p-3 rounded mt-1 border border-gray-800"></p>
+                </div>
+
+                <div>
+                    <label class="text-[10px] uppercase font-bold text-gray-500">Proposed Changes</label>
+                    <div id="council-diff-container" class="mt-1 space-y-2">
+                        <!-- Diffs appear here -->
+                    </div>
+                </div>
+
+                <div class="bg-blue-900/10 border border-blue-500/20 p-3 rounded">
+                    <p class="text-[10px] uppercase font-bold text-blue-400 mb-1">AI Explanation (Thai)</p>
+                    <p id="council-thai-explanation" class="text-xs text-blue-200"></p>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button id="btn-council-approve"
+                    class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-lg shadow-blue-600/20">
+                    Approve & Restart
+                </button>
+                <button id="btn-council-reject"
+                    class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-lg transition">
+                    Reject
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Clock & Uptime ---
+        let botStartTs = 0;
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString();
+            if (botStartTs > 0) {
+                const diff = Math.floor((Date.now() / 1000) - botStartTs);
+                const h = Math.floor(diff / 3600);
+                const m = Math.floor((diff % 3600) / 60);
+                document.getElementById('uptime').innerText = `Uptime: ${h}h ${m}m`;
+            }
+        }
+        setInterval(updateClock, 1000);
+
+        // --- State Polling ---
+        async function fetchState() {
+            try {
+                const res = await fetch('/api/state');
+                const data = await res.json();
+                if (!data.updated_at) return;
+
+                // Balance
+                document.getElementById('balance').innerText = `$${data.balance.toFixed(2)}`;
+                document.getElementById('asset').innerText = data.current_asset || '---';
+                document.getElementById('strategy').innerText = data.current_strategy || '---';
+                document.getElementById('win-streak').innerText = data.win_streak || 0;
+                document.getElementById('loss-streak').innerText = data.loss_streak || 0;
+                document.getElementById('last-signal').innerText = data.last_signal || '---';
+
+                // Wins / Losses
+                const tw = data.total_wins || 0;
+                const tl = data.total_losses || 0;
+                document.getElementById('total-wins').innerText = tw;
+                document.getElementById('total-losses').innerText = tl;
+                const total = tw + tl;
+                const wr = total > 0 ? Math.round((tw / total) * 100) : 0;
+                document.getElementById('win-rate-bar').style.width = wr + '%';
+                document.getElementById('win-rate-text').innerText = `${wr}% Win Rate (${total} trades)`;
+                document.getElementById('total-trades-badge').innerHTML = `<i class="fa-solid fa-repeat mr-1"></i> ${total} trades`;
+
+                // Session P/L
+                const pl = data.profit || 0;
+                const plEl = document.getElementById('session-pl');
+                plEl.innerText = `${pl >= 0 ? '+' : ''}$${pl.toFixed(2)}`;
+                plEl.className = `stat-value mt-1 ${pl >= 0 ? 'text-green-400 glow-green' : 'text-red-400 glow-red'}`;
+
+                // Profit badge
+                const profitEl = document.getElementById('profit-badge');
+                profitEl.innerHTML = `<i class="fa-solid fa-arrow-trend-${pl >= 0 ? 'up' : 'down'} mr-1"></i> ${pl >= 0 ? '+' : ''}$${pl.toFixed(2)}`;
+                profitEl.className = `badge ${pl >= 0 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`;
+
+                // AI Pulse
+                const conf = data.ai_confidence || 0;
+                const confEl = document.getElementById('ai-confidence');
+                confEl.innerText = conf.toFixed(2);
+                confEl.className = `font-mono text-xs ${conf >= 0.8 ? 'text-green-400' : conf >= 0.6 ? 'text-yellow-400' : 'text-red-400'}`;
+
+                const regime = data.ai_regime || 'UNKNOWN';
+                const regimeEl = document.getElementById('ai-regime');
+                regimeEl.innerText = regime;
+                regimeEl.className = `font-mono text-xs ${regime === 'UPTREND' ? 'text-green-400' : regime === 'DOWNTREND' ? 'text-red-400' : 'text-gray-400'}`;
+
+                document.getElementById('ai-provider').innerText = data.ai_provider || '---';
+
+                // Bot start time
+                if (data.bot_start_ts) botStartTs = data.bot_start_ts;
+
+                // Last trade time
+                if (data.last_trade_ts && data.last_trade_ts > 0) {
+                    const d = new Date(data.last_trade_ts * 1000);
+                    document.getElementById('last-trade-time').innerText = `Last: ${d.toLocaleTimeString()}`;
+                }
+
+                // Version
+                if (data.version) {
+                    document.getElementById('header-version').innerText = `v${data.version}`;
+                    const vTitle = document.getElementById('header-version-title');
+                    if (vTitle) vTitle.innerText = `v${data.version}`;
+                }
+
+                // Cooldown
+                const cdUntil = data.cooldown_until || 0;
+                const now = Date.now() / 1000;
+                const cdIndicator = document.getElementById('cooldown-indicator');
+                const cdBarContainer = document.getElementById('cooldown-bar-container');
+                if (cdUntil > now) {
+                    const remaining = Math.ceil(cdUntil - now);
+                    const mins = Math.floor(remaining / 60);
+                    const secs = remaining % 60;
+                    document.getElementById('cooldown-text').innerText = `HOLD ${mins}:${secs.toString().padStart(2, '0')}`;
+                    document.getElementById('cooldown-reason').innerText = data.cooldown_reason || '';
+                    cdIndicator.classList.remove('hidden');
+                    cdBarContainer.classList.remove('hidden');
+                    document.getElementById('status-text').innerText = 'PAUSED';
+                    document.getElementById('status-badge').className = 'badge bg-yellow-500/10 text-yellow-400 border border-yellow-500/20';
+                    document.querySelector('#status-badge .pulse-dot').className = 'pulse-dot bg-yellow-400 mr-1.5';
+                } else {
+                    cdIndicator.classList.add('hidden');
+                    cdBarContainer.classList.add('hidden');
+                    document.getElementById('status-text').innerText = 'RUNNING';
+                    document.getElementById('status-badge').className = 'badge bg-green-500/10 text-green-400 border border-green-500/20';
+                    document.querySelector('#status-badge .pulse-dot').className = 'pulse-dot bg-green-400 mr-1.5';
+                }
+
+                // Logs
+                const logBox = document.getElementById('console-logs');
+                if (data.recent_logs && data.recent_logs.length > 0) {
+                    logBox.innerHTML = data.recent_logs.map(l => `<div>${l}</div>`).join('');
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+
+                // Trade History
+                if (data.trade_history) renderTradeHistory(data.trade_history);
+
+                // Intelligence (inline from state)
+                if (data.intelligence && data.intelligence.score > 0) updateIntelUI(data.intelligence);
+
+            } catch (err) { console.error("Fetch error:", err); }
+        }
+
+        function renderTradeHistory(trades) {
+            const tbody = document.getElementById('history-table-body');
+            if (!trades || trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3 text-gray-600 italic text-xs">No trades yet...</td></tr>';
+                return;
+            }
+            const sorted = [...trades].reverse();
+            tbody.innerHTML = sorted.map(t => {
+                const isWin = t.result === 'WIN';
+                const p = typeof t.profit === 'number' ? t.profit : parseFloat(t.profit) || 0;
+                const profitStr = (p >= 0 ? '+' : '') + '$' + Math.abs(p).toFixed(2);
+                const profitColor = p >= 0 ? 'text-green-400' : 'text-red-400';
+                return `<tr class="border-b border-gray-800/50 hover:bg-gray-800/20 transition">
+                    <td class="px-3 py-2 font-mono text-[10px] text-gray-500">${t.time}</td>
+                    <td class="px-3 py-2 font-bold text-white text-xs">${t.asset}</td>
+                    <td class="px-3 py-2 text-[10px] text-gray-400">${t.strategy}</td>
+                    <td class="px-3 py-2 text-center"><span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${isWin ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}">${t.result}</span></td>
+                    <td class="px-3 py-2 text-right font-mono font-bold text-xs ${profitColor}">${profitStr}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // --- Log Viewer ---
+        const logSelect = document.getElementById('log-file-select');
+        const logContent = document.getElementById('log-viewer-content');
+
+        async function fetchLogFiles() {
+            try {
+                const res = await fetch('/api/logs/list');
+                const files = await res.json();
+                const cur = logSelect.value;
+                logSelect.innerHTML = '<option value="">Select file...</option>' + files.map(f => `<option value="${f}">${f}</option>`).join('');
+                if (cur && files.includes(cur)) logSelect.value = cur;
+            } catch (err) { console.error("Fetch logs error:", err); }
+        }
+
+        async function fetchLogContent(filename) {
+            if (!filename) { logContent.value = ""; return; }
+            try {
+                logContent.value = "Loading...";
+                const res = await fetch(`/api/logs/read/${filename}`);
+                const data = await res.json();
+                logContent.value = data.error ? `Error: ${data.error}` : data.content;
+                logContent.scrollTop = logContent.scrollHeight;
+            } catch (err) { logContent.value = `Error: ${err}`; }
+        }
+
+        function refreshLogViewer() { fetchLogFiles(); if (logSelect.value) fetchLogContent(logSelect.value); }
+        logSelect.addEventListener('change', e => fetchLogContent(e.target.value));
+
+        // --- AI Summary ---
+        async function requestAISummary() {
+            const hours = document.getElementById('time-range').value;
+            const btn = document.getElementById('btn-analyze');
+            const div = document.getElementById('ai-summary-content');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> ...';
+            div.innerHTML = '<p class="text-purple-400 animate-pulse text-xs">Analyzing logs...</p>';
+            try {
+                const res = await fetch(`/api/ai_summary/${hours}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.summary) div.innerHTML = marked.parse(cleanAIResponse(data.summary));
+                else if (data.error) div.innerHTML = `<p class="text-red-500 text-xs">Error: ${data.error}</p>`;
+            } catch (err) { div.innerHTML = `<p class="text-red-500 text-xs">Network Error</p>`; }
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Analyze'; }
+        }
+
+        // --- AI Review ---
+        async function fetchAIReview() {
+            try {
+                const res = await fetch('/api/ai_review');
+                const data = await res.json();
+                if (data.score !== undefined) {
+                    const scoreEl = document.getElementById('ai-review-score');
+                    scoreEl.innerText = data.score;
+                    if (data.score >= 8) scoreEl.className = "text-4xl font-bold text-green-500 glow-green";
+                    else if (data.score >= 5) scoreEl.className = "text-4xl font-bold text-yellow-500";
+                    else scoreEl.className = "text-4xl font-bold text-red-500 animate-pulse";
+                    document.getElementById('ai-review-status').innerText = (data.status || "Active").toUpperCase();
+                    document.getElementById('ai-review-summary').innerText = data.summary_thai || data.summary || "No summary.";
+                    document.getElementById('ai-review-time').innerText = data.last_check || "--:--";
+                    const list = document.getElementById('ai-review-recs');
+                    if (data.recommendations && data.recommendations.length > 0) list.innerHTML = data.recommendations.map(r => `<li>${r}</li>`).join('');
+                    else list.innerHTML = "<li class='text-green-400'>System healthy.</li>";
+                }
+            } catch (err) { console.error("AI Review Error", err); }
+        }
+
+        async function triggerAIReview() {
+            const btn = document.getElementById('btn-review-now');
+            if (!confirm("Start AI Code Review? (~10-20s)")) return;
+            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            try {
+                const res = await fetch('/api/ai_review/run', { method: 'POST' });
+                const data = await res.json();
+                if (data.error) alert("Error: " + data.error);
+                else await fetchAIReview();
+            } catch (err) { alert("Network Error"); }
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-play"></i> Review'; }
+        }
+
+        // --- Modals ---
+        async function showReviewHistory() {
+            document.getElementById('history-modal').classList.remove('hidden');
+            document.getElementById('history-modal').classList.add('flex');
+            const tbody = document.getElementById('review-history-body');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-3 text-gray-500 text-xs">Loading...</td></tr>';
+            try {
+                const res = await fetch('/api/ai_review/history');
+                const history = await res.json();
+                if (!history || !history.length) { tbody.innerHTML = '<tr><td colspan="4" class="text-center py-3 text-gray-500 text-xs">No history.</td></tr>'; return; }
+                history.reverse();
+                tbody.innerHTML = history.map(h => {
+                    let sc = h.score >= 8 ? 'text-green-400' : h.score >= 5 ? 'text-yellow-400' : 'text-red-400';
+                    return `<tr class="border-b border-gray-800 hover:bg-gray-800/30"><td class="px-3 py-2 font-mono text-[10px] text-gray-500">${h.last_check || '-'}</td><td class="px-3 py-2 text-center font-bold ${sc}">${h.score}</td><td class="px-3 py-2 uppercase text-[10px]">${h.status}</td><td class="px-3 py-2 text-gray-400 text-[11px]">${h.summary_thai || h.summary || '-'}</td></tr>`;
+                }).join('');
+            } catch (e) { tbody.innerHTML = `<tr><td colspan="4" class="text-center py-3 text-red-500 text-xs">Error</td></tr>`; }
+        }
+        function closeReviewHistory() { document.getElementById('history-modal').classList.add('hidden'); document.getElementById('history-modal').classList.remove('flex'); }
+
+        async function showTradingHistory() {
+            document.getElementById('trading-history-modal').classList.remove('hidden');
+            document.getElementById('trading-history-modal').classList.add('flex');
+            const c = document.getElementById('trading-history-body');
+            c.innerHTML = '<div class="text-center py-3 text-gray-500 text-xs">Loading...</div>';
+            try {
+                const res = await fetch('/api/ai_summary/history');
+                const history = await res.json();
+                if (!history || !history.length) { c.innerHTML = '<div class="text-center py-3 text-gray-500 text-xs">No history.</div>'; return; }
+                history.reverse();
+                c.innerHTML = history.map(h => `<div class="bg-gray-800 p-3 rounded border border-gray-700"><div class="text-[10px] text-blue-400 font-mono mb-2 border-b border-gray-700 pb-1">${h.timestamp || '-'}</div><div class="text-gray-300 text-xs prose prose-invert max-w-none">${marked.parse(cleanAIResponse(h.summary || ''))}</div></div>`).join('');
+            } catch (e) { c.innerHTML = `<div class="text-center py-3 text-red-500 text-xs">Error</div>`; }
+        }
+        function closeTradingHistory() { document.getElementById('trading-history-modal').classList.add('hidden'); document.getElementById('trading-history-modal').classList.remove('flex'); }
+
+        // --- AI Editor ---
+        async function fetchAIEditorStatus() {
+            try {
+                const res = await fetch('/api/ai-editor/status');
+                const data = await res.json();
+                const badge = document.getElementById('editor-health-badge');
+                const status = data.status || 'NO_DATA';
+                const map = {
+                    'HEALTHY': { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/20', dot: 'bg-green-400' },
+                    'WARNING': { bg: 'bg-yellow-500/10', text: 'text-yellow-400', border: 'border-yellow-500/20', dot: 'bg-yellow-400' },
+                    'CRITICAL': { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/20', dot: 'bg-red-400' },
+                };
+                const s = map[status] || { bg: 'bg-gray-800', text: 'text-gray-500', border: 'border-gray-700', dot: 'bg-gray-500' };
+                badge.className = `badge ${s.bg} ${s.text} border ${s.border}`;
+                badge.innerHTML = `<span class="pulse-dot ${s.dot} mr-1"></span> ${status}`;
+                if (data.stats) {
+                    document.getElementById('editor-wr').innerText = (data.stats.win_rate || 0) + '%';
+                    document.getElementById('editor-errors').innerText = data.stats.errors || 0;
+                    document.getElementById('editor-issues').innerText = (data.issues || []).length;
+                }
+                if (data.timestamp) {
+                    const t = new Date(data.timestamp);
+                    document.getElementById('editor-last-scan').innerText = `Last scan: ${t.toLocaleTimeString()}`;
+                }
+            } catch (err) { console.error('AI Editor status error:', err); }
+        }
+
+        async function fetchAIEditorProposals() {
+            try {
+                const res = await fetch('/api/ai-editor/proposals');
+                const data = await res.json();
+                const list = document.getElementById('editor-proposals-list');
+                const proposals = data.proposals || [];
+                const pending = proposals.filter(p => p.status === 'PENDING');
+                document.getElementById('editor-proposal-count').innerText = `${pending.length} pending`;
+
+                if (!proposals.length) {
+                    list.innerHTML = '<div class="text-[10px] text-gray-600 italic py-2 text-center">No proposals yet</div>';
+                    return;
+                }
+                list.innerHTML = proposals.slice(0, 10).map(p => {
+                    const prop = p.proposal || {};
+                    const risk = prop.risk_level || '?';
+                    const riskColor = risk === 'LOW' ? 'text-green-400' : risk === 'MEDIUM' ? 'text-yellow-400' : 'text-red-400';
+                    const statusColor = p.status === 'PENDING' ? 'text-yellow-400' : p.status === 'APPLIED' ? 'text-green-400' : 'text-gray-500';
+                    const changes = (prop.changes || []).length;
+                    return `<div class="bg-black/30 rounded p-2 border border-gray-800">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-[10px] font-bold text-white truncate flex-1">${prop.title || p.id}</span>
+                            <span class="text-[9px] ${statusColor} font-bold ml-2">${p.status}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-[9px] text-gray-500 mb-1.5">
+                            <span class="${riskColor}">Risk: ${risk}</span>
+                            <span>${changes} changes</span>
+                            <span>${p.id}</span>
+                        </div>
+                        ${p.status === 'PENDING' ? `<div class="flex gap-1.5">
+                            <button onclick="viewProposal('${p.id}')" class="flex-1 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-[9px] font-bold transition">
+                                <i class="fa-solid fa-eye"></i> View
+                            </button>
+                            <button onclick="approveProposal('${p.id}')" class="flex-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[9px] font-bold transition">
+                                <i class="fa-solid fa-check"></i> Approve
+                            </button>
+                            <button onclick="rejectProposal('${p.id}')" class="flex-1 px-2 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-[9px] font-bold transition">
+                                <i class="fa-solid fa-xmark"></i> Reject
+                            </button>
+                        </div>` : ''}
+                    </div>`;
+                }).join('');
+            } catch (err) { console.error('AI Editor proposals error:', err); }
+        }
+
+        let _editorProposalsCache = [];
+        async function viewProposal(id) {
+            const modal = document.getElementById('proposal-modal');
+            const body = document.getElementById('proposal-modal-body');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            body.innerHTML = '<div class="text-center py-4 text-gray-500"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>';
+            try {
+                const res = await fetch('/api/ai-editor/proposals');
+                const data = await res.json();
+                _editorProposalsCache = data.proposals || [];
+                const p = _editorProposalsCache.find(x => x.id === id);
+                if (!p) { body.innerHTML = '<p class="text-red-500">Proposal not found</p>'; return; }
+                const prop = p.proposal || {};
+                const changes = prop.changes || [];
+                body.innerHTML = `
+                    <div class="mb-4">
+                        <h4 class="text-base font-bold text-white mb-1">${prop.title || id}</h4>
+                        <div class="flex gap-3 text-[10px] text-gray-400">
+                            <span>ID: ${p.id}</span>
+                            <span>Health: ${p.health_status}</span>
+                            <span class="${prop.risk_level === 'LOW' ? 'text-green-400' : prop.risk_level === 'MEDIUM' ? 'text-yellow-400' : 'text-red-400'}">Risk: ${prop.risk_level}</span>
+                            <span>AI Consensus: ${(p.consensus || {}).fix_now_count || 0} votes</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <h5 class="text-[10px] font-bold text-blue-400 uppercase mb-1">Expected Impact</h5>
+                        <p class="text-xs text-gray-300">${prop.expected_impact || 'N/A'}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h5 class="text-[10px] font-bold text-yellow-400 uppercase mb-1">Rollback Plan</h5>
+                        <p class="text-xs text-gray-300">${prop.rollback_plan || 'N/A'}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h5 class="text-[10px] font-bold text-emerald-400 uppercase mb-2">Changes (${changes.length})</h5>
+                        <div class="space-y-2">
+                            ${changes.map((c, i) => `<div class="bg-black/40 p-2.5 rounded border border-gray-700">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-[9px] font-bold text-purple-400">${c.file || '?'}</span>
+                                    <span class="text-[9px] px-1.5 py-0.5 rounded ${c.type === 'CONFIG_CHANGE' ? 'bg-blue-500/10 text-blue-400' : 'bg-orange-500/10 text-orange-400'}">${c.type || '?'}</span>
+                                </div>
+                                <p class="text-[11px] text-gray-300 mb-1">${c.description || ''}</p>
+                                ${c.variable ? `<div class="font-mono text-[10px]"><span class="text-red-400 line-through">${c.variable} = ${c.old_value}</span><br><span class="text-green-400">${c.variable} = ${c.new_value}</span></div>` : `<div class="font-mono text-[10px]"><span class="text-red-400">- ${(c.old_value || '').substring(0, 100)}</span><br><span class="text-green-400">+ ${(c.new_value || '').substring(0, 100)}</span></div>`}
+                            </div>`).join('')}
+                        </div>
+                    </div>
+                    ${p.status === 'PENDING' ? `<div class="flex gap-2 pt-2 border-t border-gray-700">
+                        <button onclick="approveProposal('${p.id}')" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition">
+                            <i class="fa-solid fa-check mr-1"></i> Approve & Apply
+                        </button>
+                        <button onclick="rejectProposal('${p.id}')" class="flex-1 py-2 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs font-bold transition">
+                            <i class="fa-solid fa-xmark mr-1"></i> Reject
+                        </button>
+                    </div>` : `<div class="text-center text-sm font-bold ${p.status === 'APPLIED' ? 'text-green-400' : 'text-gray-500'}">${p.status}</div>`}
+                `;
+            } catch (err) { body.innerHTML = `<p class="text-red-500">Error: ${err}</p>`; }
+        }
+        function closeProposalModal() {
+            document.getElementById('proposal-modal').classList.add('hidden');
+            document.getElementById('proposal-modal').classList.remove('flex');
+        }
+
+        async function approveProposal(id) {
+            if (!confirm(`Approve proposal ${id}?\n\nConfig changes will be applied (with backup).\nLogic changes will be shown but NOT auto-applied.`)) return;
+            try {
+                const res = await fetch(`/api/ai-editor/proposals/${id}/apply`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`Applied: ${data.applied} changes, Skipped: ${data.skipped}\n${data.details ? data.details.map(d => d.reason).join('\n') : ''}`);
+                } else { alert('Error: ' + (data.error || 'Unknown')); }
+                fetchAIEditorProposals();
+                closeProposalModal();
+            } catch (err) { alert('Network Error'); }
+        }
+
+        async function rejectProposal(id) {
+            if (!confirm(`Reject proposal ${id}?`)) return;
+            try {
+                const res = await fetch(`/api/ai-editor/proposals/${id}/reject`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) alert('Proposal rejected.');
+                else alert('Error: ' + (data.error || 'Unknown'));
+                fetchAIEditorProposals();
+                closeProposalModal();
+            } catch (err) { alert('Network Error'); }
+        }
+
+        async function forceAIEditorScan() {
+            const btn = document.getElementById('btn-editor-scan');
+            if (!confirm('Force AI Editor health scan now?')) return;
+            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            try {
+                const res = await fetch('/api/ai-editor/scan', { method: 'POST' });
+                const data = await res.json();
+                alert(`Scan: ${data.status}\nIssues: ${data.issues || 0}${data.proposal_id ? '\nProposal: ' + data.proposal_id : ''}`);
+                fetchAIEditorStatus();
+                fetchAIEditorProposals();
+            } catch (err) { alert('Network Error'); }
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-search"></i> Scan'; }
+        }
+
+        // --- Helpers ---
+        function cleanAIResponse(text) {
+            if (!text) return "";
+            let c = text;
+            c = c.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "");
+            c = c.replace(/<html[^>]*>/gi, "").replace(/<\/html>/gi, "");
+            c = c.replace(/<body[^>]*>/gi, "").replace(/<\/body>/gi, "");
+            return c.trim();
+        }
+
+        function confirmStopBot() {
+            if (confirm('Stop the bot? You can restart from Configuration panel.')) {
+                fetch('/api/config/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance_type: 'PRACTICE', active_profile: 'TIER_1', profit_target: 0, stop_only: true }) });
+                alert('Stop signal sent.');
+            }
+        }
+
+        // --- Intelligence Level ---
+        function updateIntelUI(d) {
+            if (!d || d.score === undefined) return;
+            const score = d.score || 0;
+            const ring = document.getElementById('intel-ring');
+            ring.setAttribute('stroke-dasharray', `${score}, 100`);
+            const color = score >= 80 ? '#22c55e' : score >= 60 ? '#3b82f6' : score >= 40 ? '#eab308' : score >= 20 ? '#f97316' : '#64748b';
+            ring.setAttribute('stroke', color);
+            const scoreEl = document.getElementById('intel-score');
+            scoreEl.innerText = score;
+            scoreEl.style.color = color;
+            document.getElementById('intel-emoji').innerText = d.level_emoji || '🐣';
+            document.getElementById('intel-level').innerText = d.level_name || 'Newborn';
+            document.getElementById('intel-desc').innerText = d.description || '';
+            if (d.timestamp) document.getElementById('intel-timestamp').innerText = d.timestamp;
+            const compMap = [
+                { key: 'win_rate', cls: 'bg-green-500', max: 30 },
+                { key: 'rl_maturity', cls: 'bg-blue-500', max: 25 },
+                { key: 'experience', cls: 'bg-purple-500', max: 15 },
+                { key: 'profit_factor', cls: 'bg-yellow-500', max: 15 },
+                { key: 'consistency', cls: 'bg-cyan-500', max: 15 },
+            ];
+            const rows = document.getElementById('intel-components').children;
+            compMap.forEach((c, i) => {
+                if (!rows[i] || !d.components || !d.components[c.key]) return;
+                const comp = d.components[c.key];
+                const pct = Math.min(100, (comp.score / c.max) * 100);
+                const bar = rows[i].querySelector('.' + c.cls.replace(/\//g, '\\/'));
+                if (bar) bar.style.width = pct + '%';
+                const lbl = rows[i].querySelector('.w-10');
+                if (lbl) lbl.innerText = `${comp.score}/${c.max}`;
+            });
+        }
+        async function fetchIntelligence() {
+            try {
+                const res = await fetch('/api/intelligence');
+                const d = await res.json();
+                updateIntelUI(d);
+            } catch (err) { console.error('Intel error:', err); }
+        }
+
+        // --- Config ---
+        async function fetchConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const cfg = await res.json();
+
+                // Populate Config Form
+                if (document.getElementById('config-active-profile')) {
+                    document.getElementById('config-active-profile').value = cfg.active_profile || 'TIER_1';
+                    document.getElementById('config-balance-type').value = cfg.balance_type || 'PRACTICE';
+                    document.getElementById('config-profit-target').value = cfg.profit_target || 5.0;
+
+                    if (document.getElementById('config-ai-routing')) {
+                        document.getElementById('config-ai-routing').checked = cfg.ai_routing;
+                    }
+
+                    // [v3.4.1] Strategy Tuning
+                    if (cfg.min_stake !== undefined) document.getElementById('config-min-stake').value = cfg.min_stake;
+                    if (cfg.l2_threshold !== undefined) document.getElementById('config-l2-threshold').value = cfg.l2_threshold;
+                    if (cfg.scan_interval !== undefined) document.getElementById('config-scan-interval').value = cfg.scan_interval;
+                    if (cfg.allow_put !== undefined) document.getElementById('config-allow-put').checked = cfg.allow_put;
+
+                    // [v3.2.12] AI Task Routing
+                    if (cfg.ai_task_routing) {
+                        const tr = cfg.ai_task_routing;
+                        if (tr.ASSET_SCANNER && document.getElementById('route-scanner-1')) {
+                            document.getElementById('route-scanner-1').value = tr.ASSET_SCANNER[0] || 'GEMINI';
+                            document.getElementById('route-scanner-2').value = tr.ASSET_SCANNER[1] || 'NONE';
+                        }
+                        if (tr.TREND_FILTER && document.getElementById('route-filter-1')) {
+                            document.getElementById('route-filter-1').value = tr.TREND_FILTER[0] || 'CHATGPT';
+                            document.getElementById('route-filter-2').value = tr.TREND_FILTER[1] || 'NONE';
+                        }
+                        if (tr.AI_ANALYST && document.getElementById('route-analyst-1')) {
+                            document.getElementById('route-analyst-1').value = tr.AI_ANALYST[0] || 'GEMINI';
+                            document.getElementById('route-analyst-2').value = tr.AI_ANALYST[1] || 'NONE';
+                        }
+                        if (tr.BET_GATE && document.getElementById('route-risk-1')) {
+                            document.getElementById('route-risk-1').value = tr.BET_GATE[0] || 'CHATGPT';
+                            document.getElementById('route-risk-2').value = tr.BET_GATE[1] || 'NONE';
+                        }
+                    }
+                }
+
+            } catch (err) { console.error('Config fetch error:', err); }
+        }
+
+        async function fetchCurrentConfig() {
+            // Alias for init
+            await fetchConfig();
+        }
+
+        async function confirmUpdateConfig() {
+            if (!confirm("⚠️ This will RESTART the bot execution.\n\nAre you sure you want to apply new settings?")) return;
+
+            const bal = document.getElementById('config-balance-type').value;
+            const prof = document.getElementById('config-active-profile').value;
+            const targ = parseFloat(document.getElementById('config-profit-target').value);
+            const ai_route = document.getElementById('config-ai-routing').checked;
+
+            // [v3.2.12] AI Task Routing
+            const task_routing = {
+                "ASSET_SCANNER": [document.getElementById('route-scanner-1').value],
+                "TREND_FILTER": [document.getElementById('route-filter-1').value],
+                "AI_ANALYST": [document.getElementById('route-analyst-1').value],
+                "BET_GATE": [document.getElementById('route-risk-1').value],
+                "RISK_MANAGER": [document.getElementById('route-risk-1').value]
+            };
+
+            if (document.getElementById('route-scanner-2').value !== "NONE") task_routing.ASSET_SCANNER.push(document.getElementById('route-scanner-2').value);
+            if (document.getElementById('route-filter-2').value !== "NONE") task_routing.TREND_FILTER.push(document.getElementById('route-filter-2').value);
+            if (document.getElementById('route-analyst-2').value !== "NONE") task_routing.AI_ANALYST.push(document.getElementById('route-analyst-2').value);
+            if (document.getElementById('route-risk-2').value !== "NONE") {
+                task_routing.BET_GATE.push(document.getElementById('route-risk-2').value);
+                task_routing.RISK_MANAGER.push(document.getElementById('route-risk-2').value);
+            }
+
+            try {
+                const btn = document.getElementById('btn-update-config');
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Restarting...';
+                btn.disabled = true;
+
+                const res = await fetch('/api/config/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        balance_type: bal,
+                        active_profile: prof,
+                        profit_target: targ,
+                        ai_routing: ai_route,
+                        ai_task_routing: task_routing,
+                        min_stake: parseFloat(document.getElementById('config-min-stake').value),
+                        l2_threshold: parseFloat(document.getElementById('config-l2-threshold').value),
+                        allow_put: document.getElementById('config-allow-put').checked,
+                        scan_interval: parseInt(document.getElementById('config-scan-interval').value)
+                    })
+                });
+
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert("✅ " + data.message);
+                } else {
+                    alert("❌ Error: " + data.error);
+                }
+                btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Apply & Restart';
+                btn.disabled = false;
+                fetchConfig();
+            } catch (err) {
+                console.error('Update error:', err);
+                alert("❌ Update failed!");
+                const btn = document.getElementById('btn-update-config');
+                btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Apply & Restart';
+                btn.disabled = false;
+            }
+        }
+
+        // --- Init ---
+        fetchConfig();
+        setInterval(fetchState, 1500);
+        fetchState();
+        setInterval(fetchAIReview, 30000);
+        fetchAIReview();
+        setInterval(fetchIntelligence, 30000);
+        fetchIntelligence();
+        setInterval(fetchAIEditorStatus, 15000);
+        fetchAIEditorStatus();
+        setInterval(fetchAIEditorProposals, 30000);
+        fetchAIEditorProposals();
+        fetchLogFiles();
+        fetchCurrentConfig();
+        async function showDoc(filename) {
+            const modal = document.getElementById('doc-modal');
+            const title = document.getElementById('doc-title');
+            const content = document.getElementById('doc-content');
+            title.innerText = filename;
+            content.innerHTML = '<div class="flex items-center gap-2 py-4"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            try {
+                const res = await fetch(`/api/docs/${filename}`);
+                const data = await res.json();
+                if (data.content) {
+                    content.innerHTML = marked.parse(cleanAIResponse(data.content));
+                } else {
+                    content.innerHTML = `<p class="text-red-500">Error: ${data.error || 'Failed to load'}</p>`;
+                }
+            } catch (err) {
+                content.innerHTML = `<p class="text-red-500">Network Error</p>`;
+            }
+        }
+
+        function closeDocModal() {
+            document.getElementById('doc-modal').classList.add('hidden');
+            document.getElementById('doc-modal').classList.remove('flex');
+        }
+
+        function scrollToLogViewer() {
+            document.getElementById('console-logs').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+    <!-- AI Status Modal -->
+    <div id="ai-status-modal"
+        class="hidden fixed inset-0 bg-black/80 z-50 items-center justify-center backdrop-blur-sm">
+        <div class="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-lg w-full relative shadow-2xl">
+            <button onclick="closeAIStatusModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+                <i class="fa-solid fa-xmark fa-lg"></i>
+            </button>
+            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-robot text-purple-400"></i> AI Connectivity Check
+            </h3>
+
+            <div id="ai-status-content" class="space-y-4">
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fa-solid fa-circle-notch fa-spin fa-2x mb-2"></i>
+                    <p>Pinging AI Services...</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="checkAIStatus()"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold transition">
+                    <i class="fa-solid fa-rotate-right"></i> Re-Test
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openAIStatusModal() {
+            document.getElementById('ai-status-modal').classList.remove('hidden');
+            document.getElementById('ai-status-modal').classList.add('flex');
+            checkAIStatus();
+        }
+
+        function closeAIStatusModal() {
+            document.getElementById('ai-status-modal').classList.add('hidden');
+            document.getElementById('ai-status-modal').classList.remove('flex');
+        }
+
+        async function checkAIStatus() {
+            const content = document.getElementById('ai-status-content');
+            content.innerHTML = '<div class="text-center py-8 text-gray-500"><i class="fa-solid fa-circle-notch fa-spin fa-2x mb-2"></i><p>Pinging AI Services...</p></div>';
+
+            try {
+                const res = await fetch('/api/test_ai', { method: 'POST' });
+                const data = await res.json();
+
+                let html = '<div class="grid gap-3">';
+                for (const [provider, info] of Object.entries(data)) {
+                    const statusColor = info.status === 'OK' ? 'text-green-400' : 'text-red-400';
+                    const statusIcon = info.status === 'OK' ? 'fa-check-circle' : 'fa-triangle-exclamation';
+                    const latencyColor = info.latency_ms < 500 ? 'text-green-400' : info.latency_ms < 1500 ? 'text-yellow-400' : 'text-red-400';
+
+                    html += `
+                    <div class="bg-black/40 p-3 rounded border border-gray-700 flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-sm uppercase tracking-wider ${statusColor}">
+                                <i class="fa-solid ${statusIcon}"></i> ${provider}
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">${info.model || 'Unknown Model'}</div>
+                            <div class="text-xs text-gray-400 mt-0.5">${info.message}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xl font-mono font-bold ${latencyColor}">${info.latency_ms}ms</div>
+                            <div class="text-[10px] text-gray-600 uppercase">Latency</div>
+                        </div>
+                    </div>`;
+                }
+                html += '</div>';
+                content.innerHTML = html;
+            } catch (e) {
+                content.innerHTML = `<div class="text-center py-8 text-red-500"><i class="fa-solid fa-triangle-exclamation fa-2x mb-2"></i><p>Connection Failed</p></div>`;
+            }
+        }
+    </script>
+
+    <!-- AI Editor Proposal Detail Modal -->
+    <div id="proposal-modal" class="hidden fixed inset-0 bg-black/80 z-50 items-center justify-center backdrop-blur-sm">
+        <div
+            class="bg-gray-900 border border-gray-700 rounded-xl w-11/12 max-w-3xl max-h-[85vh] flex flex-col p-5 relative">
+            <button onclick="closeProposalModal()" class="absolute top-3 right-3 text-gray-400 hover:text-white">
+                <i class="fa-solid fa-xmark fa-lg"></i>
+            </button>
+            <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-white">
+                <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> Proposal Detail
+            </h2>
+            <div id="proposal-modal-body" class="overflow-auto flex-1">
+                <div class="text-center py-8 text-gray-500">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- AI COUNCIL LOGIC (v3.3.0) ---
+        let _currentCouncilProp = null;
+
+        async function fetchCouncil() {
+            try {
+                const res = await fetch('/api/council/pending');
+                const data = await res.json();
+                renderCouncilPending(data.pending || []);
+            } catch (err) { console.error("Council fetch error:", err); }
+        }
+
+        function renderCouncilPending(pending) {
+            const container = document.getElementById('council-pending-container');
+            if (pending.length === 0) {
+                container.innerHTML = '<div class="text-[11px] text-gray-500 italic text-center py-2">No pending interventions</div>';
+                return;
+            }
+
+            container.innerHTML = pending.map(p => `
+                <div class="bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 cursor-pointer hover:bg-blue-900/20 transition"
+                     onclick="openCouncilApproval('${p.id}')">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">${p.id}</span>
+                        <span class="badge bg-yellow-500/20 text-yellow-400 text-[9px] px-1.5 py-0">PENDING</span>
+                    </div>
+                    <div class="text-xs font-bold text-white truncate">${p.proposal.title}</div>
+                    <div class="text-[10px] text-gray-500 mt-1 line-clamp-2">${p.context.error}</div>
+                </div>
+            `).join('');
+        }
+
+        async function openCouncilApproval(id) {
+            try {
+                const res = await fetch('/api/council/pending');
+                const data = await res.json();
+                const prop = data.pending.find(p => p.id === id);
+                if (!prop) return;
+
+                _currentCouncilProp = prop;
+                document.getElementById('council-analysis').innerText = prop.proposal.analysis;
+                document.getElementById('council-thai-explanation').innerText = prop.proposal.explanation;
+
+                // Render Diffs
+                const diffContainer = document.getElementById('council-diff-container');
+                diffContainer.innerHTML = prop.proposal.changes.map(c => `
+                    <div class="text-[10px] bg-black/40 border border-gray-800 rounded overflow-hidden">
+                        <div class="bg-gray-800 px-2 py-1 text-gray-400 font-bold border-b border-gray-700 flex justify-between">
+                            <span>${c.file}</span>
+                            <span class="text-blue-400">${c.type}</span>
+                        </div>
+                        <div class="p-2 space-y-2">
+                            <div class="text-gray-500 italic mb-1">${c.description}</div>
+                            <div class="grid grid-cols-1 gap-1">
+                                <div class="bg-red-900/10 p-1.5 border-l-2 border-red-500 text-red-300 font-mono text-[9px] line-through">${c.search_snippet}</div>
+                                <div class="bg-green-900/10 p-1.5 border-l-2 border-green-500 text-green-300 font-mono text-[9px]">${c.replace_snippet}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                document.getElementById('btn-council-approve').onclick = () => approveCouncilProposal(id);
+                document.getElementById('btn-council-reject').onclick = () => rejectCouncilProposal(id);
+
+                document.getElementById('council-approval-modal').classList.remove('hidden');
+                document.getElementById('council-approval-modal').classList.add('flex');
+            } catch (err) { console.error("Error opening approval:", err); }
+        }
+
+        function closeCouncilApproval() {
+            document.getElementById('council-approval-modal').classList.add('hidden');
+            document.getElementById('council-approval-modal').classList.remove('flex');
+        }
+
+        async function approveCouncilProposal(id) {
+            if (!confirm('ยืนยันที่จะแก้ไขโค้ดและ Restart บอท?')) return;
+            try {
+                const res = await fetch('/api/council/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ อนุมัติสำเร็จ! บอทกำลังทำการ Restart...');
+                    closeCouncilApproval();
+                    fetchCouncil();
+                } else {
+                    alert('❌ ผิดพลาด: ' + result.message);
+                }
+            } catch (err) { alert('❌ Network Error'); }
+        }
+
+        async function rejectCouncilProposal(id) {
+            if (!confirm('ปฏิเสธข้อเสนอนี้?')) return;
+            try {
+                const res = await fetch('/api/council/reject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    closeCouncilApproval();
+                    fetchCouncil();
+                }
+            } catch (err) { alert('❌ Network Error'); }
+        }
+
+        async function showCouncilHistory() {
+            try {
+                const res = await fetch('/api/council/history');
+                const data = await res.json();
+                const body = document.getElementById('council-history-body');
+
+                if (data.history.length === 0) {
+                    body.innerHTML = '<div class="text-center py-10 text-gray-600">No history available</div>';
+                } else {
+                    body.innerHTML = data.history.map(h => {
+                        const isAuto = h.type === 'AUTO_FIX';
+                        const isApproved = h.type === 'USER_APPROVED';
+                        const isReject = h.type === 'USER_REJECTED';
+                        const colorClass = isAuto ? 'text-blue-400' : isApproved ? 'text-green-400' : 'text-red-400';
+                        const icon = isAuto ? 'fa-bolt' : isApproved ? 'fa-check' : 'fa-xmark';
+
+                        return `
+                        <div class="bg-black/40 border border-gray-800 rounded-lg p-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="badge ${isAuto ? 'bg-blue-500/10 text-blue-400' : isApproved ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'} text-[9px] uppercase font-bold">
+                                        <i class="fa-solid ${icon} mr-1"></i> ${h.type}
+                                    </span>
+                                    <span class="text-[10px] text-gray-500 font-mono">${new Date(h.timestamp).toLocaleString()}</span>
+                                </div>
+                                <span class="text-[9px] font-bold text-gray-600">ID: ${h.id}</span>
+                            </div>
+                            <div class="text-xs font-bold text-white mb-1">${h.proposal.title}</div>
+                            <div class="text-[11px] text-gray-400 mb-3 bg-red-900/5 p-2 rounded border border-red-900/10">${h.context.error}</div>
+                            <div class="text-[11px] text-blue-300 italic">Result: ${h.result ? h.result.message : 'N/A'}</div>
+                        </div>
+                        `;
+                    }).join('');
+                }
+
+                document.getElementById('council-history-modal').classList.remove('hidden');
+                document.getElementById('council-history-modal').classList.add('flex');
+            } catch (err) { console.error("History fetch error:", err); }
+        }
+
+        function closeCouncilHistory() {
+            document.getElementById('council-history-modal').classList.add('hidden');
+            document.getElementById('council-history-modal').classList.remove('flex');
+        }
+
+        // --- [v3.5.1] Send User Command to AI Council ---
+        async function sendCouncilCommand() {
+            const input = document.getElementById('council-command-input');
+            const btn = document.getElementById('btn-council-command');
+            const status = document.getElementById('council-command-status');
+            const command = input.value.trim();
+
+            if (!command) {
+                status.innerHTML = '<span class="text-yellow-400">⚠️ กรุณากรอกคำสั่ง</span>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+            status.innerHTML = '<span class="text-blue-400">🏛️ AI Council กำลังวิเคราะห์...</span>';
+
+            try {
+                const res = await fetch('/api/council/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    status.innerHTML = `<span class="text-green-400">✅ ${data.message}</span>`;
+                    input.value = '';
+                    // Refresh pending proposals
+                    await fetchCouncil();
+                } else {
+                    status.innerHTML = `<span class="text-red-400">❌ ${data.message}</span>`;
+                }
+            } catch (err) {
+                status.innerHTML = `<span class="text-red-400">❌ Error: ${err.message}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Execute';
+            }
+        }
+
+        // Add to main state polling
+        const _origFetchState = fetchState;
+        fetchState = async function () {
+            await _origFetchState();
+            await fetchCouncil();
+        };
+
+    </script>
+</body>
+
+</html>

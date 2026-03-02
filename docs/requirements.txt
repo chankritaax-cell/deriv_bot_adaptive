@@ -1,0 +1,13 @@
+deriv-api>=0.1.0
+python-dotenv
+flask
+numpy
+pandas
+requests
+colorama
+websockets
+asyncio
+google-genai
+openai
+psutil
+python-telegram-bot
