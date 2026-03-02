@@ -42,6 +42,8 @@ Autonomous error resolution system with 3 trigger types:
 *   **Dynamic Parameter Overrides**: Automatically adjusts RSI Call/Put boundaries and Bounce Limits based on volatility.
 *   **Regime-Driven Strategy Selection**: Automatically switches between `TREND_FOLLOWING` (High Vol) and `PULLBACK_ENTRY` (Low Vol) to maximize edge in any market environment.
 *   **Profile Intelligence**: Reads per-asset specific configuration (Pullback Zones, Slope Thresholds) from `asset_profiles.json`.
+*   **Multi-Profile Routing (v5.1.0)**: Supports regime-specific lookups (e.g., `ASSET_HIGH_VOL`) with cascading fallback logic.
+*   **Atomic Profile Security (v5.1.0)**: Crash-safe `asset_profiles.json` updates with 5-attempt retry logic, automated backups, and hot-reloading.
 
 ### 📊 Structured Metrics Logging (v3.4.14)
 - Logs key entry/exit metrics to a JSONL file for later winrate analysis.

@@ -176,7 +176,7 @@ def dashboard_init_state(current_balance=0.0):
         if _dashboard_state.get("start_balance", 0) == 0:
              print(f"⚠️  [Dashboard Init] start_balance was 0, setting to current")
              _dashboard_state["start_balance"] = current_balance
-
+ 
         # [v3.6.6] Feature: Override Start Balance with Configured Capital
         config_capital = getattr(config, "INITIAL_CAPITAL", 0)
         if config_capital > 0:
@@ -300,7 +300,7 @@ def dashboard_get_state():
 
 
 # ============================================================
-# � CANDLE DATA FOR DASHBOARD CHART
+# 🕯️ CANDLE DATA FOR DASHBOARD CHART
 # ============================================================
 
 CANDLE_DATA_FILE = os.path.join(ROOT, "logs", "dashboard", "candle_data.json")
@@ -357,7 +357,7 @@ def dashboard_save_candles(asset, candles_df):
         pass
 
 # ============================================================
-# �📝 LOGGER
+# 📝 LOGGER
 # ============================================================
 
 def dashboard_add_summary(summary_data):
@@ -656,3 +656,93 @@ def load_json_safe(path: str, default_schema: dict):
     except Exception as e:
         log_print(f"⚠️ JSON load error {path}: {e}. Returning default schema.")
         return default_schema
+
+
+def update_asset_profile_atomic(asset_name: str, new_settings: dict):
+    """
+    [v5.0] Atomic Asset Profile Update Engine.
+    Securely updates asset_profiles.json with validation, backup, and crash-safety.
+    """
+    import shutil
+    
+    # 1. Validation Logic
+    if not isinstance(new_settings, dict):
+        log_print(f"❌ [Update Error] new_settings must be a dictionary for {asset_name}")
+        return False
+    
+    mandatory_keys = ['strategy', 'rsi_bounds']
+    missing_keys = [k for k in mandatory_keys if k not in new_settings]
+    if missing_keys:
+        log_print(f"❌ [Update Error] Missing mandatory keys {missing_keys} for profile: {asset_name}")
+        return False
+
+    profile_path = os.path.join(ROOT, "asset_profiles.json")
+    backup_dir = os.path.join(ROOT, "logs", "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # 2. Backup Current State
+    if os.path.exists(profile_path):
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = os.path.join(backup_dir, f"asset_profiles_{ts}.json.bak")
+        try:
+            shutil.copy2(profile_path, backup_path)
+            log_print(f"📦 [Backup] Current profiles backed up to: {os.path.basename(backup_path)}")
+        except Exception as e:
+            log_print(f"⚠️ [Backup Warning] Could not create backup: {e}")
+
+    # 3. Process Update
+    try:
+        # Load existing data to merge or replace
+        data = load_json_safe(profile_path, {})
+        old_profile = data.get(asset_name, {})
+        
+        # Log Differences (Old vs. New)
+        log_print(f"🔍 [Update Analysis] Reviewing changes for {asset_name}:")
+        all_keys = set(list(old_profile.keys()) + list(new_settings.keys()))
+        for key in sorted(all_keys):
+            old_val = old_profile.get(key)
+            new_val = new_settings.get(key)
+            if old_val != new_val:
+                log_print(f"   • {key}: {old_val} -> {new_val}")
+        
+        # Apply change
+        data[asset_name] = new_settings
+        
+        # 4. Atomic Write Sequence
+        dir_name = os.path.dirname(profile_path)
+        with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False, encoding='utf-8', suffix='.tmp') as tf:
+            json.dump(data, tf, ensure_ascii=False, indent=4)
+            tf.flush()
+            os.fsync(tf.fileno()) # Force physical write
+            temp_name = tf.name
+
+        # Permission/Retry Logic for Windows
+        for attempt in range(5):
+            try:
+                os.replace(temp_name, profile_path)
+                break
+            except (PermissionError, OSError) as e:
+                log_print(f"⚠️ [Write Retry] Lock detected on {asset_name}. Retry {attempt+1}/5...")
+                time.sleep(0.1 * (2 ** attempt))
+        else:
+            raise OSError(f"Could not replace {profile_path} after 5 attempts.")
+
+        log_print(f"✅ [Update Success] {asset_name} profile updated and verified atomically.")
+        
+        # 5. Hot Reload: Reload config to refresh cached ASSET_STRATEGY_MAP
+        try:
+            import importlib
+            import config
+            importlib.reload(config)
+            log_print("🔄 [Hot Reload] config.ASSET_STRATEGY_MAP refreshed.")
+        except Exception as e:
+            log_print(f"⚠️ [Reload Warning] Failed to hot-reload config: {e}")
+            
+        return True
+
+    except Exception as e:
+        log_print(f"❌ [Critical Error] Atomic write failed for {asset_name}: {e}")
+        if 'temp_name' in locals() and os.path.exists(temp_name):
+            try: os.remove(temp_name)
+            except: pass
+        return False

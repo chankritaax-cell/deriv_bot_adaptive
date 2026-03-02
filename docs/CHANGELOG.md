@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.0] - 2026-03-03
+### 🏗️ Multi-Profile Routing & Atomic Security (Reliability Upgrade)
+- **[FEATURE] Multi-Profile Routing**: `ai_engine.py` now supports regime-specific profile lookups (e.g., `1HZ100V_HIGH_VOL`). If a specific regime profile isn't found, it gracefully falls back to the base asset profile and then to `DEFAULT`.
+- **[FEATURE] Atomic Profile Update**: Implemented `update_asset_profile_atomic` in `modules/utils.py`. This ensures `asset_profiles.json` is never corrupted during writes by using `tempfile`, `os.replace`, and mandatory `fsync()`.
+- **[SECURITY] Automated Backups**: Every atomic update now triggers an automatic, timestamped backup in `logs/backups/`.
+- **[RELIABILITY] Hot Reloading**: Successfully updated profiles now trigger a `config` module reload, refreshing `ASSET_STRATEGY_MAP` in memory tanpaต้อง Restart Bot.
+- **[SAFETY] Strict Profile Validation**: Profile updates are rejected if mandatory keys (`strategy`, `rsi_bounds`) are missing.
+- **[DATA] Regime-Specific Tuning**: Expanded `asset_profiles.json` with dedicated settings for `HIGH_VOL` and `LOW_VOL` on R_75, 1HZ50V, and 1HZ10V.
+- **[FIX] Numerical Safety**: Implemented explicit float conversion for all adaptive thresholds in `ai_engine.py` to prevent `TypeError`.
+
 ## [v5.0.0] - 2026-03-02
 ### 🚀 Adaptive Volatility & Reliability (Major Upgrade)
 - **[FEATURE] Adaptive Volatility Regimes**: Implemented logic to detect `NORMAL`, `HIGH_VOL`, and `LOW_VOL` regimes using ATR smoothed by a 20-period EMA.

@@ -29,32 +29,68 @@ _regime_history = {}       # {asset: ["NORMAL", "HIGH_VOL", ...]} (tracks last N
 
 def apply_adaptive_config(asset, df_1m, base_cfg):
     """
-    Adjusts config boundaries based on the current Sticky Market Regime.
-    HIGH_VOL: Widen RSI bounds, increase bounce_limit by 50%
-    LOW_VOL: Tighten RSI bounds, decrease bounce_limit by 20%
+    [v5.0] Multi-Profile Routing Engine.
+    Orchestrates configuration selection based on Market Regime.
+    Hierarchy: {asset}_{regime} -> {asset} (base_cfg) -> DEFAULT.
     """
     regime = _regime_state.get(asset, "NORMAL")
-    cfg = base_cfg.copy()
     
+    # 1. Attempt lookup for Specific Regime Profile (e.g., 1HZ10V_HIGH_VOL)
+    # Using the cached global map from config to avoid disk I/O
+    regime_profile_key = f"{asset}_{regime}"
+    profile_map = getattr(config, "ASSET_STRATEGY_MAP", {})
+    
+    # Selection Logic with Cascading Fallback
+    specific_profile = profile_map.get(regime_profile_key)
+    if specific_profile:
+        cfg = specific_profile.copy()
+        log_print(f"   🎯 [Adaptive Routing] specific regime profile found: {regime_profile_key}")
+    else:
+        # Fallback to base_cfg (which already handled {asset} -> DEFAULT)
+        cfg = base_cfg.copy()
+        if regime != "NORMAL":
+            log_print(f"   🔄 [Adaptive Routing] No specific profile for {regime_profile_key}. Using base/default with dynamic offsets.")
+
+    # 2. Safety Layer: Explicit Numerical Sanitization (Float Guard)
+    # This prevents TypeErrors during TA calculations downstream.
     if "rsi_bounds" in cfg:
         bounds = cfg["rsi_bounds"].copy()
-        if regime == "HIGH_VOL":
-            bounds["call_min"] -= 3.0
-            bounds["call_max"] += 3.0
-            bounds["put_min"] -= 3.0
-            bounds["put_max"] += 3.0
-            cfg["bounce_limit"] *= 1.5
-        elif regime == "LOW_VOL":
-            bounds["call_min"] += 2.0
-            bounds["call_max"] -= 2.0
-            bounds["put_min"] += 2.0
-            bounds["put_max"] -= 2.0
-            cfg["bounce_limit"] *= 0.8
-        cfg["rsi_bounds"] = bounds
         
-    # [v5.0 FIX] Only log when regime is not NORMAL (reduces log spam)
+        # Ensure all core bounds are explicit floats
+        bounds["call_min"] = float(bounds.get("call_min", 55.0))
+        bounds["call_max"] = float(bounds.get("call_max", 65.0))
+        bounds["put_min"] = float(bounds.get("put_min", 35.0))
+        bounds["put_max"] = float(bounds.get("put_max", 45.0))
+
+        # 3. Dynamic Offsets (Baseline Adaptation)
+        # Apply standard nudges only if a specific regime profile was NOT found
+        if not specific_profile:
+            if regime == "HIGH_VOL":
+                bounds["call_min"] = float(bounds["call_min"] - 3.0)
+                bounds["call_max"] = float(bounds["call_max"] + 3.0)
+                bounds["put_min"] = float(bounds["put_min"] - 3.0)
+                bounds["put_max"] = float(bounds["put_max"] + 3.0)
+                cfg["bounce_limit"] = float(cfg.get("bounce_limit", 6.0) * 1.5)
+            elif regime == "LOW_VOL":
+                bounds["call_min"] = float(bounds["call_min"] + 2.0)
+                bounds["call_max"] = float(bounds["call_max"] - 2.0)
+                bounds["put_min"] = float(bounds["put_min"] + 2.0)
+                bounds["put_max"] = float(bounds["put_max"] - 2.0)
+                cfg["bounce_limit"] = float(cfg.get("bounce_limit", 6.0) * 0.8)
+        
+        cfg["rsi_bounds"] = bounds
+
+    # Final cleanup of numerical types for non-RSI keys
+    if "bounce_limit" in cfg:
+        cfg["bounce_limit"] = float(cfg["bounce_limit"])
+    if "ma_slope_min" in cfg:
+        cfg["ma_slope_min"] = float(cfg["ma_slope_min"])
+        
+    # [v5.0 FIX] Informative logging for non-NORMAL states
     if regime != "NORMAL":
-        log_print(f"   📊 [Adaptive Config] {asset} Regime={regime} | Bounds adjusted | Bounce={cfg.get('bounce_limit', 0):.1f}")
+        bounce_val = float(cfg.get('bounce_limit', 0.0))
+        log_print(f"   📊 [Adaptive Applied] {asset} | Regime={regime} | Bounce={bounce_val:.1f}")
+        
     return cfg
 
 def sys_log(msg):
