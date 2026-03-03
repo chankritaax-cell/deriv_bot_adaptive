@@ -29,64 +29,64 @@ _regime_history = {}       # {asset: ["NORMAL", "HIGH_VOL", ...]} (tracks last N
 
 def apply_adaptive_config(asset, df_1m, base_cfg):
     """
-    [v5.0] Multi-Profile Routing Engine.
+    [v5.1.0] Multi-Profile Routing Engine.
     Orchestrates configuration selection based on Market Regime.
-    Hierarchy: {asset}_{regime} -> {asset} (base_cfg) -> DEFAULT.
+    Hierarchy: Specific Regime Profile ({asset}_{regime}) -> Base Asset Profile ({asset}) -> DEFAULT.
     """
     regime = _regime_state.get(asset, "NORMAL")
-    
-    # 1. Attempt lookup for Specific Regime Profile (e.g., 1HZ10V_HIGH_VOL)
-    # Using the cached global map from config to avoid disk I/O
-    regime_profile_key = f"{asset}_{regime}"
     profile_map = getattr(config, "ASSET_STRATEGY_MAP", {})
     
-    # Selection Logic with Cascading Fallback
+    # 1. Selection Logic with Cascading Fallback
+    # First: Specific Regime Profile (e.g., 1HZ10V_HIGH_VOL)
+    regime_profile_key = f"{asset}_{regime}"
     specific_profile = profile_map.get(regime_profile_key)
+    
     if specific_profile:
         cfg = specific_profile.copy()
-        log_print(f"   🎯 [Adaptive Routing] specific regime profile found: {regime_profile_key}")
+        log_print(f"   🎯 [Adaptive Routing] Specific regime profile found: {regime_profile_key}")
     else:
-        # Fallback to base_cfg (which already handled {asset} -> DEFAULT)
+        # Second: Fallback to base_cfg (which config.get_asset_profile sets to {asset} or DEFAULT)
         cfg = base_cfg.copy()
         if regime != "NORMAL":
             log_print(f"   🔄 [Adaptive Routing] No specific profile for {regime_profile_key}. Using base/default with dynamic offsets.")
 
-    # 2. Safety Layer: Explicit Numerical Sanitization (Float Guard)
-    # This prevents TypeErrors during TA calculations downstream.
+    # 2. Safety Layer: Explicit Numerical Sanitization (Full Float Guard)
+    # This ensures all adaptive thresholds are float-safe for pandas/TA calculations.
     if "rsi_bounds" in cfg:
-        bounds = cfg["rsi_bounds"].copy()
+        bounds = {}
+        # Iterate and cast ALL values to float (call_min, pullback_put_hi, etc.)
+        for k, v in cfg["rsi_bounds"].items():
+            try:
+                bounds[k] = float(v)
+            except (ValueError, TypeError):
+                bounds[k] = v # Keep as is if not numeric
+                
+        # Fill missing core bounds with safe defaults if necessary
+        for k, default in {"call_min": 55.0, "call_max": 65.0, "put_min": 35.0, "put_max": 45.0}.items():
+            if k not in bounds:
+                bounds[k] = float(default)
         
-        # Ensure all core bounds are explicit floats
-        bounds["call_min"] = float(bounds.get("call_min", 55.0))
-        bounds["call_max"] = float(bounds.get("call_max", 65.0))
-        bounds["put_min"] = float(bounds.get("put_min", 35.0))
-        bounds["put_max"] = float(bounds.get("put_max", 45.0))
-
         # 3. Dynamic Offsets (Baseline Adaptation)
         # Apply standard nudges only if a specific regime profile was NOT found
         if not specific_profile:
             if regime == "HIGH_VOL":
-                bounds["call_min"] = float(bounds["call_min"] - 3.0)
-                bounds["call_max"] = float(bounds["call_max"] + 3.0)
-                bounds["put_min"] = float(bounds["put_min"] - 3.0)
-                bounds["put_max"] = float(bounds["put_max"] + 3.0)
+                for k in ["call_min", "put_min"]: bounds[k] = float(bounds[k] - 3.0)
+                for k in ["call_max", "put_max"]: bounds[k] = float(bounds[k] + 3.0)
                 cfg["bounce_limit"] = float(cfg.get("bounce_limit", 6.0) * 1.5)
             elif regime == "LOW_VOL":
-                bounds["call_min"] = float(bounds["call_min"] + 2.0)
-                bounds["call_max"] = float(bounds["call_max"] - 2.0)
-                bounds["put_min"] = float(bounds["put_min"] + 2.0)
-                bounds["put_max"] = float(bounds["put_max"] - 2.0)
+                for k in ["call_min", "put_min"]: bounds[k] = float(bounds[k] + 2.0)
+                for k in ["call_max", "put_max"]: bounds[k] = float(bounds[k] - 2.0)
                 cfg["bounce_limit"] = float(cfg.get("bounce_limit", 6.0) * 0.8)
         
         cfg["rsi_bounds"] = bounds
 
-    # Final cleanup of numerical types for non-RSI keys
-    if "bounce_limit" in cfg:
-        cfg["bounce_limit"] = float(cfg["bounce_limit"])
-    if "ma_slope_min" in cfg:
-        cfg["ma_slope_min"] = float(cfg["ma_slope_min"])
-        
-    # [v5.0 FIX] Informative logging for non-NORMAL states
+    # Final cleanup of non-RSI numerical keys
+    for k in ["bounce_limit", "ma_slope_min"]:
+        if k in cfg:
+            try: cfg[k] = float(cfg[k])
+            except: pass
+            
+    # [v5.1] Informative logging
     if regime != "NORMAL":
         bounce_val = float(cfg.get('bounce_limit', 0.0))
         log_print(f"   📊 [Adaptive Applied] {asset} | Regime={regime} | Bounce={bounce_val:.1f}")

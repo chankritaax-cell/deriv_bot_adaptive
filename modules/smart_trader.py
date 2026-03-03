@@ -10,7 +10,7 @@ import random
 import datetime
 import config
 from .technical_analysis import TechnicalConfirmation
-from .utils import safe_config_get # [v3.11.28] For robust access
+from .utils import safe_config_get, save_json_atomic # [v5.1.0] Atomic Persistence Support
 
 # [v3.11.25] Align with ROOT_DIR
 ROOT = getattr(config, "ROOT_DIR", os.getcwd())
@@ -31,9 +31,11 @@ class PerformanceTracker:
         return {"trades": [], "asset_stats": {}, "strategy_stats": {}, "hourly_stats": {}, "combo_stats": {}}
 
     def _save(self):
+        """Atomic Save: Prevents performance.json corruption during process kills."""
         try:
-            with open(PERF_FILE, "w") as f: json.dump(self.data, f, indent=2, default=str)
-        except: pass
+            save_json_atomic(self.data, PERF_FILE)
+        except Exception as e:
+            pass # Silent failure to keep trading loop alive
 
     def record_trade(self, asset, strategy, signal, result, profit, trade_type="UNKNOWN", confidence=0.0, regime="UNKNOWN", adaptive_score=0.0, tf="1m"):
         now = datetime.datetime.now()
@@ -173,10 +175,12 @@ class SmartDecisionEngine:
             except: pass
 
     def _save(self):
+        """Atomic Save: Prevents RL model corruption."""
         try:
-             with open(RL_MODEL_FILE, "w") as f:
-                json.dump({"q_table": self.q_table, "visit_count": self.visit_count}, f, indent=2)
-        except: pass
+            data_to_save = {"q_table": self.q_table, "visit_count": self.visit_count}
+            save_json_atomic(data_to_save, RL_MODEL_FILE)
+        except Exception as e:
+            pass
 
     def _state_key(self, asset, strategy, conf):
         bucket = "HIGH" if conf >= 0.75 else "MED" if conf >= 0.5 else "LOW"
@@ -350,7 +354,6 @@ class SmartTrader:
 
         # [v5.0 BUG-12 FIX] TREND_FOLLOWING strategy — enter WITH confirmed trend momentum
         if strategy == "TREND_FOLLOWING" and df_1m is not None and len(df_1m) >= 20:
-            # Get indicators
             rsi_now = TechnicalConfirmation.get_rsi(df_1m)
             macd_line, macd_signal, macd_hist = TechnicalConfirmation.get_macd(df_1m)
 
@@ -359,59 +362,44 @@ class SmartTrader:
             if len(sma) >= 6 and sma.iloc[-6] > 0:
                 slope = (sma.iloc[-1] - sma.iloc[-6]) / sma.iloc[-6] * 100
 
-            # Read ma_slope_min from profile (default 0.025)
-            ma_slope_min = 0.025
-            if asset_profile:
-                ma_slope_min = float(asset_profile.get("ma_slope_min", 0.025))
+            # ดึงค่า Config จาก Profile แทนการ Hardcode
+            ma_slope_min = float(asset_profile.get("ma_slope_min", 0.025)) if asset_profile else 0.025
+            _tf_bounds = asset_profile.get("rsi_bounds", {}) if asset_profile else {}
+            call_min = float(_tf_bounds.get("call_min", 55.0))
+            call_max = float(_tf_bounds.get("call_max", 65.0))
+            put_min = float(_tf_bounds.get("put_min", 35.0))
+            put_max = float(_tf_bounds.get("put_max", 45.0))
 
-            # [v5.0 FIX] Explicit block when indicators unavailable
             if rsi_now is None:
-                details["reasons"].append("TREND_FOLLOWING: RSI unavailable (insufficient candles)")
+                details["reasons"].append("TREND_FOLLOWING: RSI unavailable")
                 return False, bet_mult, details
             if macd_hist is None:
-                details["reasons"].append("TREND_FOLLOWING: MACD unavailable (insufficient candles)")
+                details["reasons"].append("TREND_FOLLOWING: MACD unavailable")
                 return False, bet_mult, details
 
-            if True:  # Indicators confirmed available
-                if direction == "CALL":
-                    # Trend must be up
-                    if slope < ma_slope_min:
-                        details["reasons"].append(
-                            f"TREND_FOLLOWING: Slope {slope:.3f}% too weak for CALL (min {ma_slope_min}%)"
-                        )
-                        return False, bet_mult, details
-                    # RSI must be in uptrend momentum zone (not overbought)
-                    if not (50 <= rsi_now <= 72):
-                        details["reasons"].append(
-                            f"TREND_FOLLOWING: RSI {rsi_now:.1f} outside CALL momentum zone [50, 72]"
-                        )
-                        return False, bet_mult, details
-                    # MACD must confirm bullish momentum
-                    if macd_hist <= 0:
-                        details["reasons"].append(
-                            f"TREND_FOLLOWING: MACD hist {macd_hist:.4f} not bullish for CALL"
-                        )
-                        return False, bet_mult, details
+            if direction == "CALL":
+                if slope < ma_slope_min:
+                    details["reasons"].append(f"TREND_FOLLOWING: Slope {slope:.3f}% too weak for CALL")
+                    return False, bet_mult, details
+                # [FIXED] ใช้ค่า Dynamic จาก Profile 
+                if not (call_min <= rsi_now <= call_max):
+                    details["reasons"].append(f"TREND_FOLLOWING: RSI {rsi_now:.1f} outside CALL zone [{call_min}, {call_max}]")
+                    return False, bet_mult, details
+                if macd_hist <= 0:
+                    details["reasons"].append("TREND_FOLLOWING: MACD hist not bullish")
+                    return False, bet_mult, details
 
-                elif direction == "PUT":
-                    # Trend must be down
-                    if slope > -ma_slope_min:
-                        details["reasons"].append(
-                            f"TREND_FOLLOWING: Slope {slope:.3f}% too weak for PUT (need < -{ma_slope_min}%)"
-                        )
-                        return False, bet_mult, details
-                    # RSI must be in downtrend momentum zone (not oversold)
-                    if not (28 <= rsi_now <= 50):
-                        details["reasons"].append(
-                            f"TREND_FOLLOWING: RSI {rsi_now:.1f} outside PUT momentum zone [28, 50]"
-                        )
-                        return False, bet_mult, details
-                    # MACD must confirm bearish momentum
-                    if macd_hist >= 0:
-                        details["reasons"].append(
-                            f"TREND_FOLLOWING: MACD hist {macd_hist:.4f} not bearish for PUT"
-                        )
-                        return False, bet_mult, details
+            elif direction == "PUT":
+                if slope > -ma_slope_min:
+                    details["reasons"].append(f"TREND_FOLLOWING: Slope {slope:.3f}% too weak for PUT")
+                    return False, bet_mult, details
+                # [FIXED] ใช้ค่า Dynamic จาก Profile
+                if not (put_min <= rsi_now <= put_max):
+                    details["reasons"].append(f"TREND_FOLLOWING: RSI {rsi_now:.1f} outside PUT zone [{put_min}, {put_max}]")
+                    return False, bet_mult, details
+                if macd_hist >= 0:
+                    details["reasons"].append("TREND_FOLLOWING: MACD hist not bearish")
+                    return False, bet_mult, details
 
         # --- Level 2: Technical Confirmation ---
         # AWAIT HERE

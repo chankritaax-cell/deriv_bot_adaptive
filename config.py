@@ -301,10 +301,12 @@ load_asset_profiles()
 
 def get_asset_profile(asset, trade_count=0):
     profile = ASSET_STRATEGY_MAP.get(asset, ASSET_STRATEGY_MAP.get("DEFAULT", {}))
-    if not profile.get("enabled", True):  # [v5.0 BUG-09 FIX]
+    
+    # [FIXED] เช็คทั้ง 2 เงื่อนไข ป้องกันการหลุดรอด (v5.1.0 Refined)
+    if profile.get("_disabled", False) or not profile.get("enabled", True):  
         return {
             "_disabled": True,
-            "_disabled_reason": profile.get("disabled_reason", f"{asset} disabled"),
+            "_disabled_reason": profile.get("_disabled_reason", profile.get("disabled_reason", f"{asset} disabled")),
             "strategy": "DISABLED",
             "allowed_signals": [],
         }

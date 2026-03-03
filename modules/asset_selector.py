@@ -95,7 +95,12 @@ class AssetSelector:
                              # Simulate Entry check
                             strategy = "AI_MOMENTUM"
                             # [v3.11.3] Pass api=None to disable network-heavy MTF checks during simulation
-                            should_enter, _, details = await st.should_enter(None, asset, strategy, direction, confidence=score, df_1m=sl)
+                            # [v5.1.0] Pass asset_profile to ensure simulation uses custom rules
+                            should_enter, _, details = await st.should_enter(
+                                None, asset, strategy, direction, 
+                                confidence=score, df_1m=sl, 
+                                asset_profile=_profile_check
+                            )
                             
                             if should_enter:
                                 signals += 1
