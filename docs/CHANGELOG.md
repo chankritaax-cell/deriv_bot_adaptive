@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - **[RELIABILITY] Hot Reloading**: Successfully updated profiles now trigger a `config` module reload, refreshing `ASSET_STRATEGY_MAP` in memory tanpaต้อง Restart Bot.
 - **[SAFETY] Strict Profile Validation**: Profile updates are rejected if mandatory keys (`strategy`, `rsi_bounds`) are missing.
 - **[DATA] Regime-Specific Tuning**: Expanded `asset_profiles.json` with dedicated settings for `HIGH_VOL` and `LOW_VOL` on R_75, 1HZ50V, and 1HZ10V.
+- **[TUNING] Performance Optimization**: Increased `MAX_ATR_THRESHOLD_PCT` (0.30) and `ANTI_REVERSAL_RSI_BOUNCE_LIMIT` (15.0) to allow more trades.
+- **[TUNING] Profile Refinement**: Expanded RSI pullback bounds for `1HZ10V_LOW_VOL` to improve signal capture in slow trends.
 - **[FIX] Asset Disable Consistency**: `get_asset_profile()` now checks both `_disabled` (new) and `enabled` (legacy) keys to prevent disabled assets from trading.
 - **[FIX] Dynamic Strategy Parameters**: `TREND_FOLLOWING` strategy in `smart_trader.py` now respects profile-specific `rsi_bounds` and `ma_slope_min`, removing long-standing hardcoded thresholds.
 - **[FIX] Numerical Safety**: Implemented explicit float conversion for all adaptive thresholds in `ai_engine.py` to prevent `TypeError`.

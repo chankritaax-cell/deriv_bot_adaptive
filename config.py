@@ -168,7 +168,7 @@ RSI_PUT_UPPER = 48.0
 
 
 MIN_ATR_THRESHOLD_PCT = 0.015
-MAX_ATR_THRESHOLD_PCT = 0.20  # [v5.0 FIX] R_75 normal vol=0.10-0.15%, raised from 0.065
+MAX_ATR_THRESHOLD_PCT = 0.30  # [v5.1 Tuning] Raised from 0.20 to allow 1HZ100V to trade during high volatility
 MA_SLOPE_THRESHOLD_PCT = 0.015  # [v5.0 FIX] lowered from 0.025 to allow moderate trends
 
 # [v5.0 Adaptive Engine] Regime Detection Thresholds
@@ -248,7 +248,7 @@ ASSET_SCAN_INTERVAL_NO_TRADE_MINS = 10
 ENABLE_MACD_MOMENTUM_GUARD = True
 ENABLE_TICK_VELOCITY_GUARD = True
 MAX_TICK_VELOCITY_ATR_PCT = 0.5  # Tolerance for spike size relative to current ATR
-ANTI_REVERSAL_RSI_BOUNCE_LIMIT = 10.0
+ANTI_REVERSAL_RSI_BOUNCE_LIMIT = 15.0 # [v5.1 Tuning] Raised from 10.0 to handle 1HZ10V volatility
 ENABLE_MICRO_CONF_GUARD = False
 ENABLE_DASHBOARD_CHART = False
 
