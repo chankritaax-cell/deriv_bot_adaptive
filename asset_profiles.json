@@ -40,6 +40,23 @@
         "min_trades_before_trust": 0,
         "notes": "Adaptive: Low Volatility (Sideways). ลด Slope ลงมาที่ 0.015% เพื่อแก้ปัญหาโดนบล็อกตอนกราฟเอื่อย และขยายกรอบย่อตัวให้กว้างขึ้น"
     },
+    "R_75_HIGH_VOL": {
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 52.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 48.0
+        },
+        "bounce_limit": 12.0,
+        "ma_slope_min": 0.020,
+        "min_trades_before_trust": 0,
+        "notes": "Adaptive: High Vol. R_75 วิ่งแรง ไม่รอย่อ ใช้ TREND_FOLLOWING แทน"
+    },
     "1HZ100V": {
         "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
@@ -220,24 +237,41 @@
         "min_trades_before_trust": 0,
         "notes": "Adaptive: High Volatility. เปิดกรอบ RSI กว้างมากเพื่อจับจังหวะ Momentum Spike ที่รุนแรงของ 1HZ10V"
     },
-    "1HZ10V_LOW_VOL": {
+    "1HZ100V_HIGH_VOL": {
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 52.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 48.0
+        },
+        "bounce_limit": 10.0,
+        "ma_slope_min": 0.020,
+        "min_trades_before_trust": 0,
+        "notes": "Adaptive: High Vol. เปิด RSI กว้างรองรับ momentum spike, slope ต่ำลงเล็กน้อย"
+    },
+    "1HZ100V_LOW_VOL": {
         "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
             "CALL",
             "PUT"
         ],
         "rsi_bounds": {
-            "pullback_put_lo": 35.0,
-            "pullback_put_hi": 62.0,
-            "pullback_put_max": 68.0,
-            "pullback_call_lo": 38.0,
-            "pullback_call_hi": 65.0,
-            "pullback_call_min": 32.0
+            "pullback_put_lo": 44.0,
+            "pullback_put_hi": 58.0,
+            "pullback_put_max": 65.0,
+            "pullback_call_lo": 42.0,
+            "pullback_call_hi": 56.0,
+            "pullback_call_min": 35.0
         },
-        "bounce_limit": 15.0,
-        "ma_slope_min": 0.005,
+        "bounce_limit": 6.0,
+        "ma_slope_min": 0.015,
         "min_trades_before_trust": 0,
-        "notes": "Adaptive: Low Volatility (Sideways). ขยายกรอบรับ Pullback (35/62/38/65) และเพิ่ม Bounce เป็น 15.0 เพื่อลดการบล็อกออเดอร์"
+        "notes": "Adaptive: Low Vol. ตลาดช้า เปลี่ยนเป็น Pullback entry"
     },
     "DEFAULT": {
         "strategy": "TREND_FOLLOWING",

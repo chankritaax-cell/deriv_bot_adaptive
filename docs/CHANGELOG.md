@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.1] - 2026-03-03
+### 🚑 Watchdog Death Loop Hotfix
+- **[FIX] Asset Selector**: `find_best_asset()` now imports and respects the `_FAILED_ASSETS` blacklist from `market_engine`. This prevents an infinite loop where a blocked asset with high win-rate causes constant filter blocking and triggers Watchdog process kills.
+
 ## [v5.1.0] - 2026-03-03
 ### 🏗️ Multi-Profile Routing & Atomic Security (Reliability Upgrade)
 - **[FEATURE] Multi-Profile Routing**: `ai_engine.py` now supports regime-specific profile lookups (e.g., `1HZ100V_HIGH_VOL`). If a specific regime profile isn't found, it gracefully falls back to the base asset profile and then to `DEFAULT`.

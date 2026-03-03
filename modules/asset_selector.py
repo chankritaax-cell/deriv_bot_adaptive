@@ -1,11 +1,14 @@
 
 import asyncio
 import datetime
+import time
 import pandas as pd
 import config
 from modules.smart_trader import SmartTrader
 from modules.technical_analysis import TechnicalConfirmation
 from modules.utils import log_print
+from modules.market_engine import _FAILED_ASSETS
+
 
 class AssetSelector:
     """
@@ -32,6 +35,13 @@ class AssetSelector:
         
         for asset in assets_to_scan:
             try:
+                # 0. [v5.1.1 FIX] Skip Blacklisted Assets (Cut & Run Active)
+                if asset in _FAILED_ASSETS:
+                    # เช็คว่าติดแบนอยู่หรือไม่ (1 ชั่วโมง = 3600 วินาที)
+                    if time.time() - _FAILED_ASSETS[asset] < 3600:
+                        log_print(f"   ⏭️ [Asset Selector] {asset} skipped — currently in FAILED Blacklist cooldown.")
+                        continue
+
                 # [v5.0 FIX-A] Skip disabled assets BEFORE fetching history
                 # Prevents wasting API calls + AI calls on assets with enabled=false
                 _profile_check = config.get_asset_profile(asset)

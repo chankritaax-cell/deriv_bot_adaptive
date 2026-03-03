@@ -614,22 +614,37 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     # [V5.0] Apply Dynamic Overrides based on Sticky Regime
     asset_profile = apply_adaptive_config(asset, df_feat, base_asset_profile)
 
-    # [v5.0 Adaptive Engine] Auto-select strategy based on current regime
-    # Priority: regime override > asset_profile.strategy > default
+    # [v5.1.1 FIX] Strategy Selection — 3-Tier Priority
+    # Priority 1: Specific regime profile (e.g. 1HZ10V_LOW_VOL.strategy)
+    # Priority 2: regime_strategy_map from config (fallback when no specific profile)
+    # Priority 3: base asset_profile.strategy (NORMAL regime / AUTO)
     current_regime = _regime_state.get(asset, "NORMAL")
-    regime_strategy_map = {
-        "HIGH_VOL": getattr(config, "REGIME_STRATEGY_HIGH_VOL", "TREND_FOLLOWING"),
-        "LOW_VOL":  getattr(config, "REGIME_STRATEGY_LOW_VOL",  "PULLBACK_ENTRY"),
-        "NORMAL":   getattr(config, "REGIME_STRATEGY_NORMAL",   "AUTO"),
-    }
-    regime_override = regime_strategy_map.get(current_regime, "AUTO")
-
-    if regime_override != "AUTO":
-        strategy_name = regime_override
-        log_print(f"   🔀 [Adaptive] Regime={current_regime} → Strategy override: {strategy_name}")
+    
+    # Tier 1: check if specific regime profile exists AND has a strategy defined
+    _profile_map = getattr(config, "ASSET_STRATEGY_MAP", {})
+    _specific_key = f"{asset}_{current_regime}"
+    _specific_profile = _profile_map.get(_specific_key)
+    
+    if _specific_profile and _specific_profile.get("strategy"):
+        # Specific profile wins — this was already loaded into asset_profile by apply_adaptive_config
+        strategy_name = _specific_profile["strategy"]
+        log_print(f"   🎯 [Adaptive] Regime={current_regime} → Profile '{_specific_key}' strategy: {strategy_name}")
     else:
-        strategy_name = asset_profile.get("strategy", "TREND_FOLLOWING")
-        log_print(f"   📋 [Adaptive] Regime={current_regime} → Using profile strategy: {strategy_name}")
+        # Tier 2: config regime_strategy_map fallback
+        regime_strategy_map = {
+            "HIGH_VOL": getattr(config, "REGIME_STRATEGY_HIGH_VOL", "TREND_FOLLOWING"),
+            "LOW_VOL":  getattr(config, "REGIME_STRATEGY_LOW_VOL",  "PULLBACK_ENTRY"),
+            "NORMAL":   getattr(config, "REGIME_STRATEGY_NORMAL",   "AUTO"),
+        }
+        regime_override = regime_strategy_map.get(current_regime, "AUTO")
+
+        if regime_override != "AUTO":
+            strategy_name = regime_override
+            log_print(f"   🔀 [Adaptive] Regime={current_regime} → Config fallback strategy: {strategy_name}")
+        else:
+            # Tier 3: base asset profile (NORMAL regime)
+            strategy_name = asset_profile.get("strategy", "TREND_FOLLOWING")
+            log_print(f"   📋 [Adaptive] Regime={current_regime} → Base profile strategy: {strategy_name}")
 
     allowed_signals = asset_profile.get("allowed_signals", ["CALL", "PUT"])
     if signal not in allowed_signals:
