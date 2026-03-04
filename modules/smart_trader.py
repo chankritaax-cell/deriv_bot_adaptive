@@ -320,9 +320,9 @@ class SmartTrader:
                     if rsi_now >= rsi_prev:
                         details["reasons"].append(f"PULLBACK_ENTRY: RSI rising ({rsi_now:.1f} >= {rsi_prev:.1f})")
                         return False, bet_mult, details
-                    if stoch_k >= stoch_d:
-                        details["reasons"].append(f"PULLBACK_ENTRY: Stoch K >= D ({stoch_k:.1f} >= {stoch_d:.1f})")
-                        return False, bet_mult, details
+                    # if stoch_k >= stoch_d:
+                    #     details["reasons"].append(f"PULLBACK_ENTRY: Stoch K >= D ({stoch_k:.1f} >= {stoch_d:.1f})")
+                    #     return False, bet_mult, details
 
                     if ema_atr > 0 and atr_now > 2 * ema_atr:
                         details["reasons"].append(f"PULLBACK_ENTRY: ATR spike ({atr_now:.4f} > 2 * {ema_atr:.4f})")
@@ -344,9 +344,9 @@ class SmartTrader:
                     if rsi_now <= rsi_prev:
                         details["reasons"].append(f"PULLBACK_ENTRY: RSI falling ({rsi_now:.1f} <= {rsi_prev:.1f})")
                         return False, bet_mult, details
-                    if stoch_k <= stoch_d:
-                        details["reasons"].append(f"PULLBACK_ENTRY: Stoch K <= D ({stoch_k:.1f} <= {stoch_d:.1f})")
-                        return False, bet_mult, details
+                    # if stoch_k <= stoch_d:
+                    #     details["reasons"].append(f"PULLBACK_ENTRY: Stoch K <= D ({stoch_k:.1f} <= {stoch_d:.1f})")
+                    #     return False, bet_mult, details
 
                     if ema_atr > 0 and atr_now > 2 * ema_atr:
                         details["reasons"].append(f"PULLBACK_ENTRY: ATR spike ({atr_now:.4f} > 2 * {ema_atr:.4f})")
