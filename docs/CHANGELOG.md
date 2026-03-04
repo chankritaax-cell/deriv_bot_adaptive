@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.2] - 2026-03-04
+### ⚙️ Optimization & Network Resilience
+- **[FEATURE] Stream Auto-Reconnect**: Implemented a 30-second soft-reconnect mechanism in the streaming module. If no market data is received for 30 seconds (API silent drop), the bot elegantly recreates the WebSocket streams to recover instantly, bypassing the 240s hard watchdog kill.
+- **[TUNING] Relaxed Pre-AI Guards**: Prevented AI starvation by relaxing `REGIME_MAX_FLIPS` from 2 to 3, allowing more leniency in choppy market detection.
+- **[TUNING] Asset Profiles**: Expanded RSI pullback bounds for `1HZ50V` (Call: 52-68, Put: 32-48) to capture more trading opportunities during slow-moving continuous trends without being overly restrictive.
+
+
 ## [v5.1.1] - 2026-03-03
 ### 🚑 Watchdog Death Loop Hotfix
 - **[FIX] Asset Selector**: `find_best_asset()` now imports and respects the `_FAILED_ASSETS` blacklist from `market_engine`. This prevents an infinite loop where a blocked asset with high win-rate causes constant filter blocking and triggers Watchdog process kills.

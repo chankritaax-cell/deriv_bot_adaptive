@@ -180,14 +180,28 @@ async def run_streaming_bot(api, thb_suffix):
                 log_print(f"   💀 Fatal API Error detected by stream manager. Exiting stream loop to reconnect...")
                 break # Break to outer loop, which will kill and restart the script
 
-            # Wait for a fully closed candle from the stream (60s timeout for scanner)
+            # Wait for a fully closed candle from the stream (90s timeout for soft-reconnect)
             try:
-                closed_candle = await asyncio.wait_for(stream_manager.candle_queue.get(), timeout=60.0)
+                closed_candle = await asyncio.wait_for(stream_manager.candle_queue.get(), timeout=90.0)
             except asyncio.TimeoutError:
                 closed_candle = None  # No candle — scanner can still fire
                 if stream_manager.api_failed:
                     log_print(f"   💀 Fatal API Error detected post-timeout. Exiting stream loop to reconnect...")
                     break
+                else:
+                    # [v5.1.1] Network Resilience: Soft Auto-Reconnect on Silent Drop
+                    log_print(f"   ⚠️ Stream timeout (90s without new candle). Attempting soft reconnect...")
+                    dashboard_update("status", "♻️ Stream Reconnecting...")
+                    try:
+                        await stream_manager.stop()
+                    except Exception as e:
+                        log_print(f"   ⚠️ Error stopping stream manager: {e}")
+                    
+                    # Recreate stream manager to force fresh websocket subscriptions
+                    stream_manager = DerivStreamManager(api, asset)
+                    await stream_manager.start_streams()
+                    log_print(f"   ✅ Soft reconnect complete. Waiting for fresh data...")
+                    continue
 
             # --- [v4.1.0] Asset Rotation Scanner ---
             _sleeping, _sleep_secs = market_engine.is_sleep_mode()

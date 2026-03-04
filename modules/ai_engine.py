@@ -363,7 +363,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             return None
             
         window = safe_config_get("REGIME_STABILITY_WINDOW", 10)
-        max_flips = safe_config_get("REGIME_MAX_FLIPS", 2)
+        max_flips = safe_config_get("REGIME_MAX_FLIPS", 3)
         is_choppy, flips, labels = _SMART_TRADER.tech.calculate_regime_stability(df_feat, window, max_flips)
         
         if is_choppy:

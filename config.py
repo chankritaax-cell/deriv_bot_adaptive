@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.1.1"     # [v5.1.1] Watchdog Death Loop & Blacklist Fix
+BOT_VERSION = "5.1.2"     # [v5.1.2] Stream Auto-Reconnect & Relaxed AI Guards
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -199,7 +199,7 @@ COOLDOWN_LOSS_TRADE_MINS = 0    # Default 10 mins after a loss
 # [v3.11.41] Regime Stability Guard
 ENABLE_REGIME_STABILITY_GUARD = True
 REGIME_STABILITY_WINDOW = 10          # how many recent candles to evaluate
-REGIME_MAX_FLIPS = 2                  # max allowed regime flips within the window
+REGIME_MAX_FLIPS = 3                  # max allowed regime flips within the window
 REGIME_COOLDOWN_CANDLES = 3           # if choppy detected, force skip for next N candles
 
 # Models

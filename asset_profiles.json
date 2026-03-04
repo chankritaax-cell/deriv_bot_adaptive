@@ -151,8 +151,8 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
+            "call_min": 52.0,
+            "call_max": 68.0,
             "put_min": 32.0,
             "put_max": 48.0
         },
