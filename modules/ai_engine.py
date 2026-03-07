@@ -455,23 +455,22 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 log_print(f"   🛑 PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f}")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
-
         # --- [v4.1.2] Confluence Guard: Trend/MACD Divergence Filter ---
-        if df_feat is not None and len(df_feat) >= 35 and det_trend in ["UPTREND", "DOWNTREND"]:
-            try:
-                macd_line, _, _ = _SMART_TRADER.tech.get_macd(df_feat)
-                if macd_line is not None:
-                    macd_val = float(macd_line)
-                    if det_trend == "UPTREND" and macd_val < 0:
-                        log_print(f"   🛑 PRE-AI SKIP (Confluence Guard): {det_trend} but MACD {macd_val:.4f} contradicts. Divergence detected.")
-                        _perf_metrics["pre_ai_skip_cycles"] += 1
-                        return None
-                    elif det_trend == "DOWNTREND" and macd_val > 0:
-                        log_print(f"   🛑 PRE-AI SKIP (Confluence Guard): {det_trend} but MACD {macd_val:.4f} contradicts. Divergence detected.")
-                        _perf_metrics["pre_ai_skip_cycles"] += 1
-                        return None
-            except Exception:
-                pass  # Graceful fallback — skip guard if MACD calculation fails
+        # if df_feat is not None and len(df_feat) >= 35 and det_trend in ["UPTREND", "DOWNTREND"]:
+        #     try:
+        #         macd_line, _, _ = _SMART_TRADER.tech.get_macd(df_feat)
+        #         if macd_line is not None:
+        #             macd_val = float(macd_line)
+        #             if det_trend == "UPTREND" and macd_val < 0:
+        #                 log_print(f"   PRE-AI SKIP (Confluence Guard): {det_trend} but MACD {macd_val:.4f} contradicts. Divergence detected.")
+        #                 _perf_metrics["pre_ai_skip_cycles"] += 1
+        #                 return None
+        #             elif det_trend == "DOWNTREND" and macd_val > 0:
+        #                 log_print(f"   PRE-AI SKIP (Confluence Guard): {det_trend} but MACD {macd_val:.4f} contradicts. Divergence detected.")
+        #                 _perf_metrics["pre_ai_skip_cycles"] += 1
+        #                 return None
+        #     except Exception:
+        #         pass  # Graceful fallback - skip guard if MACD calculation fails
     else:
         log_print("   ⚠️ Not enough 1m candle data for analysis.")
         return None
@@ -481,6 +480,15 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         R_P_LOWER, R_P_UPPER = _get_rsi_bounds_put()
         MIN_CONF = getattr(config, "AI_CONFIDENCE_THRESHOLD", 0.75)
 
+        # [v5.1.4] Fetch Stochastic for Exhaustion Guard in prompt
+        stoch_k_val, stoch_d_val = None, None
+        try:
+            from .technical_analysis import TechnicalConfirmation
+            stoch_k_val, stoch_d_val = TechnicalConfirmation.get_stochastic(df_1m)
+        except Exception:
+            pass
+        stoch_str = f"Stoch K={stoch_k_val:.1f}, D={stoch_d_val:.1f}" if stoch_k_val is not None and stoch_d_val is not None else "Stoch: N/A"
+
         prompt = f"""
         You are a PRECISION ANALYST for {asset}. Your goal is HIGH-PROBABILITY setups only.
         DEFAULT ACTION IS "SKIP". Propose trade ONLY if ALL conditions align.
@@ -488,6 +496,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         {market_data_summary}
         Current RSI: {f"{rsi_val:.1f}" if rsi_val is not None else "N/A"}
         Current Trend (MA Slope): {det_trend} ({slope:.4f}%)
+        Current Stochastic: {stoch_str}
+        RULE: DO NOT enter a TREND_FOLLOWING trade if Stochastics indicate exhaustion. REJECT 'PUT' if Stoch_K < 20 (Oversold bounce likely). REJECT 'CALL' if Stoch_K > 80 (Overbought pullback likely).
         Return JSON ONLY: {{"action": "CALL" | "PUT" | "SKIP", "confidence": 0.85, "reason": "Short explanation"}}
         """
         analyst_start = time.time()

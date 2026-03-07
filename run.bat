@@ -7,8 +7,7 @@ timeout /t 1 /nobreak >nul
 
 echo 🔥 Starting Deriv Bot ^& Dashboard...
 
-:: Start Dashboard in a new window
-start "Deriv Dashboard" python dashboard_server.py
+
 
 
 start "Deriv Bot" bot_launcher.bat
