@@ -1,15 +1,18 @@
 # 🤖 Deriv AI Bot (Streaming Architecture)
 
-> **v5.0.0 (Adaptive)** | A high-performance, asynchronous trading bot designed specifically for **Deriv.com** (Volatility Indices) using **Python (asyncio)**, **WebSocket Streaming**, and **Adaptive Volatility Profiles**.
+> **v5.1.5 (Adaptive)** | A high-performance, asynchronous trading bot designed specifically for **Deriv.com** (Volatility Indices) using **Python (asyncio)**, **WebSocket Streaming**, and **Adaptive Volatility Profiles**.
 
 ## 🌟 Key Features
 
 *   **⚡ Event-Driven Core:** Transitioned to a real-time WebSocket streaming model for millisecond data synchronization.
-*   🧠 **Hybrid AI Engine (v5.0.0)**: Combines **Google Gemini 2.0** (Analysis), **OpenAI ChatGPT** (Bet Gate), and **Adaptive Volatility Regimes** for maximum intelligence.
+*   🧠 **Hybrid AI Engine (v5.1.5)**: Combines **Google Gemini 2.0** (Analysis), **OpenAI ChatGPT** (Bet Gate), **Claude** (Risk Manager/Council), and **Adaptive Volatility Regimes** for maximum intelligence.
 *   **📊 V5.0 Adaptive Volatility Regimes**: Sticky Regime State Machine (ATR EMA 20) with 3-candle confirmation to detect `NORMAL`, `HIGH_VOL`, and `LOW_VOL`.
+*   **🎯 Sniper Recovery System (v5.1.4)**: Dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.80, MG1: 0.85, MG2+: 0.90).
+*   **🛡️ Stochastic Exhaustion Guard (v5.1.4)**: Prevents trend-chasing into overbought/oversold zones using live Stochastic K/D.
+*   **📡 Stream Auto-Reconnect (v5.1.2)**: 30-second soft-reconnect on API silent drops, bypassing hard watchdog kills.
 *   **🎚️ Dynamic Parameter Overrides**: RSI boundaries and bounce limits automatically adjust based on the current market regime.
 *   **🏛️ AI Council (v4.0.0)**: Multi-Vote system querying 4 AI providers to auto-diagnose and fix bot crashes, consecutive losses, and idle timeouts.
-*   **🛡️ Post-AI Mathematical Guards**: **MACD Momentum Exhaustion** and **Tick Velocity** (Micro-Spike) protection.
+*   **🛡️ Post-AI Mathematical Guards**: **MACD Momentum Exhaustion**, **Tick Velocity** (Micro-Spike), and **Sniper Confidence** protection.
 *   **📈 Strategy Optimization**: Refined RSI Filter, ATR Dynamic thresholds, and hard technical rules to prevent late-trend entries.
 *   **🔥 ChatGPT Credit Burn Mode**: Special mode to utilize paid OpenAI credits for **Asset Scanning**, **Trend Filtering**, and **Analysis** simultaneously.
 *   **🏠 Local AI First**: Uses local Ollama instance to filter market noise and scan assets (when Burn Mode is OFF).
@@ -26,16 +29,21 @@
 ```
 deriv_bot/
 ├── bot.py                 # Main Async Loop (Heartbeat/Watchdog active)
-├── bot_launcher.bat       # Auto-Restart & Encoding Wrapper (UTF-8)
-├── config.py              # Settings (Assets, Money Mgmt, AI Keys, VERBOSE_MODE)
-├── ai_engine.py           # Orchestrator for AI Providers & SmartTrader
-├── ai_providers.py        # AI Multi-Model Interface & Routing
-├── ai_council.py          # AI Council — Multi-Vote error diagnosis & auto-fix
-├── smart_trader.py        # Smart Trader Decision Stack (L1-L4)
-├── technical_analysis.py  # Indicators & Candle Pattern Recognition
-├── market_engine.py       # Async Market Data & Asset Scanning
-├── trade_engine.py        # Async Execution & Portfolio Mgmt
-├── backtest.py            # Full-Strategy Strategy Backtest (L1+L2+L3)
+├── config.py              # Settings (Assets, Money Mgmt, AI Keys, Profiles)
+├── asset_profiles.json    # Per-asset strategy & RSI profiles
+├── run.bat                # Auto-Restart Launcher (Windows)
+├── modules/
+│   ├── ai_engine.py           # Orchestrator for AI Providers & SmartTrader
+│   ├── ai_providers.py        # AI Multi-Model Interface & Routing
+│   ├── ai_council.py          # AI Council — Multi-Vote diagnosis & auto-fix
+│   ├── smart_trader.py        # Smart Trader Decision Stack (L1-L4)
+│   ├── technical_analysis.py  # Indicators & Candle Pattern Recognition
+│   ├── market_engine.py       # Async Market Data & Asset Scanning
+│   ├── stream_manager.py      # WebSocket Stream Handler (Auto-Reconnect)
+│   ├── trade_engine.py        # Async Execution & Portfolio Mgmt
+│   ├── asset_selector.py      # Dynamic best-asset scanner
+│   ├── telegram_bridge.py     # Telegram notifications
+│   └── utils.py               # Dashboard state & logging utilities
 ├── dashboard_server.py    # Web Dashboard (Flask)
 ├── requirements.txt       # Dependencies
 └── .env                   # Secrets (API Tokens)
@@ -98,12 +106,11 @@ View live stats at: http://localhost:5001
 
 ## ⚙️ Configuration (`config.py`)
 
-*   **`ACTIVE_ASSET`**: Default asset to trade (e.g., `"1HZ100V"` for Volatility 100 1s).
-*   **`TIER_2` (Profile)**: Adjust `AMOUNT` and `MAX_DAILY_LOSS_PERCENT` here.
+*   **`ACTIVE_ASSET`**: Default asset to trade (e.g., `"R_75"` for Volatility 75).
+*   **`ACTIVE_PROFILE`**: Trading profile (`TIER_COUNCIL`, `TIER_1`, `TIER_2`, `TIER_MICRO`).
 *   **`AI_PROVIDER`**: Choose `"CHATGPT"`, `"GEMINI"`, or `"CLAUDE"`.
 *   **`MIN_STAKE_AMOUNT`**: Minimum stake per trade (default `1.0`).
-*   **`L2_MIN_CONFIRMATION`**: Technical confirmation threshold (default `0.35`).
-*   **`ALLOW_PUT_SIGNALS`**: Enable/disable PUT trades (`True`/`False`).
+*   **`CONFIDENCE_BASE` / `CONFIDENCE_MG_STEP_1` / `CONFIDENCE_MG_STEP_2`**: Sniper Recovery thresholds.
 
 ## ⚠️ Risk Warning
 

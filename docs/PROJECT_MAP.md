@@ -1,4 +1,4 @@
-# 🗺️ Project Map (Deriv Bot v5.0.0)
+# 🗺️ Project Map (Deriv Bot v5.1.5)
 
 ## 📂 Root Directory (`deriv_bot/`)
 
@@ -9,8 +9,8 @@
 *   **`.env`**: Private environment variables (API Tokens, AI Keys, ASSET lists).
 
 ### 🍱 Modules (`modules/`)
-*   **`stream_manager.py`**: WebSocket Stream Handler for real-time Ticks and Candles.
-*   **`ai_engine.py`**: Core AI analysis orchestrator with Adaptive Volatility logic.
+*   **`stream_manager.py`**: WebSocket Stream Handler with 30s auto-reconnect for real-time Ticks and Candles.
+*   **`ai_engine.py`**: Core AI analysis orchestrator with Adaptive Volatility logic, Sniper Recovery, and Stochastic Guard.
 *   **`smart_trader.py`**: Strategy stack (Trend Following, Pullback Entry) and RL logic.
 *   **`market_engine.py`**: Data fetching and technical indicator snapshot builder.
 *   **`technical_analysis.py`**: Core TA indicators (EMA, ATR, RSI, MACD, Stochastic).

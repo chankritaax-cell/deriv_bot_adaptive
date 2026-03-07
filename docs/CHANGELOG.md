@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.5] - 2026-03-07
+### 📝 Docs & Version Sync
+- **[DOCS] README.md**: Updated version to v5.1.5, added Sniper Recovery / Stochastic Guard / Stream Auto-Reconnect to key features, fixed project structure to reflect `modules/` layout, updated config section.
+- **[DOCS] FEATURES.md**: Added Sniper Recovery & Exhaustion Guards (v5.1.4) section, Stream Auto-Reconnect (v5.1.2) section, updated AI Engine architecture.
+- **[DOCS] PROJECT_MAP.md**: Updated version and module descriptions for `ai_engine.py` and `stream_manager.py`.
+
+
 ## [v5.1.4] - 2026-03-07
 ### 🎯 Risk Management & Precision
 - **[FEATURE] Sniper Recovery System**: Implemented dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.80, MG1: 0.85, MG2+: 0.90). This ensures higher-stake recovery trades require significantly stronger AI conviction.

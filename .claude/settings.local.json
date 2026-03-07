@@ -4,7 +4,8 @@
       "Bash(grep -n \"calculate_regime_stability\\\\|_regime\" /d/SpProject/deriv_bot_v5_dev/.claude/worktrees/ecstatic-napier/modules/*.py)",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''modules/ai_engine.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''ai_engine.py: OK''\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''bot.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''bot.py: OK''\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''modules/market_engine.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''market_engine.py: OK''\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''modules/market_engine.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''market_engine.py: OK''\\)\")",
+      "Bash(ls -la /d/SpProject/deriv_bot_v5_dev/logs/console/console_log_2026-03-0*.txt)"
     ]
   }
 }

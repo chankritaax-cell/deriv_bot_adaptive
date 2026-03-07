@@ -4,14 +4,14 @@
 *   **Multi-Model Support:** Seamlessly switches between **ChatGPT**, **Gemini**, and **Claude**.
 *   **AI Analyst:** Scans the market for the best asset and strategy every 5 minutes.
 
-### 🧠 Hybrid AI Engine (v4.0.0)
+### 🧠 Hybrid AI Engine (v5.1.5)
 The system now uses a **multi-tier AI architecture**:
-1.  **Event-Driven Streaming (v4.0.0)**: Real-time WebSocket subscriptions for Ticks and Candles, replacing old polling loops.
+1.  **Event-Driven Streaming (v5.1.2)**: Real-time WebSocket subscriptions with 30s auto-reconnect on API silent drops.
 2.  **AI Council (v4.0.0)**: Multi-Vote system querying all 4 AI providers to diagnose and fix errors autonomously.
 3.  **Ollama (Local)**: Primary "Trend Filter" and "Asset Scanner". Checks market conditions every minute for free.
-3.  **Google Gemini 2.0 Flash**: Primary "Market Analyst". Called only when Ollama confirms a trend.
-4.  **OpenAI ChatGPT**: "Bet Gate" bouncer. Double-checks high-confidence signals.
-5.  **Anthropic Claude**: "Risk Manager". Adjusts position sizing dynamically.
+4.  **Google Gemini 2.0 Flash**: Primary "Market Analyst". Called only when Ollama confirms a trend.
+5.  **OpenAI ChatGPT**: "Bet Gate" bouncer. Double-checks high-confidence signals.
+6.  **Anthropic Claude**: "Risk Manager" & "Council Chair". Manages risk and leads AI Council analysis.
 
 ### 🏛️ AI Council (v3.4.0)
 Autonomous error resolution system with 3 trigger types:
@@ -44,6 +44,15 @@ Autonomous error resolution system with 3 trigger types:
 *   **Profile Intelligence**: Reads per-asset specific configuration (Pullback Zones, Slope Thresholds) from `asset_profiles.json`.
 *   **Multi-Profile Routing (v5.1.0)**: Supports regime-specific lookups (e.g., `ASSET_HIGH_VOL`) with cascading fallback logic.
 *   **Atomic Profile Security (v5.1.0)**: Crash-safe `asset_profiles.json` updates with 5-attempt retry logic, automated backups, and hot-reloading.
+
+### 🎯 Sniper Recovery & Exhaustion Guards (v5.1.4)
+*   **Sniper Recovery System**: Dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.80, MG1: 0.85, MG2+: 0.90). Higher-stake recovery trades require stronger AI conviction.
+*   **Stochastic Exhaustion Guard**: Injects live Stochastic K/D values into the AI Analyst prompt. Rejects CALL if Stoch K > 80 (overbought), rejects PUT if Stoch K < 20 (oversold).
+*   **Tightened RSI Bounds**: Main assets (R_75, 1HZ100V, 1HZ50V) capped at `call_max=65`, `put_min=35` to avoid exhaustion entries.
+
+### 📡 Stream Auto-Reconnect (v5.1.2)
+*   **30s Soft-Reconnect**: If no market data is received for 30 seconds, the bot recreates WebSocket streams instantly, bypassing the 240s hard watchdog kill.
+*   **Watchdog Sleep Fix (v5.1.3)**: Replaced static 10-minute sleeps with chunked 10-second loops that continuously update the heartbeat.
 
 ### 📊 Structured Metrics Logging (v3.4.14)
 - Logs key entry/exit metrics to a JSONL file for later winrate analysis.
