@@ -20,9 +20,18 @@ FAILED_ASSETS_FILE = os.path.join(ROOT, "logs", "market", "failed_assets.json")
 _FAILED_ASSETS = load_json_safe(FAILED_ASSETS_FILE, {}) # {symbol: timestamp}
 _ASSET_COOLDOWN = 3600 # [v4.1.0] 1 hour cooldown for Cut and Run strategy (1 Loss)
 
-def blacklist_asset(asset):
+def blacklist_asset(asset, duration_secs=None, reason=""):
+    """
+    Blacklist an asset for a cooldown period.
+    duration_secs: Custom duration in seconds. If None, uses the default _ASSET_COOLDOWN (1 hour).
+    reason: Optional log reason (e.g., "Sideways Exhaustion", "Cut & Run").
+    """
     global _FAILED_ASSETS
-    _FAILED_ASSETS[asset] = time.time()
+    if duration_secs is not None and duration_secs < _ASSET_COOLDOWN:
+        # Store an offset timestamp so is_blacklisted() expires after `duration_secs`
+        _FAILED_ASSETS[asset] = time.time() - (_ASSET_COOLDOWN - duration_secs)
+    else:
+        _FAILED_ASSETS[asset] = time.time()
     save_json_atomic(_FAILED_ASSETS, FAILED_ASSETS_FILE)
     reset_asset_cache()  # [v5.0 BUG-07 FIX] banned asset must leave cache immediately
 
