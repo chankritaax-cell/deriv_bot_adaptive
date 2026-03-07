@@ -350,8 +350,15 @@ async def run_streaming_bot(api, thb_suffix):
             
             # 7. AI Analysis & Guards (Internal to analyze_and_decide)
             decision = await ai_engine.analyze_and_decide(api, asset, market_summary, df)
-            
-            if not decision: continue
+
+            if not decision:
+                # --- [v5.1.2] Sideways Guard: Force asset rescan after N consecutive SIDEWAYS candles ---
+                if ai_engine.get_sideways_rescan_needed(asset):
+                    log_print(f"   🔄 [Sideways Guard] {asset} stuck in SIDEWAYS for {ai_engine.SIDEWAYS_RESCAN_THRESHOLD}+ candles. Banning for 30m & forcing rescan.")
+                    ai_engine.reset_sideways_counter(asset)
+                    market_engine.blacklist_asset(asset, duration_secs=1800, reason="Sideways Exhaustion")
+                    last_scan_time = 0  # Force immediate scanner trigger on next loop iteration
+                continue
             
             direction = decision.get("action")
             strategy_name = decision.get("strategy", "UNKNOWN")
@@ -891,7 +898,14 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                     
                     market_summary = await market_engine.get_market_summary_for_ai(api, asset)
                     decision = await ai_engine.analyze_and_decide(api, asset, market_summary, df)
-                    
+
+                    # --- [v5.1.2] Sideways Guard: Force asset rescan after N consecutive SIDEWAYS candles ---
+                    if not decision and ai_engine.get_sideways_rescan_needed(asset):
+                        log_print(f"   🔄 [Sideways Guard] {asset} stuck in SIDEWAYS for {ai_engine.SIDEWAYS_RESCAN_THRESHOLD}+ candles. Banning for 30m & forcing rescan.")
+                        ai_engine.reset_sideways_counter(asset)
+                        market_engine.blacklist_asset(asset, duration_secs=1800, reason="Sideways Exhaustion")
+                        last_scan_time = 0  # Force immediate scanner trigger on next loop iteration
+
                     if decision:
                         direction = decision.get("action")
                         ds = dashboard_get_state()
