@@ -27,6 +27,18 @@ _regime_cooldowns = {}
 _regime_state = {}         # {asset: "NORMAL" | "HIGH_VOL" | "LOW_VOL"}
 _regime_history = {}       # {asset: ["NORMAL", "HIGH_VOL", ...]} (tracks last N ticks of raw threshold crossings)
 
+# --- [v5.1.2] Consecutive Sideways Counter (Pure Logic — No AI) ---
+_sideways_counter = {}     # {asset: int} — tracks consecutive SIDEWAYS candles per asset
+SIDEWAYS_RESCAN_THRESHOLD = 5  # Force asset rescan after this many consecutive SIDEWAYS candles
+
+def get_sideways_rescan_needed(asset):
+    """Check if the sideways counter has reached the threshold for forced rescan."""
+    return _sideways_counter.get(asset, 0) >= SIDEWAYS_RESCAN_THRESHOLD
+
+def reset_sideways_counter(asset):
+    """Reset the sideways counter after a rescan is triggered."""
+    _sideways_counter[asset] = 0
+
 def apply_adaptive_config(asset, df_1m, base_cfg):
     """
     [v5.1.0] Multi-Profile Routing Engine.
@@ -442,6 +454,16 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             _perf_metrics["pre_ai_skip_cycles"] += 1
             return None
 
+        # --- [v5.1.2] Consecutive Sideways Counter ---
+        if det_trend == "SIDEWAYS":
+            _sideways_counter[asset] = _sideways_counter.get(asset, 0) + 1
+            count = _sideways_counter[asset]
+            if count >= SIDEWAYS_RESCAN_THRESHOLD:
+                log_print(f"   🔄 [Sideways Guard] {count} consecutive SIDEWAYS candles on {asset} — flagging for forced asset rescan.")
+        elif det_trend in ("UPTREND", "DOWNTREND"):
+            if _sideways_counter.get(asset, 0) > 0:
+                _sideways_counter[asset] = 0
+
         if rsi_val is not None:
             if det_trend == "UPTREND" and not is_rsi_valid_for_signal("CALL", rsi_val, _early_profile):
                 log_print(f"   🛑 PRE-AI SKIP (RSI Guard): UPTREND RSI {rsi_val:.1f} violation | Volume: {atr_pct:.4f}%")
@@ -452,7 +474,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
             if det_trend == "SIDEWAYS":
-                log_print(f"   🛑 PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f}")
+                log_print(f"   🛑 PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f} | Consecutive: {_sideways_counter.get(asset, 0)}")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
         # --- [v4.1.2] Confluence Guard: Trend/MACD Divergence Filter ---
