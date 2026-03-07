@@ -293,7 +293,10 @@ async def run_streaming_bot(api, thb_suffix):
                             if needs_forced_scan:
                                 log_print(f"   💤 Fallback Guard: {asset} is banned and no valid alternative in TIER_COUNCIL found. Sleeping 10m...")
                                 dashboard_update("status", "Sleeping (10m Fallback)")
-                                await asyncio.sleep(600)
+                                # [v5.1.3 FIX] Sleep in chunks to prevent Watchdog kills
+                                for _ in range(60):  # 60 loop * 10 seconds = 600 seconds (10 minutes)
+                                    last_activity_time = time.time()  # ลูบหัวหมาเฝ้าบ้าน
+                                    await asyncio.sleep(10)
                             else:
                                 log_print(f"   ℹ️ No better asset found. Staying on {asset}.")
                     except Exception as e:
@@ -777,7 +780,10 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                         if needs_forced_scan:
                             log_print(f"   💤 Fallback Guard: {config.ACTIVE_ASSET} is banned and no valid alternative found. Sleeping 10m...")
                             dashboard_update("status", "Sleeping (10m Fallback)")
-                            await asyncio.sleep(600)
+                            # [v5.1.3 FIX] Sleep in chunks to prevent Watchdog kills
+                            for _ in range(60):  # 60 loop * 10 seconds = 600 seconds (10 minutes)
+                                last_activity_time = time.time()  # ลูบหัวหมาเฝ้าบ้าน
+                                await asyncio.sleep(10)
                         else:
                             log_print(f"   ℹ️ No better asset found. Staying on {config.ACTIVE_ASSET}.")
                             

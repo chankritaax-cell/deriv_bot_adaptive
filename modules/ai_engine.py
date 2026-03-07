@@ -522,6 +522,33 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 _perf_metrics["post_ai_block_cycles"] += 1
                 return None
 
+            # -----------------------------------------------------------------
+            # [v5.1.4] Sniper Recovery: Dynamic Confidence Filter based on Martingale
+            # -----------------------------------------------------------------
+            from .utils import load_martingale_state
+            mg_step_sniper, _ = load_martingale_state()
+
+            # ดึงค่าพารามิเตอร์จาก config.py (ถ้าหาไม่เจอให้ใช้ค่า Default ด้านหลัง)
+            base_conf = safe_config_get("CONFIDENCE_BASE", 0.80)
+            mg1_conf  = safe_config_get("CONFIDENCE_MG_STEP_1", 0.85)
+            mg2_conf  = safe_config_get("CONFIDENCE_MG_STEP_2", 0.90)
+
+            required_conf = base_conf  # ตั้งต้นที่ไม้แรก
+
+            if mg_step_sniper == 1:
+                required_conf = mg1_conf
+                log_print(f"   🎯 [Sniper Recovery] MG Step 1 Active: AI Confidence must be >= {required_conf:.2f}")
+            elif mg_step_sniper >= 2:
+                required_conf = mg2_conf
+                log_print(f"   🎯 [Sniper Recovery] MG Step {mg_step_sniper} Active: AI Confidence must be >= {required_conf:.2f}")
+
+            # ถ้าความมั่นใจ AI ต่ำกว่าเกณฑ์ที่ตั้งไว้ในแต่ละระดับ ให้ปัดตกทันที!
+            if confidence < required_conf:
+                log_print(f"   🛑 POST-AI BLOCK (Sniper Guard): {signal} rejected. Confidence {confidence:.2f} < {required_conf:.2f} (MG Step {mg_step_sniper})")
+                _perf_metrics["post_ai_block_cycles"] += 1
+                return None
+            # -----------------------------------------------------------------
+
             if signal in ["CALL", "PUT"] and df_feat is not None and len(df_feat) >= 4:
                 rsi_sig = _SMART_TRADER.tech.get_rsi(df_feat)
                 rsi_prev1 = _SMART_TRADER.tech.get_rsi(df_feat.iloc[:-1])

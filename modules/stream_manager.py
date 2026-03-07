@@ -94,7 +94,9 @@ class DerivStreamManager:
             except asyncio.TimeoutError:
                 log_print(f"   ⚠️ Tick Stream Timeout (Silent drop). Reconnecting...")
                 _last_error_msg = None
-                break
+                # Retry the outer subscription loop instead of exiting the listener.
+                await asyncio.sleep(1)
+                continue
             except Exception as e:
                 err_msg = str(e)
                 if "no close frame received or sent" in err_msg.lower() or "connection closed" in err_msg.lower() or "websockets.exceptions" in err_msg.lower():
@@ -191,7 +193,9 @@ class DerivStreamManager:
             except asyncio.TimeoutError:
                 log_print(f"   ⚠️ Candle Stream Timeout (Silent drop). Reconnecting...")
                 _last_error_msg = None
-                break
+                # Retry the outer subscription loop instead of exiting the listener.
+                await asyncio.sleep(1)
+                continue
             except Exception as e:
                 err_msg = str(e)
                 if "no close frame received or sent" in err_msg.lower() or "connection closed" in err_msg.lower() or "websockets.exceptions" in err_msg.lower():

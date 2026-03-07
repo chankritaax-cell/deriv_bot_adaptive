@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.1.2"     # [v5.1.2] Stream Auto-Reconnect & Relaxed AI Guards
+BOT_VERSION = "5.1.3"     # [v5.1.3] Watchdog Sleep Loop Fix 
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -152,6 +152,13 @@ AI_CONF_LOW_THRESHOLD = 0.50
 AI_CONF_LOW_MULTIPLIER = 0.35
 AI_CONF_BET_MAX_MULTIPLIER = 1.5
 AI_CONF_BET_MIN_MULTIPLIER = 0.7  # [v3.11.27] Allow risk reduction
+
+# ---------------------------------------------------------
+# 🎯 Sniper Recovery System (Dynamic Confidence Threshold)
+# ---------------------------------------------------------
+CONFIDENCE_BASE = 0.80        # ความมั่นใจ AI ขั้นต่ำสำหรับไม้แรก (ปกติ)
+CONFIDENCE_MG_STEP_1 = 0.85   # ความมั่นใจ AI ขั้นต่ำสำหรับไม้ทบที่ 1
+CONFIDENCE_MG_STEP_2 = 0.90   # ความมั่นใจ AI ขั้นต่ำสำหรับไม้ทบที่ 2 ขึ้นไป
 
 # BOT_VERSION declaration moved to top
 

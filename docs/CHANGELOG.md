@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.3] - 2026-03-04
+### 🚑 Watchdog Sleep Loop Fix
+- **[FIX] Fallback Guard Sleep**: Fixed an issue where the 10-minute fallback guard sleep (`asyncio.sleep(600)`) caused the 4-minute Watchdog timer to mistakenly kill the bot. Replaced the static sleep with chunked 10-second sleep loops that continuously update the `last_activity_time` heartbeat.
+
+
 ## [v5.1.2] - 2026-03-04
 ### ⚙️ Optimization & Network Resilience
 - **[FEATURE] Stream Auto-Reconnect**: Implemented a 30-second soft-reconnect mechanism in the streaming module. If no market data is received for 30 seconds (API silent drop), the bot elegantly recreates the WebSocket streams to recover instantly, bypassing the 240s hard watchdog kill.
