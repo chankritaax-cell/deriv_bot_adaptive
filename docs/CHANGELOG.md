@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.4] - 2026-03-07
+### 🎯 Risk Management & Precision
+- **[FEATURE] Sniper Recovery System**: Implemented dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.80, MG1: 0.85, MG2+: 0.90). This ensures higher-stake recovery trades require significantly stronger AI conviction.
+- **[GUARD] Stochastic Exhaustion**: Injected a strict rule and live Stochastic K/D values into the AI Analyst prompt to prevent "trend chasing" into overbought (>80) or oversold (<20) zones.
+- **[TUNING] RSI Bounds**: Tightened `TREND_FOLLOWING` RSI bounds for main assets (R_75, 1HZ100V, 1HZ50V) to `call_max=65.0` and `put_min=35.0` to avoid entries at exhaustion points.
+- **[CLEANUP] Confluence Guard**: Commented out the MACD Divergence filter in `ai_engine.py` to reduce pre-AI signal starvation.
+
+
+## [v5.1.3] - 2026-03-04
+### 🚑 Watchdog Sleep Loop Fix
+- **[FIX] Fallback Guard Sleep**: Fixed an issue where the 10-minute fallback guard sleep (`asyncio.sleep(600)`) caused the 4-minute Watchdog timer to mistakenly kill the bot. Replaced the static sleep with chunked 10-second sleep loops that continuously update the `last_activity_time` heartbeat.
+
+
 ## [v5.1.2] - 2026-03-04
 ### ⚙️ Optimization & Network Resilience
 - **[FEATURE] Stream Auto-Reconnect**: Implemented a 30-second soft-reconnect mechanism in the streaming module. If no market data is received for 30 seconds (API silent drop), the bot elegantly recreates the WebSocket streams to recover instantly, bypassing the 240s hard watchdog kill.

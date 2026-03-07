@@ -6,10 +6,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 48.0,
+            "call_min": 50,
+            "call_max": 65,
+            "put_min": 35,
+            "put_max": 50,
             "pullback_put_lo": 45.0,
             "pullback_put_hi": 58.0,
             "pullback_put_max": 65.0,
@@ -47,10 +47,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 48.0
+            "call_min": 50,
+            "call_max": 65,
+            "put_min": 35,
+            "put_max": 50
         },
         "bounce_limit": 12.0,
         "ma_slope_min": 0.020,
@@ -64,10 +64,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
+            "call_min": 50,
+            "call_max": 65,
+            "put_min": 35,
+            "put_max": 50
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.025,
@@ -152,8 +152,8 @@
         ],
         "rsi_bounds": {
             "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
             "put_max": 48.0
         },
         "bounce_limit": 6.0,
@@ -168,8 +168,8 @@
         ],
         "rsi_bounds": {
             "call_min": 52.0,
-            "call_max": 75.0,
-            "put_min": 25.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
             "put_max": 48.0
         },
         "bounce_limit": 8.0,
@@ -263,10 +263,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 48.0
+            "call_min": 50,
+            "call_max": 65,
+            "put_min": 35,
+            "put_max": 50
         },
         "bounce_limit": 10.0,
         "ma_slope_min": 0.020,

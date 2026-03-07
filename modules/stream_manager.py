@@ -15,7 +15,8 @@ class DerivStreamManager:
         
         # State Variables
         self.latest_ticks = collections.deque(maxlen=10) # For Tick Velocity Guard
-        self.current_candle = {}                        # Latest forming candle
+        self.current_candle = {}                        # Latest forming candle
+        self.last_candle_epoch = None                  # Persist across reconnects
         self.candle_queue = asyncio.Queue()             # Queue for fully closed candles
         
         self._is_running = False
@@ -45,7 +46,16 @@ class DerivStreamManager:
         while self._is_running:
             disposable = None
             try:
-                subscription = await self.api.subscribe({'ticks': self.asset})
+                try:
+                    subscription = await asyncio.wait_for(
+                        self.api.subscribe({'ticks': self.asset}),
+                        timeout=10.0
+                    )
+                except asyncio.TimeoutError:
+                    log_print("   WARN: Tick subscribe timeout. Retrying...")
+                    _last_error_msg = None
+                    await asyncio.sleep(2)
+                    continue
                 
                 # 🛡️ Check for Server Error before subscribing
                 if isinstance(subscription, dict) and 'error' in subscription:
@@ -94,7 +104,9 @@ class DerivStreamManager:
             except asyncio.TimeoutError:
                 log_print(f"   ⚠️ Tick Stream Timeout (Silent drop). Reconnecting...")
                 _last_error_msg = None
-                break
+                # Retry the outer subscription loop instead of exiting the listener.
+                await asyncio.sleep(1)
+                continue
             except Exception as e:
                 err_msg = str(e)
                 if "no close frame received or sent" in err_msg.lower() or "connection closed" in err_msg.lower() or "websockets.exceptions" in err_msg.lower():
@@ -122,13 +134,22 @@ class DerivStreamManager:
         while self._is_running:
             disposable = None
             try:
-                subscription = await self.api.subscribe({
-                    'ticks_history': self.asset,
-                    'end': 'latest',
-                    'style': 'candles',
-                    'granularity': 60,
-                    'subscribe': 1
-                })
+                try:
+                    subscription = await asyncio.wait_for(
+                        self.api.subscribe({
+                            'ticks_history': self.asset,
+                            'end': 'latest',
+                            'style': 'candles',
+                            'granularity': 60,
+                            'subscribe': 1
+                        }),
+                        timeout=10.0
+                    )
+                except asyncio.TimeoutError:
+                    log_print("   WARN: Candle subscribe timeout. Retrying...")
+                    _last_error_msg = None
+                    await asyncio.sleep(2)
+                    continue
                 
                 # 🛡️ Check for Server Error before subscribing
                 if isinstance(subscription, dict) and 'error' in subscription:
@@ -149,8 +170,6 @@ class DerivStreamManager:
                     on_error=lambda e: q.put_nowait({'error': {'message': str(e)}})
                 )
                 
-                last_epoch = None
-                
                 while self._is_running:
                     # 🛡️ Watchdog: Candles update every 2 seconds. Use 30s timeout
                     response = await asyncio.wait_for(q.get(), timeout=30.0)
@@ -168,11 +187,12 @@ class DerivStreamManager:
                         }
                         
                         # Detect Candle Close
-                        if last_epoch is not None and current_epoch > last_epoch:
-                            await self.candle_queue.put(self.current_candle.copy())
+                        if self.last_candle_epoch is not None and current_epoch > self.last_candle_epoch:
+                            if self.current_candle:
+                                await self.candle_queue.put(self.current_candle.copy())
  
                         self.current_candle = candle_data
-                        last_epoch = current_epoch
+                        self.last_candle_epoch = current_epoch
                         
                     elif 'error' in response:
                         err_msg = response['error'].get('message', 'Unknown')
@@ -191,7 +211,9 @@ class DerivStreamManager:
             except asyncio.TimeoutError:
                 log_print(f"   ⚠️ Candle Stream Timeout (Silent drop). Reconnecting...")
                 _last_error_msg = None
-                break
+                # Retry the outer subscription loop instead of exiting the listener.
+                await asyncio.sleep(1)
+                continue
             except Exception as e:
                 err_msg = str(e)
                 if "no close frame received or sent" in err_msg.lower() or "connection closed" in err_msg.lower() or "websockets.exceptions" in err_msg.lower():
