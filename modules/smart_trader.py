@@ -257,12 +257,15 @@ class SmartTrader:
         if blocked:
             details["final_decision"] = "SKIP"
             details["reasons"].append(f"L1: Blocked by Bayes (p={block_info['p_bayes']} < {block_th}, n={block_info['n']})")
+            if verbose:
+                log_print(f"   ⛔ [L1 Bayes] {asset}|{strategy}|{direction} blocked (p={block_info['p_bayes']:.2f} < {block_th}, n={block_info['n']})")
             return False, bet_mult, details
 
         # --- Level 1.5: Hard Rules (Safety Net) ---
-        # [v5.1.9] Pass strategy so exhaustion guard can be bypassed for TREND_FOLLOWING
+        # [v5.2.2] Pass strategy + rsi_bounds from asset_profile for consistency
+        _hr_rsi_bounds = asset_profile.get("rsi_bounds") if asset_profile else None
         if safe_config_get("ENABLE_HARD_RULES", True):
-            is_safe, failure_reason = TechnicalConfirmation.check_hard_rules(df_1m, signal, strategy)
+            is_safe, failure_reason = TechnicalConfirmation.check_hard_rules(df_1m, signal, strategy, rsi_bounds=_hr_rsi_bounds)
             if not is_safe:
                  details["final_decision"] = "SKIP"
                  details["reasons"].append(f"L1.5: {failure_reason}")
@@ -388,26 +391,38 @@ class SmartTrader:
 
             if direction == "CALL":
                 if slope < ma_slope_min:
-                    details["reasons"].append(f"TREND_FOLLOWING: Slope {slope:.3f}% too weak for CALL")
+                    _reason = f"TREND_FOLLOWING: Slope {slope:.3f}% too weak for CALL (need {ma_slope_min}%)"
+                    details["reasons"].append(_reason)
+                    if verbose: log_print(f"   ⛔ [TF] {_reason}")
                     return False, bet_mult, details
-                # [FIXED] ใช้ค่า Dynamic จาก Profile 
+                # [FIXED] ใช้ค่า Dynamic จาก Profile
                 if not (call_min <= rsi_now <= call_max):
-                    details["reasons"].append(f"TREND_FOLLOWING: RSI {rsi_now:.1f} outside CALL zone [{call_min}, {call_max}]")
+                    _reason = f"TREND_FOLLOWING: RSI {rsi_now:.1f} outside CALL zone [{call_min}, {call_max}]"
+                    details["reasons"].append(_reason)
+                    if verbose: log_print(f"   ⛔ [TF] {_reason}")
                     return False, bet_mult, details
                 if macd_hist <= 0:
-                    details["reasons"].append("TREND_FOLLOWING: MACD hist not bullish")
+                    _reason = f"TREND_FOLLOWING: MACD hist not bullish ({macd_hist:.4f})"
+                    details["reasons"].append(_reason)
+                    if verbose: log_print(f"   ⛔ [TF] {_reason}")
                     return False, bet_mult, details
 
             elif direction == "PUT":
                 if slope > -ma_slope_min:
-                    details["reasons"].append(f"TREND_FOLLOWING: Slope {slope:.3f}% too weak for PUT")
+                    _reason = f"TREND_FOLLOWING: Slope {slope:.3f}% too weak for PUT (need -{ma_slope_min}%)"
+                    details["reasons"].append(_reason)
+                    if verbose: log_print(f"   ⛔ [TF] {_reason}")
                     return False, bet_mult, details
                 # [FIXED] ใช้ค่า Dynamic จาก Profile
                 if not (put_min <= rsi_now <= put_max):
-                    details["reasons"].append(f"TREND_FOLLOWING: RSI {rsi_now:.1f} outside PUT zone [{put_min}, {put_max}]")
+                    _reason = f"TREND_FOLLOWING: RSI {rsi_now:.1f} outside PUT zone [{put_min}, {put_max}]"
+                    details["reasons"].append(_reason)
+                    if verbose: log_print(f"   ⛔ [TF] {_reason}")
                     return False, bet_mult, details
                 if macd_hist >= 0:
-                    details["reasons"].append("TREND_FOLLOWING: MACD hist not bearish")
+                    _reason = f"TREND_FOLLOWING: MACD hist not bearish ({macd_hist:.4f})"
+                    details["reasons"].append(_reason)
+                    if verbose: log_print(f"   ⛔ [TF] {_reason}")
                     return False, bet_mult, details
 
         # --- Level 2: Technical Confirmation ---

@@ -279,6 +279,22 @@ class AssetSelector:
                         vol_score * 0.10
                     ) * 100  # Scale to 0-100
 
+                    # [v5.2.2] Current Tradability Check — prevent selecting untradeable assets
+                    # Check if the LATEST candle passes Hard Rules for at least one direction
+                    _live_tradeable = False
+                    _live_slice = df.iloc[-50:] if len(df) >= 50 else df
+                    _live_rsi_bounds = _sim_profile.get("rsi_bounds", {})
+                    for _dir in ["CALL", "PUT"]:
+                        _dir_safe, _ = TechnicalConfirmation.check_hard_rules(
+                            _live_slice, _dir, strategy, rsi_bounds=_live_rsi_bounds
+                        )
+                        if _dir_safe:
+                            _live_tradeable = True
+                            break
+
+                    if not _live_tradeable:
+                        composite_score -= 5.0  # Soft penalty — conditions change every minute
+
                     candidates.append({
                         "asset": asset,
                         "wr": wr,
@@ -289,13 +305,15 @@ class AssetSelector:
                         "trend_str": trend_strength,
                         "regime": regime,
                         "strategy": strategy,
-                        "composite": round(composite_score, 2)
+                        "composite": round(composite_score, 2),
+                        "live_tradeable": _live_tradeable
                     })
+                    _live_tag = "" if _live_tradeable else " | BLOCKED"
                     log_print(
                         f"   📊 {asset}: WR {wr:.1f}% ({signals}t) | "
                         f"Recent {effective_recent_wr:.1f}% ({recent_signals}t) | "
                         f"Regime: {regime} | Strategy: {strategy} | "
-                        f"Composite: {composite_score:.1f}"
+                        f"Composite: {composite_score:.1f}{_live_tag}"
                     )
                 else:
                     pass  # Low volume, skip silently

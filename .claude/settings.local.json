@@ -15,7 +15,15 @@
       "Bash(echo \"=== Conf >= 0.90 ===\")",
       "Bash(echo \"=== Conf >= 0.85 ===\")",
       "Bash(python -c \":*)",
-      "WebFetch(domain:deriv.com)"
+      "WebFetch(domain:deriv.com)",
+      "Bash(python logs/mg_analysis.py)",
+      "Bash(python logs/mg_sim_08.py)",
+      "Bash(python -c \"from modules.technical_analysis import TechnicalConfirmation; print\\(''technical_analysis OK''\\)\")",
+      "Bash(python -c \"from modules.smart_trader import SmartTrader; print\\(''smart_trader OK''\\)\")",
+      "Bash(python -c \"from modules.ai_engine import analyze_and_trade; print\\(''ai_engine OK''\\)\")",
+      "Bash(python -c \"from modules.ai_engine import analyze_and_decide; print\\(''ai_engine OK''\\)\")",
+      "Bash(python -c \"from modules.asset_selector import AssetSelector; print\\(''asset_selector OK''\\)\")",
+      "Bash(python logs/backtest_rsi_guard.py)"
     ]
   }
 }

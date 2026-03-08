@@ -746,7 +746,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             # ทบเงินสูง ($2-4) → ต้องเช็ค critical hard rules ก่อน force trade
             # ป้องกันการยัดเทรดตอน MACD Bearish Cross / Dead Market
             from modules.technical_analysis import TechnicalConfirmation
-            is_safe_for_mg, mg_block_reason = TechnicalConfirmation.check_hard_rules(df_feat, signal, "TREND_FOLLOWING")
+            _mg_rsi_bounds = asset_profile.get("rsi_bounds") if asset_profile else None
+            is_safe_for_mg, mg_block_reason = TechnicalConfirmation.check_hard_rules(df_feat, signal, "TREND_FOLLOWING", rsi_bounds=_mg_rsi_bounds)
 
             if is_safe_for_mg:
                 mg_override_strategy = strategy_name if 'strategy_name' in locals() else "AI_RECOVERY"

@@ -279,10 +279,12 @@ class TechnicalConfirmation:
         }
 
     @staticmethod
-    def check_hard_rules(df, signal, strategy=""):
+    def check_hard_rules(df, signal, strategy="", rsi_bounds=None):
         """
-        [v5.1.9] Hard safety checks to prevent Reversal/Momentum losses.
+        [v5.2.2] Hard safety checks to prevent Reversal/Momentum losses.
         strategy param used to skip exhaustion guard for TREND_FOLLOWING.
+        rsi_bounds: dict from asset_profile (e.g. {"call_min":45,"call_max":72,...})
+                    If None, falls back to legacy config.py values.
         Returns: (passed: bool, reason: str)
         """
         if df is None or len(df) < 35: return True, "Not enough data"
@@ -322,13 +324,17 @@ class TechnicalConfirmation:
         # 2. RSI Block
         rsi = TechnicalConfirmation.get_rsi(df)
         if rsi is not None and safe_config_get("ENABLE_RSI_GUARD", True):
-            # Deterministic RSI windows (must match ai_engine)
-            call_min = safe_config_get("RSI_CALL_MIN", 55)
-            call_max = safe_config_get("RSI_CALL_MAX", 60)
-            
-            # [v3.11.42] New explicit keys
-            put_lo = float(safe_config_get('RSI_PUT_LOWER', safe_config_get('RSI_PUT_MAX', 32)))
-            put_hi = float(safe_config_get('RSI_PUT_UPPER', safe_config_get('RSI_PUT_MIN', 52)))
+            # [v5.2.2] Use asset_profile rsi_bounds if provided, otherwise fallback to config.py
+            if rsi_bounds:
+                call_min = float(rsi_bounds.get("call_min", safe_config_get("RSI_CALL_MIN", 55)))
+                call_max = float(rsi_bounds.get("call_max", safe_config_get("RSI_CALL_MAX", 60)))
+                put_lo = float(rsi_bounds.get("put_min", safe_config_get('RSI_PUT_LOWER', 32)))
+                put_hi = float(rsi_bounds.get("put_max", safe_config_get('RSI_PUT_UPPER', 48)))
+            else:
+                call_min = safe_config_get("RSI_CALL_MIN", 55)
+                call_max = safe_config_get("RSI_CALL_MAX", 60)
+                put_lo = float(safe_config_get('RSI_PUT_LOWER', safe_config_get('RSI_PUT_MAX', 32)))
+                put_hi = float(safe_config_get('RSI_PUT_UPPER', safe_config_get('RSI_PUT_MIN', 52)))
             put_min, put_max = (put_hi, put_lo) if put_lo <= put_hi else (put_lo, put_hi) # Nomenclature match for local vars
 
             sig = str(signal or "").upper()
@@ -346,13 +352,17 @@ class TechnicalConfirmation:
         if atr and price > 0 and (atr/price < 0.0001): return False, "Hard Block: Dead Market 🛑"
 
         # 4. Stochastic Bounce Guard (Prevent extreme oversold/overbought entries)
+        # [v5.2.2] TREND_FOLLOWING uses relaxed thresholds (85/15) — strong trends naturally
+        # have elevated Stochastic. Only block at genuinely extreme levels.
         if safe_config_get("ENABLE_STOCHASTIC_BOUNCE_GUARD", True):
             stoch_k, stoch_d = TechnicalConfirmation.get_stochastic(df)
             if stoch_k is not None:
-                if signal == "PUT" and stoch_k < 20:
-                    return False, f"Hard Block: PUT rejected. Stochastic in oversold bounce zone ({stoch_k:.1f} < 20) 🛑"
-                if signal == "CALL" and stoch_k > 80:
-                    return False, f"Hard Block: CALL rejected. Stochastic in overbought pullback zone ({stoch_k:.1f} > 80) 🛑"
+                ob_threshold = 85 if strategy == "TREND_FOLLOWING" else 80
+                os_threshold = 15 if strategy == "TREND_FOLLOWING" else 20
+                if signal == "PUT" and stoch_k < os_threshold:
+                    return False, f"Hard Block: PUT rejected. Stochastic in oversold bounce zone ({stoch_k:.1f} < {os_threshold}) 🛑"
+                if signal == "CALL" and stoch_k > ob_threshold:
+                    return False, f"Hard Block: CALL rejected. Stochastic in overbought pullback zone ({stoch_k:.1f} > {ob_threshold}) 🛑"
 
         return True, "Safe"
 
