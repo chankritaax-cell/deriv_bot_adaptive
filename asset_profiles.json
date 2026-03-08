@@ -6,10 +6,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 50,
-            "call_max": 65,
-            "put_min": 35,
-            "put_max": 50,
+            "call_min": 45,
+            "call_max": 72,
+            "put_min": 28,
+            "put_max": 55,
             "pullback_put_lo": 45.0,
             "pullback_put_hi": 58.0,
             "pullback_put_max": 65.0,
@@ -47,10 +47,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 50,
-            "call_max": 65,
-            "put_min": 35,
-            "put_max": 50
+            "call_min": 45,
+            "call_max": 72,
+            "put_min": 28,
+            "put_max": 55
         },
         "bounce_limit": 12.0,
         "ma_slope_min": 0.020,
@@ -64,10 +64,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 50,
-            "call_max": 65,
-            "put_min": 35,
-            "put_max": 50
+            "call_min": 45,
+            "call_max": 72,
+            "put_min": 28,
+            "put_max": 55
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.025,
@@ -144,17 +144,16 @@
         "min_trades_before_trust": 150
     },
     "1HZ50V": {
-        "enabled": true,
         "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "CALL",
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 48.0
+            "call_min": 45.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 55.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
@@ -167,10 +166,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 48.0
+            "call_min": 45.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 55.0
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.020,
@@ -197,7 +196,6 @@
         "notes": "Adaptive: Low Volatility. เมื่อตลาดเริ่มช้าลง เปลี่ยนมาดักเข้าแบบ Pullback แทน"
     },
     "1HZ10V": {
-        "enabled": true,
         "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "CALL",
@@ -263,10 +261,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 50,
-            "call_max": 65,
-            "put_min": 35,
-            "put_max": 50
+            "call_min": 45,
+            "call_max": 72,
+            "put_min": 28,
+            "put_max": 55
         },
         "bounce_limit": 10.0,
         "ma_slope_min": 0.020,
@@ -299,10 +297,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0,
+            "call_min": 45.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 55.0,
             "pullback_put_lo": 44.0,
             "pullback_put_hi": 56.0,
             "pullback_put_max": 63.0,

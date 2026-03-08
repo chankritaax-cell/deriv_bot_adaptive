@@ -175,9 +175,12 @@ def is_rsi_valid_for_signal(signal, rsi, profile=None):  # [v5.0 BUG-06 FIX]
 
 def run_logic_self_audit():
     log_print("🛡️  [Self-Audit] Active Logic Thresholds:")
-    log_print(f"   • RSI CALL Window: {safe_config_get('RSI_CALL_MIN', 55)} - {safe_config_get('RSI_CALL_MAX', 60)}")
-    lo_p, hi_p = _get_rsi_bounds_put()
-    log_print(f"   • RSI PUT Window:  {lo_p} - {hi_p} (LOWER - UPPER)")
+    # [v5.1.7] Show RSI bounds from DEFAULT profile (actual active bounds)
+    _default_profile = getattr(config, "ASSET_STRATEGY_MAP", {}).get("DEFAULT", {})
+    lo_c, hi_c = _get_rsi_bounds_call(_default_profile)
+    log_print(f"   • RSI CALL Window: {lo_c} - {hi_c} (from asset_profiles DEFAULT)")
+    lo_p, hi_p = _get_rsi_bounds_put(_default_profile)
+    log_print(f"   • RSI PUT Window:  {lo_p} - {hi_p} (from asset_profiles DEFAULT)")
     log_print(f"   • MIN_ATR_THRESHOLD_PCT: {safe_config_get('MIN_ATR_THRESHOLD_PCT', 0.012)}%")
     log_print(f"   • MA_SLOPE_THRESHOLD_PCT: {safe_config_get('MA_SLOPE_THRESHOLD_PCT', 0.03)}%")
     try:
@@ -512,14 +515,17 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         stoch_str = f"Stoch K={stoch_k_val:.1f}, D={stoch_d_val:.1f}" if stoch_k_val is not None and stoch_d_val is not None else "Stoch: N/A"
 
         prompt = f"""
-        You are a PRECISION ANALYST for {asset}. Your goal is HIGH-PROBABILITY setups only.
-        DEFAULT ACTION IS "SKIP". Propose trade ONLY if ALL conditions align.
+        You are a TREND ANALYST for {asset}. Identify the dominant 1-minute trend direction.
         MARKET CONTEXT (1m Timeframe):
         {market_data_summary}
         Current RSI: {f"{rsi_val:.1f}" if rsi_val is not None else "N/A"}
         Current Trend (MA Slope): {det_trend} ({slope:.4f}%)
         Current Stochastic: {stoch_str}
-        RULE: DO NOT enter a TREND_FOLLOWING trade if Stochastics indicate exhaustion. REJECT 'PUT' if Stoch_K < 20 (Oversold bounce likely). REJECT 'CALL' if Stoch_K > 80 (Overbought pullback likely).
+        DECISION RULES:
+        - Enter CALL if trend is UPTREND (MA slope > 0) and RSI confirms upward momentum.
+        - Enter PUT if trend is DOWNTREND (MA slope < 0) and RSI confirms downward momentum.
+        - SKIP if trend is SIDEWAYS, or MACD contradicts the MA trend direction.
+        NOTE: Stochastic is supplementary context only. The system has a dedicated Exhaustion Guard that blocks extreme Stochastic levels (K<20 or K>80) independently. Do NOT use Stochastic as a primary rejection reason.
         Return JSON ONLY: {{"action": "CALL" | "PUT" | "SKIP", "confidence": 0.85, "reason": "Short explanation"}}
         """
         analyst_start = time.time()
@@ -548,8 +554,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 _perf_metrics["ai_skip_cycles"] += 1
                 return None
 
-            if rsi_val is not None and not is_rsi_valid_for_signal(signal, rsi_val):
-                lo, hi = _get_rsi_bounds_call() if signal == "CALL" else _get_rsi_bounds_put()
+            if rsi_val is not None and not is_rsi_valid_for_signal(signal, rsi_val, _early_profile):
+                lo, hi = _get_rsi_bounds_call(_early_profile) if signal == "CALL" else _get_rsi_bounds_put(_early_profile)
                 log_print(f"   🛑 POST-AI BLOCK: {signal} rejected. RSI {rsi_val:.1f} out of bounds ({lo}-{hi})")
                 _perf_metrics["post_ai_block_cycles"] += 1
                 return None
@@ -720,7 +726,22 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         final_decision = (should_enter, bet_mult, details, strategy_name)
     else:
         log_print(f"   🚫 Strategy {strategy_name} BLOCKED or REJECTED. Checking fallback...")
-            
+        # [v5.1.7] Fallback: If PULLBACK_ENTRY blocked, try TREND_FOLLOWING
+        if strategy_name == "PULLBACK_ENTRY" and not final_decision:
+            fallback_strategy = "TREND_FOLLOWING"
+            log_print(f"   🔄 Trying fallback strategy: {fallback_strategy}")
+            fb_enter, fb_mult, fb_details = await _SMART_TRADER.should_enter(
+                api=api, asset=asset, strategy=fallback_strategy, signal=signal, confidence=confidence, df_1m=df_feat, asset_profile=asset_profile
+            )
+            if fb_enter:
+                fb_details["ai_analysis"] = ai_reason
+                final_decision = (fb_enter, fb_mult, fb_details, fallback_strategy)
+            else:
+                # [v5.1.9] Log reason why fallback also failed
+                fb_reasons = fb_details.get("reasons", [])
+                if fb_reasons:
+                    log_print(f"   ❌ Fallback {fallback_strategy} blocked: {'; '.join(fb_reasons[-2:])}")
+
     if not final_decision:
         if mg_step > 0:
             # [v4.1.6] Martingale Override: Force trade through despite strategy blocks

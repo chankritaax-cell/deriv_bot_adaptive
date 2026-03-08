@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.1.5"     # [v5.1.5] Docs & version sync
+BOT_VERSION = "5.1.9"     # [v5.1.9] Fix MACD Exhaustion Guard: strategy-aware + decay threshold, MG mismatch warning, fallback log
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -167,16 +167,20 @@ MIN_STAKE_AMOUNT = 1.0
 SLIPPAGE_BUFFER = 0.10
 ENABLE_RSI_GUARD = True   
 
-RSI_CALL_MAX = 68           # ขยายกรอบฝั่งขึ้นให้หายใจสะดวกขึ้น
-RSI_PUT_LOWER = 32          # ยอมให้ยิงลงได้ลึกขึ้น     # [v3.11.43] Safe lower bound to avoid bounce
-
+# [v5.1.6 LEGACY] RSI bounds below are NO LONGER USED by smart_trader.py
+# Active RSI bounds are defined per-asset in asset_profiles.json → rsi_bounds
+# Kept for backward compatibility with any external tools referencing these values
+RSI_CALL_MAX = 68
+RSI_PUT_LOWER = 32
 RSI_CALL_MIN = 52.0
 RSI_PUT_UPPER = 48.0
 
-
+# [v5.1.6 LEGACY] ATR/Slope thresholds below are NO LONGER USED by smart_trader.py
+# Active values come from asset_profiles.json → ma_slope_min, bounce_limit
+# Regime thresholds below ARE still used by ai_engine.py regime detection
 MIN_ATR_THRESHOLD_PCT = 0.015
-MAX_ATR_THRESHOLD_PCT = 0.30  # [v5.1 Tuning] Raised from 0.20 to allow 1HZ100V to trade during high volatility
-MA_SLOPE_THRESHOLD_PCT = 0.015  # [v5.0 FIX] lowered from 0.025 to allow moderate trends
+MAX_ATR_THRESHOLD_PCT = 0.30
+MA_SLOPE_THRESHOLD_PCT = 0.015
 
 # [v5.0 Adaptive Engine] Regime Detection Thresholds
 # R_ assets (Volatility Index): lower ATR range

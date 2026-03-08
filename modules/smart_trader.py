@@ -10,7 +10,7 @@ import random
 import datetime
 import config
 from .technical_analysis import TechnicalConfirmation
-from .utils import safe_config_get, save_json_atomic # [v5.1.0] Atomic Persistence Support
+from .utils import safe_config_get, save_json_atomic, log_print # [v5.1.0] Atomic Persistence Support
 
 # [v3.11.25] Align with ROOT_DIR
 ROOT = getattr(config, "ROOT_DIR", os.getcwd())
@@ -82,10 +82,10 @@ class PerformanceTracker:
         if asset: trades = [t for t in trades if t["asset"] == asset]
         if strategy: trades = [t for t in trades if t["strategy"] == strategy]
         if last_n: trades = trades[-last_n:]
-        if not trades: return 0.5
+        if not trades: return 0.0  # [v5.1.6] No data = 0%, not 50% (prevents misleading decisions)
         wins = sum(1 for t in trades if t["result"] == "WIN")
         total = sum(1 for t in trades if t["result"] in ["WIN", "LOSS"])
-        return wins/total if total>0 else 0.5
+        return wins/total if total > 0 else 0.0
 
     def get_ai_summary(self, current_asset=None):
         recent = self.data["trades"][-10:]
@@ -159,10 +159,14 @@ class PerformanceTracker:
         }
 
 class SmartDecisionEngine:
+    EPSILON_INITIAL = 0.15       # [v5.1.6] 15% exploration at start
+    EPSILON_MIN = 0.02           # Minimum 2% exploration (never fully stop)
+    EPSILON_DECAY = 0.995        # Decay per update (~300 updates to reach min)
+
     def __init__(self):
         self.q_table = {}
         self.visit_count = {}
-        self.epsilon = 0.0
+        self.epsilon = self.EPSILON_INITIAL
         self._load()
 
     def _load(self):
@@ -172,12 +176,13 @@ class SmartDecisionEngine:
                     d = json.load(f)
                     self.q_table = d.get("q_table", {})
                     self.visit_count = d.get("visit_count", {})
+                    self.epsilon = max(d.get("epsilon", self.EPSILON_INITIAL), self.EPSILON_MIN)
             except: pass
 
     def _save(self):
         """Atomic Save: Prevents RL model corruption."""
         try:
-            data_to_save = {"q_table": self.q_table, "visit_count": self.visit_count}
+            data_to_save = {"q_table": self.q_table, "visit_count": self.visit_count, "epsilon": self.epsilon}
             save_json_atomic(data_to_save, RL_MODEL_FILE)
         except Exception as e:
             pass
@@ -207,6 +212,8 @@ class SmartDecisionEngine:
         new_q = old_q + 0.1 * (reward - old_q)
         self.q_table[key][action] = new_q
         self.visit_count[key][action] += 1
+        # [v5.1.6] Epsilon decay — reduce exploration as model learns
+        self.epsilon = max(self.epsilon * self.EPSILON_DECAY, self.EPSILON_MIN)
         self._save()
 
     def get_stats(self):
@@ -223,7 +230,7 @@ class SmartTrader:
         self.tech = TechnicalConfirmation()
         self.rl = SmartDecisionEngine()
 
-    async def should_enter(self, api, asset, strategy, signal, regime="UNKNOWN", confidence=0.0, df_1m=None, asset_profile=None):  # [v5.0 BUG-03 FIX]
+    async def should_enter(self, api, asset, strategy, signal, regime="UNKNOWN", confidence=0.0, df_1m=None, asset_profile=None, verbose=True):  # [v5.1.9] verbose=False suppresses simulation logs
         """Master decision combining L1 (Perf) → L2 (Tech) → L3 (RL)."""
         details = {
             "level1_perf": {}, "level2_tech": {}, "level3_rl": {},
@@ -253,12 +260,14 @@ class SmartTrader:
             return False, bet_mult, details
 
         # --- Level 1.5: Hard Rules (Safety Net) ---
-        # [v3.5.3] Configurable Technical Filters
+        # [v5.1.9] Pass strategy so exhaustion guard can be bypassed for TREND_FOLLOWING
         if safe_config_get("ENABLE_HARD_RULES", True):
-            is_safe, failure_reason = TechnicalConfirmation.check_hard_rules(df_1m, signal)
+            is_safe, failure_reason = TechnicalConfirmation.check_hard_rules(df_1m, signal, strategy)
             if not is_safe:
                  details["final_decision"] = "SKIP"
                  details["reasons"].append(f"L1.5: {failure_reason}")
+                 if verbose:
+                     log_print(f"   ⛔ [Hard Rule] {failure_reason}")
                  return False, bet_mult, details
 
         # --- Strategy Specific Rules (PULLBACK_ENTRY) ---

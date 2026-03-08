@@ -279,9 +279,10 @@ class TechnicalConfirmation:
         }
 
     @staticmethod
-    def check_hard_rules(df, signal):
+    def check_hard_rules(df, signal, strategy=""):
         """
-        [v3.5.2] Hard safety checks to prevent Reversal/Momentum losses.
+        [v5.1.9] Hard safety checks to prevent Reversal/Momentum losses.
+        strategy param used to skip exhaustion guard for TREND_FOLLOWING.
         Returns: (passed: bool, reason: str)
         """
         if df is None or len(df) < 35: return True, "Not enough data"
@@ -306,12 +307,18 @@ class TechnicalConfirmation:
         if hist_prev < 0 and hist_now > 0:
             if signal == "PUT": return False, "Hard Block: MACD Bullish Cross 🛑"
 
-        # [v3.11.56] MACD Momentum Exhaustion Guard (Prevent late-trend entries)
-        if safe_config_get("ENABLE_MACD_MOMENTUM_GUARD", True):
+        # [v5.1.9] MACD Momentum Exhaustion Guard (Prevent late-trend entries)
+        # SKIP for TREND_FOLLOWING: trend-entry doesn't require peak momentum, only direction.
+        # For other strategies (PULLBACK_ENTRY), require significant decay (>= 20%) to reduce noise.
+        if safe_config_get("ENABLE_MACD_MOMENTUM_GUARD", True) and strategy != "TREND_FOLLOWING":
             if signal == "CALL" and hist_now <= hist_prev:
-                return False, f"Hard Block: CALL rejected. MACD Momentum shrinking (Exhaustion) ({hist_now:.4f} <= {hist_prev:.4f}) 🛑"
+                decay = abs(hist_prev - hist_now) / abs(hist_prev) if hist_prev != 0 else 1.0
+                if decay >= 0.20:  # Only block on significant decay (20%+), not minor oscillation
+                    return False, f"Hard Block: CALL rejected. MACD Exhaustion ({hist_now:.4f}, decay {decay:.0%}) 🛑"
             if signal == "PUT" and hist_now >= hist_prev:
-                return False, f"Hard Block: PUT rejected. MACD Momentum shrinking (Exhaustion) ({hist_now:.4f} >= {hist_prev:.4f}) 🛑"
+                decay = abs(hist_now - hist_prev) / abs(hist_prev) if hist_prev != 0 else 1.0
+                if decay >= 0.20:
+                    return False, f"Hard Block: PUT rejected. MACD Exhaustion ({hist_now:.4f}, decay {decay:.0%}) 🛑"
         # 2. RSI Block
         rsi = TechnicalConfirmation.get_rsi(df)
         if rsi is not None and safe_config_get("ENABLE_RSI_GUARD", True):

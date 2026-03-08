@@ -578,6 +578,8 @@ def load_martingale_state():
                 current_acct = getattr(config, "DERIV_ACCOUNT_TYPE", "demo")
                 if saved_acct != current_acct:
                     log_print(f"⚠️ Martingale state account_type mismatch ({saved_acct} vs {current_acct}) — resetting")
+                    # [v5.1.9 FIX] Overwrite file immediately so next load doesn't warn again
+                    save_martingale_state(0, getattr(config, "AMOUNT", 1.0))
                     return 0, getattr(config, "AMOUNT", 1.0)
                 return data.get("mg_step", 0), data.get("current_stake", getattr(config, "AMOUNT", 1.0))
         except Exception as e:

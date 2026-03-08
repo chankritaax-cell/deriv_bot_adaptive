@@ -517,32 +517,39 @@ async def run_streaming_bot(api, thb_suffix):
                         telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
                     else: # OPEN or UNKNOWN — Broker delayed settlement
                         log_print(f"   ⏳ UNRESOLVED TRADE ({result}): Entering definitive wait loop for contract {contract_id}...")
-                        while True:
+                        _definitive_retries = 0
+                        _max_definitive_retries = 36  # [v5.1.6] 36 x 5s = 180s max wait
+                        while _definitive_retries < _max_definitive_retries:
+                            _definitive_retries += 1
                             for _ in range(5):  # 5s heartbeat to prevent watchdog kill
                                 last_activity_time = time.time()
                                 await asyncio.sleep(1)
-                            result, profit, entry_spot, exit_spot = await trade_engine.check_trade_status(api, contract_id)
+                            try:
+                                result, profit, entry_spot, exit_spot = await trade_engine.check_trade_status(api, contract_id)
+                            except Exception as e_def:
+                                log_print(f"   ⚠️ [Definitive Wait] API error: {e_def}. Retrying ({_definitive_retries}/{_max_definitive_retries})...")
+                                continue
                             if result in ["WIN", "LOSS", "DRAW"]:
                                 log_print(f"   ✅ Definitive result received: {result} | Profit: ${profit:.2f}")
                                 last_trade_result = result
-                                
+
                                 # Re-record with correct result
                                 ai_engine.record_trade_result(asset, strategy_name, direction, result, profit, details.get("confidence", 0.0), is_override=is_override)
-                                
+
                                 # Update balance/dashboard
                                 new_balance = await trade_engine.get_balance(api)
                                 ds = dashboard_get_state()
                                 dashboard_update("balance", new_balance)
                                 current_profit = new_balance - ds.get("start_balance", new_balance)
                                 dashboard_update("profit", current_profit)
-                                
+
                                 # Update trade_info with definitive result
                                 trade_info["result"] = result
                                 trade_info["profit"] = profit
                                 trade_info["entry_spot"] = entry_spot
                                 trade_info["exit_spot"] = exit_spot
                                 dashboard_add_trade(trade_info)
-                                
+
                                 # Process WIN/LOSS/DRAW
                                 if result == "WIN":
                                     dashboard_update("total_wins", ds.get("total_wins", 0) + 1)
@@ -566,11 +573,22 @@ async def run_streaming_bot(api, thb_suffix):
                                     last_scan_time = 0
                                 else:  # DRAW
                                     telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
-                                break  # Exit the infinite wait loop
+                                break  # Exit the definitive wait loop
                             else:
-                                log_print(f"   ⏳ Still {result}. Retrying in 5s... (contract: {contract_id})")
+                                log_print(f"   ⏳ Still {result}. Retrying in 5s... ({_definitive_retries}/{_max_definitive_retries}) (contract: {contract_id})")
+                        else:
+                            # [v5.1.6] Exhausted retries — treat as LOSS to preserve MG state
+                            log_print(f"   ❌ [Definitive Wait] Exhausted {_max_definitive_retries} retries for contract {contract_id}. Treating as LOSS for MG safety.")
+                            last_trade_result = "LOSS"
+                            next_mg_step = mg_step + 1
+                            if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
+                                reset_martingale_state()
+                            else:
+                                save_martingale_state(next_mg_step, amount)
+                                log_print(f"   💾 Saved Martingale State: Step {next_mg_step} (unresolved fallback).")
                     # AI Loss Analysis
                     if result == "LOSS":
+                        ds = dashboard_get_state()  # [v5.1.6] Refresh ds after definitive wait loop
                         current_streak = ds.get("loss_streak", 0) + 1
                         if getattr(config, "USE_AI_ANALYST", True):
                             try:
