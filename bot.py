@@ -397,12 +397,12 @@ async def run_streaming_bot(api, thb_suffix):
             # --- 9. Execution ---
             ds = dashboard_get_state()
             loss_streak = ds.get("loss_streak", 0)
-            
-            # --- [v4.1.0] Persistent Martingale Memory ---
-            mg_step, current_stake = load_martingale_state()
-            
+
+            # --- [v5.2.0] Use cached mg_step from analyze_and_decide (avoids redundant file read) ---
+            mg_step = decision.get("mg_step", 0)
+
             smart = ai_engine.get_smart_trader()
-            
+
             # --- [v4.1.1] Strict Martingale ---
             # Ignore AI amount_multiplier (bet_mult) and Defensive resets to enforce exact MG progression
             mg_mult = smart.perf.get_martingale_multiplier(mg_step)
@@ -505,7 +505,7 @@ async def run_streaming_bot(api, thb_suffix):
                             log_print(f"   🛑 Reached Max Martingale Steps ({getattr(config, 'MAX_MARTINGALE_STEPS', 0)}). Resetting stake.")
                             reset_martingale_state()
                         else:
-                            save_martingale_state(next_mg_step, amount)
+                            save_martingale_state(next_mg_step)
                             log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
                             
                         # --- [v4.1.6] Cut and Run Logic ---
@@ -566,7 +566,7 @@ async def run_streaming_bot(api, thb_suffix):
                                         log_print(f"   🛑 Reached Max Martingale Steps. Resetting stake.")
                                         reset_martingale_state()
                                     else:
-                                        save_martingale_state(next_mg_step, amount)
+                                        save_martingale_state(next_mg_step)
                                         log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
                                     log_print(f"   ✂️ CUT AND RUN: 1 Loss detected. Banning {asset} for 1 hour.")
                                     market_engine.blacklist_asset(asset)
@@ -584,7 +584,7 @@ async def run_streaming_bot(api, thb_suffix):
                             if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
                                 reset_martingale_state()
                             else:
-                                save_martingale_state(next_mg_step, amount)
+                                save_martingale_state(next_mg_step)
                                 log_print(f"   💾 Saved Martingale State: Step {next_mg_step} (unresolved fallback).")
                     # AI Loss Analysis
                     if result == "LOSS":
@@ -929,13 +929,12 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                         ds = dashboard_get_state()
                         loss_streak = ds.get("loss_streak", 0)
                         
-                        # --- [v4.1.0] Persistent Martingale Memory ---
-                        mg_step, current_stake = load_martingale_state()
-                        
+                        # --- [v5.2.0] Use cached mg_step from analyze_and_decide ---
+                        mg_step = decision.get("mg_step", 0)
+
                         smart = ai_engine.get_smart_trader()
-                        
+
                         # --- [v4.1.1] Strict Martingale ---
-                        # Ignore AI amount_multiplier (bet_mult) and Defensive resets to enforce exact MG progression
                         mg_mult = smart.perf.get_martingale_multiplier(mg_step)
                         final_multiplier = mg_mult
                         
@@ -1059,7 +1058,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                         log_print(f"   🛑 Reached Max Martingale Steps ({getattr(config, 'MAX_MARTINGALE_STEPS', 0)}). Resetting stake.")
                                         reset_martingale_state()
                                     else:
-                                        save_martingale_state(next_mg_step, amount)
+                                        save_martingale_state(next_mg_step)
                                         log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
                                         
                                     # --- [v4.1.0] Cut and Run Logic ---

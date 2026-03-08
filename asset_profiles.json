@@ -47,13 +47,13 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45,
-            "call_max": 72,
-            "put_min": 28,
-            "put_max": 55
+            "call_min": 45.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 55.0
         },
         "bounce_limit": 12.0,
-        "ma_slope_min": 0.020,
+        "ma_slope_min": 0.02,
         "min_trades_before_trust": 0,
         "notes": "Adaptive: High Vol. R_75 วิ่งแรง ไม่รอย่อ ใช้ TREND_FOLLOWING แทน"
     },
@@ -74,8 +74,6 @@
         "min_trades_before_trust": 0
     },
     "R_25": {
-        "_disabled": true,
-        "_disabled_reason": "42% WR 69 trades PnL -11.49",
         "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "PUT"
@@ -91,8 +89,6 @@
         "min_trades_before_trust": 150
     },
     "R_50": {
-        "_disabled": true,
-        "_disabled_reason": "43% WR 76 trades PnL -10.70",
         "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "CALL",
@@ -109,8 +105,6 @@
         "min_trades_before_trust": 150
     },
     "1HZ75V": {
-        "_disabled": true,
-        "_disabled_reason": "47% WR 110 trades PnL -8.60",
         "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "CALL",
@@ -127,8 +121,6 @@
         "min_trades_before_trust": 150
     },
     "1HZ25V": {
-        "_disabled": true,
-        "_disabled_reason": "50% WR 114 trades BEP -2.85",
         "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "CALL"
@@ -167,12 +159,12 @@
         ],
         "rsi_bounds": {
             "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
             "put_max": 55.0
         },
         "bounce_limit": 8.0,
-        "ma_slope_min": 0.020,
+        "ma_slope_min": 0.02,
         "min_trades_before_trust": 0,
         "notes": "Adaptive: High Volatility. เปิด RSI ให้กว้างขึ้นเพื่อรองรับ Whipsaw / Oversold ลึกๆ ที่ MACD มักจะ Divergence ชั่วคราว"
     },
@@ -214,7 +206,7 @@
             "pullback_call_min": 38.0
         },
         "bounce_limit": 5.0,
-        "ma_slope_min": 0.010,
+        "ma_slope_min": 0.01,
         "min_trades_before_trust": 0,
         "notes": "Base Profile: Expanded RSI slightly to catch early trends. (Low intrinsic volatility asset)"
     },
@@ -226,8 +218,8 @@
         ],
         "rsi_bounds": {
             "call_min": 50.0,
-            "call_max": 75.0,
-            "put_min": 25.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
             "put_max": 50.0
         },
         "bounce_limit": 8.0,
@@ -261,13 +253,13 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45,
-            "call_max": 72,
-            "put_min": 28,
-            "put_max": 55
+            "call_min": 45.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 55.0
         },
         "bounce_limit": 10.0,
-        "ma_slope_min": 0.020,
+        "ma_slope_min": 0.02,
         "min_trades_before_trust": 0,
         "notes": "Adaptive: High Vol. เปิด RSI กว้างรองรับ momentum spike, slope ต่ำลงเล็กน้อย"
     },

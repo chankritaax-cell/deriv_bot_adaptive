@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.1.9"     # [v5.1.9] Fix MACD Exhaustion Guard: strategy-aware + decay threshold, MG mismatch warning, fallback log
+BOT_VERSION = "5.2.0"     # [v5.2.0] MG Override safety gate, mg_step cache (no triple file read), cleanup unused current_stake
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91

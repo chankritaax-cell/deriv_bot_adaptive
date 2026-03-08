@@ -569,32 +569,31 @@ def get_crypto_thb_rate(symbol="XRP"):
 TRADE_STATE_FILE = os.path.join(ROOT, "logs", "dashboard", "trade_state.json")
 
 def load_martingale_state():
-    """Load persistent Martingale state safely."""
+    """[v5.2.0] Load persistent Martingale state. Returns: (mg_step, base_amount) tuple for backward compat."""
+    base_amount = getattr(config, "AMOUNT", 1.0)
     if os.path.exists(TRADE_STATE_FILE):
         try:
             with open(TRADE_STATE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                saved_acct = data.get("account_type", "demo")  # [v5.0 BUG-11 FIX]
+                saved_acct = data.get("account_type", "demo")
                 current_acct = getattr(config, "DERIV_ACCOUNT_TYPE", "demo")
                 if saved_acct != current_acct:
                     log_print(f"⚠️ Martingale state account_type mismatch ({saved_acct} vs {current_acct}) — resetting")
-                    # [v5.1.9 FIX] Overwrite file immediately so next load doesn't warn again
-                    save_martingale_state(0, getattr(config, "AMOUNT", 1.0))
-                    return 0, getattr(config, "AMOUNT", 1.0)
-                return data.get("mg_step", 0), data.get("current_stake", getattr(config, "AMOUNT", 1.0))
+                    save_martingale_state(0)
+                    return 0, base_amount
+                return data.get("mg_step", 0), base_amount
         except Exception as e:
             log_print(f"⚠️ Failed to load Martingale state: {e}")
-    return 0, getattr(config, "AMOUNT", 1.0)
+    return 0, base_amount
 
-def save_martingale_state(mg_step, current_stake):
-    """Save persistent Martingale state safely."""
+def save_martingale_state(mg_step, current_stake=None):
+    """[v5.2.0] Save persistent Martingale state. current_stake is vestigial (bot recalculates from config.AMOUNT * 2^mg_step)."""
     try:
         os.makedirs(os.path.dirname(TRADE_STATE_FILE), exist_ok=True)
         temp_file = TRADE_STATE_FILE + f".tmp.{os.getpid()}"
         with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump({  # [v5.0 BUG-11 FIX]
+            json.dump({
                 "mg_step": mg_step,
-                "current_stake": current_stake,
                 "account_type": getattr(config, "DERIV_ACCOUNT_TYPE", "demo"),
             }, f, ensure_ascii=False)
             f.flush()
@@ -613,7 +612,7 @@ def save_martingale_state(mg_step, current_stake):
 
 def reset_martingale_state():
     """Reset persistent Martingale state to default."""
-    save_martingale_state(0, getattr(config, "AMOUNT", 1.0))
+    save_martingale_state(0)
 
 # ============================================================
 # 🛡️ ATOMIC JSON WRITER (V5.0 SAFEGUARD)

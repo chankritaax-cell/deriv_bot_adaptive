@@ -561,28 +561,28 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 return None
 
             # -----------------------------------------------------------------
-            # [v5.1.4] Sniper Recovery: Dynamic Confidence Filter based on Martingale
+            # [v5.2.0] Sniper Recovery: Dynamic Confidence Filter based on Martingale
+            # Single load — mg_step cached and reused throughout this function
             # -----------------------------------------------------------------
             from .utils import load_martingale_state
-            mg_step_sniper, _ = load_martingale_state()
+            mg_step, _ = load_martingale_state()  # [v5.2.0] Single load, reused below
 
-            # ดึงค่าพารามิเตอร์จาก config.py (ถ้าหาไม่เจอให้ใช้ค่า Default ด้านหลัง)
             base_conf = safe_config_get("CONFIDENCE_BASE", 0.80)
             mg1_conf  = safe_config_get("CONFIDENCE_MG_STEP_1", 0.85)
             mg2_conf  = safe_config_get("CONFIDENCE_MG_STEP_2", 0.90)
 
-            required_conf = base_conf  # ตั้งต้นที่ไม้แรก
+            required_conf = base_conf
 
-            if mg_step_sniper == 1:
+            if mg_step == 1:
                 required_conf = mg1_conf
                 log_print(f"   🎯 [Sniper Recovery] MG Step 1 Active: AI Confidence must be >= {required_conf:.2f}")
-            elif mg_step_sniper >= 2:
+            elif mg_step >= 2:
                 required_conf = mg2_conf
-                log_print(f"   🎯 [Sniper Recovery] MG Step {mg_step_sniper} Active: AI Confidence must be >= {required_conf:.2f}")
+                log_print(f"   🎯 [Sniper Recovery] MG Step {mg_step} Active: AI Confidence must be >= {required_conf:.2f}")
 
             # ถ้าความมั่นใจ AI ต่ำกว่าเกณฑ์ที่ตั้งไว้ในแต่ละระดับ ให้ปัดตกทันที!
             if confidence < required_conf:
-                log_print(f"   🛑 POST-AI BLOCK (Sniper Guard): {signal} rejected. Confidence {confidence:.2f} < {required_conf:.2f} (MG Step {mg_step_sniper})")
+                log_print(f"   🛑 POST-AI BLOCK (Sniper Guard): {signal} rejected. Confidence {confidence:.2f} < {required_conf:.2f} (MG Step {mg_step})")
                 _perf_metrics["post_ai_block_cycles"] += 1
                 return None
             # -----------------------------------------------------------------
@@ -663,9 +663,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     if float(confidence) < min_conf: return None
 
     # --- SMART TRADER INTERVENTION ---
-    # [v4.1.2] Fetch Martingale state BEFORE strategy evaluation
-    from .utils import load_martingale_state
-    mg_step, _ = load_martingale_state()
+    # [v5.2.0] mg_step already loaded once above (Sniper Recovery section) — reusing cached value
     
     trade_count = sum(1 for t in _SMART_TRADER.perf.data.get("trades", []) if t.get("asset") == asset)
     base_asset_profile = config.get_asset_profile(asset, trade_count)
@@ -744,16 +742,25 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
 
     if not final_decision:
         if mg_step > 0:
-            # [v4.1.6] Martingale Override: Force trade through despite strategy blocks
-            # Use the previous analyzed strategy_name if it was looping, else use a fallback.
-            mg_override_strategy = strategy_name if 'strategy_name' in locals() else "AI_RECOVERY"
-            log_print(f"   ⚠️ Martingale Override: Bypassing strategy block to execute recovery trade. (MG Step: {mg_step})")
-            override_details = {
-                "reasons": [f"Martingale Recovery (Step {mg_step})", f"Signal Source: {ai_reason}"],
-                "ai_analysis": ai_reason,
-                "is_override": True,
-            }
-            final_decision = (True, 1.0, override_details, mg_override_strategy)
+            # [v5.2.0] Martingale Override with Critical Safety Gate
+            # ทบเงินสูง ($2-4) → ต้องเช็ค critical hard rules ก่อน force trade
+            # ป้องกันการยัดเทรดตอน MACD Bearish Cross / Dead Market
+            from modules.technical_analysis import TechnicalConfirmation
+            is_safe_for_mg, mg_block_reason = TechnicalConfirmation.check_hard_rules(df_feat, signal, "TREND_FOLLOWING")
+
+            if is_safe_for_mg:
+                mg_override_strategy = strategy_name if 'strategy_name' in locals() else "AI_RECOVERY"
+                log_print(f"   ⚠️ Martingale Override: Recovery trade forced through. (MG Step: {mg_step})")
+                override_details = {
+                    "reasons": [f"Martingale Recovery (Step {mg_step})", f"Signal Source: {ai_reason}"],
+                    "ai_analysis": ai_reason,
+                    "is_override": True,
+                }
+                final_decision = (True, 1.0, override_details, mg_override_strategy)
+            else:
+                log_print(f"   🛡️ MG Override BLOCKED by critical safety: {mg_block_reason}")
+                log_print(f"   ❌ MG Step {mg_step} — refusing to force trade into dangerous conditions. Waiting for safer entry.")
+                return None
         else:
             log_print(f"   ❌ All strategies blocked for {asset}. Skipping.")
             return None
@@ -808,7 +815,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         "amount_multiplier": bet_mult,
         "strategy": active_strategy,
         "is_high_quality": is_high_quality,
-        "details": details
+        "details": details,
+        "mg_step": mg_step  # [v5.2.0] Pass cached mg_step to bot.py (avoid re-loading file)
     }
 
 
