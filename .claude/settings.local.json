@@ -14,7 +14,8 @@
       "Bash(done)",
       "Bash(echo \"=== Conf >= 0.90 ===\")",
       "Bash(echo \"=== Conf >= 0.85 ===\")",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "WebFetch(domain:deriv.com)"
     ]
   }
 }

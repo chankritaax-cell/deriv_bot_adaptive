@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.2.0"     # [v5.2.0] MG Override safety gate, mg_step cache (no triple file read), cleanup unused current_stake
+BOT_VERSION = "5.2.1"     # [v5.2.1] Sniper tuning (0.75/0.85/0.87), MG Override safety gate, mg_step cache, cleanup current_stake
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -156,9 +156,10 @@ AI_CONF_BET_MIN_MULTIPLIER = 0.7  # [v3.11.27] Allow risk reduction
 # ---------------------------------------------------------
 # 🎯 Sniper Recovery System (Dynamic Confidence Threshold)
 # ---------------------------------------------------------
-CONFIDENCE_BASE = 0.80        # ความมั่นใจ AI ขั้นต่ำสำหรับไม้แรก (ปกติ)
-CONFIDENCE_MG_STEP_1 = 0.85   # ความมั่นใจ AI ขั้นต่ำสำหรับไม้ทบที่ 1
-CONFIDENCE_MG_STEP_2 = 0.90   # ความมั่นใจ AI ขั้นต่ำสำหรับไม้ทบที่ 2 ขึ้นไป
+# [v5.2.0] Tuned from data: AI sends 0.85 (77%) and 0.90 (23%) — old 0.90 threshold blocked 77% of Step 2 signals
+CONFIDENCE_BASE = 0.75        # ไม้แรก: filter เฉพาะสัญญาณขยะ (AI ส่ง 0.85+ อยู่แล้ว 99.7%)
+CONFIDENCE_MG_STEP_1 = 0.85   # ไม้ทบ 1 ($2): คงไว้ — ทำงานดีอยู่แล้ว (WR 62.5%)
+CONFIDENCE_MG_STEP_2 = 0.87   # ไม้ทบ 2 ($4): ลดจาก 0.90 → 0.87 (เพิ่มโอกาสจาก 23% → ~100%)
 
 # BOT_VERSION declaration moved to top
 
