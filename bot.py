@@ -234,11 +234,17 @@ async def run_streaming_bot(api, thb_suffix):
                             from modules.asset_selector import AssetSelector
                             log_print("   🔍 [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
                             best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=12, min_trades=30)
-                            
+
                             if best_selector and wr_selector > 50.0:
                                 best = best_selector
                                 asset_symbols = [best]
                                 log_print(f"   🎯 TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
+                            elif best_selector and best_selector != asset and wr_selector > 35.0:
+                                # [v5.2.4] Fallback: no >50% asset, but different asset with >35% WR exists
+                                # Prefer switching to break "stuck-on-banned-asset" cycle
+                                best = best_selector
+                                asset_symbols = [best]
+                                log_print(f"   ⚠️ No >50% WR asset. Fallback → best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                             else:
                                 log_print("   ⚠️ No TIER_COUNCIL asset met criteria (>30 trades, >50% WR).")
                         else:
@@ -291,11 +297,15 @@ async def run_streaming_bot(api, thb_suffix):
                             log_print(f"   ✅ Current asset {asset} is still the best choice.")
                         else:
                             if needs_forced_scan:
-                                log_print(f"   💤 Fallback Guard: {asset} is banned and no valid alternative in TIER_COUNCIL found. Sleeping 10m...")
-                                dashboard_update("status", "Sleeping (10m Fallback)")
-                                # [v5.1.3 FIX] Sleep in chunks to prevent Watchdog kills
-                                for _ in range(60):  # 60 loop * 10 seconds = 600 seconds (10 minutes)
-                                    last_activity_time = time.time()  # ลูบหัวหมาเฝ้าบ้าน
+                                # [v5.2.4] Smart sleep: sleep until earliest ban expires (not fixed 10m)
+                                _s_sleeping, _s_remaining = market_engine.is_sleep_mode()
+                                _s_secs = max(30, min(int(_s_remaining), 600)) if _s_remaining > 0 else 600
+                                _s_mins = _s_secs / 60
+                                log_print(f"   💤 Fallback Guard: {asset} is banned and no valid alternative in TIER_COUNCIL found. Sleeping {_s_mins:.1f}m (until earliest ban expires)...")
+                                dashboard_update("status", f"Sleeping ({_s_mins:.1f}m Fallback)")
+                                # Sleep in 10s chunks for Watchdog heartbeat
+                                for _ in range(max(1, _s_secs // 10)):
+                                    last_activity_time = time.time()
                                     await asyncio.sleep(10)
                             else:
                                 log_print(f"   ℹ️ No better asset found. Staying on {asset}.")
@@ -508,10 +518,15 @@ async def run_streaming_bot(api, thb_suffix):
                             save_martingale_state(next_mg_step)
                             log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
                             
-                        # --- [v4.1.6] Cut and Run Logic ---
-                        log_print(f"   ✂️ CUT AND RUN: 1 Loss detected. Banning {asset} for 1 hour.")
-                        market_engine.blacklist_asset(asset)
-                        last_scan_time = 0 # Force immediate scan to switch assets
+                        # --- [v5.2.4] Cut and Run Logic — Gate: only at MG Step >= 1 ---
+                        # Step 0 (1.0 XRP) loss = normal variance → let MG handle it
+                        # Step 1+ (2.0+ XRP) loss = 2 consecutive losses → cut and switch asset
+                        if mg_step >= 1:
+                            log_print(f"   ✂️ CUT AND RUN: Loss at MG Step {mg_step} (stake={getattr(config,'AMOUNT',1)*getattr(config,'MARTINGALE_MULTIPLIER',2)**mg_step:.1f}). Banning {asset} for 1 hour.")
+                            market_engine.blacklist_asset(asset)
+                            last_scan_time = 0 # Force immediate scan to switch assets
+                        else:
+                            log_print(f"   ℹ️ [Cut and Run] Step 0 loss — normal variance, letting MG handle. No ban.")
                     elif result == "DRAW":
                         log_print(f"   🔘 DRAW: No changes to streak or martingale.")
                         telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
@@ -568,9 +583,13 @@ async def run_streaming_bot(api, thb_suffix):
                                     else:
                                         save_martingale_state(next_mg_step)
                                         log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
-                                    log_print(f"   ✂️ CUT AND RUN: 1 Loss detected. Banning {asset} for 1 hour.")
-                                    market_engine.blacklist_asset(asset)
-                                    last_scan_time = 0
+                                    # [v5.2.4] Cut and Run Gate: only at MG Step >= 1
+                                    if mg_step >= 1:
+                                        log_print(f"   ✂️ CUT AND RUN: Loss at MG Step {mg_step}. Banning {asset} for 1 hour.")
+                                        market_engine.blacklist_asset(asset)
+                                        last_scan_time = 0
+                                    else:
+                                        log_print(f"   ℹ️ [Cut and Run] Step 0 loss — no ban.")
                                 else:  # DRAW
                                     telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
                                 break  # Exit the definitive wait loop
@@ -771,11 +790,17 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                         from modules.asset_selector import AssetSelector
                         log_print("   🔍 [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
                         best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=12, min_trades=30)
-                        
+
                         if best_selector and wr_selector > 50.0:
                             best = best_selector
                             asset_symbols = [best]
                             log_print(f"   🎯 TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
+                        elif best_selector and best_selector != config.ACTIVE_ASSET and wr_selector > 35.0:
+                            # [v5.2.4] Fallback: no >50% asset, but different asset with >35% WR exists
+                            # Prefer switching to break "stuck-on-banned-asset" cycle
+                            best = best_selector
+                            asset_symbols = [best]
+                            log_print(f"   ⚠️ No >50% WR asset. Fallback → best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                         else:
                             log_print("   ⚠️ No TIER_COUNCIL asset met criteria (>30 trades, >50% WR).")
                     else:
@@ -803,11 +828,15 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                             log_print(f"   ✅ Current Asset {best} is still the best choice.")
                     else:
                         if needs_forced_scan:
-                            log_print(f"   💤 Fallback Guard: {config.ACTIVE_ASSET} is banned and no valid alternative found. Sleeping 10m...")
-                            dashboard_update("status", "Sleeping (10m Fallback)")
-                            # [v5.1.3 FIX] Sleep in chunks to prevent Watchdog kills
-                            for _ in range(60):  # 60 loop * 10 seconds = 600 seconds (10 minutes)
-                                last_activity_time = time.time()  # ลูบหัวหมาเฝ้าบ้าน
+                            # [v5.2.4] Smart sleep: sleep until earliest ban expires
+                            _s_sleeping, _s_remaining = market_engine.is_sleep_mode()
+                            _s_secs = max(30, min(int(_s_remaining), 600)) if _s_remaining > 0 else 600
+                            _s_mins = _s_secs / 60
+                            log_print(f"   💤 Fallback Guard: {config.ACTIVE_ASSET} is banned and no valid alternative found. Sleeping {_s_mins:.1f}m (until earliest ban expires)...")
+                            dashboard_update("status", f"Sleeping ({_s_mins:.1f}m Fallback)")
+                            # Sleep in 10s chunks for Watchdog heartbeat
+                            for _ in range(max(1, _s_secs // 10)):
+                                last_activity_time = time.time()
                                 await asyncio.sleep(10)
                         else:
                             log_print(f"   ℹ️ No better asset found. Staying on {config.ACTIVE_ASSET}.")
@@ -1061,10 +1090,13 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                         save_martingale_state(next_mg_step)
                                         log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
                                         
-                                    # --- [v4.1.0] Cut and Run Logic ---
-                                    log_print(f"   ✂️ CUT AND RUN: 1 Loss detected. Banning {asset} for 1 hour.")
-                                    market_engine.blacklist_asset(asset)
-                                    last_scan_time = 0 # Force immediate scan to switch assets
+                                    # --- [v5.2.4] Cut and Run Logic — Gate: only at MG Step >= 1 ---
+                                    if mg_step >= 1:
+                                        log_print(f"   ✂️ CUT AND RUN: Loss at MG Step {mg_step}. Banning {asset} for 1 hour.")
+                                        market_engine.blacklist_asset(asset)
+                                        last_scan_time = 0 # Force immediate scan to switch assets
+                                    else:
+                                        log_print(f"   ℹ️ [Cut and Run] Step 0 loss — no ban.")
                                     
                                     current_loss_streak = ds.get("loss_streak", 0)
                                     loss_limit = getattr(config, "MAX_CONSECUTIVE_LOSS_LIMIT", 3)

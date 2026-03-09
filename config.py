@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.2.3"     # [v5.2.3] Stochastic PUT oversold threshold reverted to 20 (asymmetric: CALL=85 relax, PUT=20 strict)
+BOT_VERSION = "5.2.4"     # [v5.2.4] Cut and Run gate (MG Step>=1 only) + Fallback Guard smart sleep + Asset Selector fallback tier (>35% WR)
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -74,8 +74,8 @@ PROFILES = {
         "AMOUNT": 1.0,
         "MAX_DAILY_LOSS_PERCENT": 100.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 15,  # เผื่อพื้นที่ให้หายใจนิดนึงเวลาตลาดผันผวน
-        "MAX_MARTINGALE_STEPS": 2,      # ทบได้สูงสุด 2 ครั้ง (1$ -> 2$ -> 4$) โอกาสกลับมาขนะสูงมาก
-        "MAX_STAKE_AMOUNT": 4,          # ล็อคเพดานไว้ที่ 4$ (เซฟตี้สุดๆ)
+        "MAX_MARTINGALE_STEPS": 1,      # [v5.2.3] Option C: ทบสูงสุด 1 ครั้ง (1→2 only) Risk-Adjusted ดีสุด
+        "MAX_STAKE_AMOUNT": 2,          # [v5.2.3] ลด cap จาก 4→2 (ตาม max step ใหม่)
         "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.80, # บังคับให้ AI ต้องมั่นใจ 80% ขึ้นไปถึงจะให้ยิง!
     },
@@ -159,7 +159,7 @@ AI_CONF_BET_MIN_MULTIPLIER = 0.7  # [v3.11.27] Allow risk reduction
 # [v5.2.0] Tuned from data: AI sends 0.85 (77%) and 0.90 (23%) — old 0.90 threshold blocked 77% of Step 2 signals
 CONFIDENCE_BASE = 0.75        # ไม้แรก: filter เฉพาะสัญญาณขยะ (AI ส่ง 0.85+ อยู่แล้ว 99.7%)
 CONFIDENCE_MG_STEP_1 = 0.85   # ไม้ทบ 1 ($2): คงไว้ — ทำงานดีอยู่แล้ว (WR 62.5%)
-CONFIDENCE_MG_STEP_2 = 0.85   # ไม้ทบ 2 ($4): ลดจาก 0.90 → 0.87 (เพิ่มโอกาสจาก 23% → ~100%)
+CONFIDENCE_MG_STEP_2 = 0.85   # [v5.2.3] ไม้ทบ 2 ($4): ไม่ใช้แล้วหลัง Option C (MAX_STEPS=1) — คงไว้เผื่อ fallback
 
 # BOT_VERSION declaration moved to top
 

@@ -6,3 +6,4 @@ __pycache__/
 *.pyc
 test_results.log
 contract_info.json
+.claude/settings.local.json

@@ -6,10 +6,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 48.0,
+            "call_min": 45,
+            "call_max": 72,
+            "put_min": 28,
+            "put_max": 55,
             "pullback_put_lo": 45.0,
             "pullback_put_hi": 58.0,
             "pullback_put_max": 65.0,
@@ -50,12 +50,18 @@
             "call_min": 45.0,
             "call_max": 72.0,
             "put_min": 28.0,
-            "put_max": 55.0
+            "put_max": 55.0,
+            "pullback_call_lo": 38.0,
+            "pullback_call_hi": 55.0,
+            "pullback_call_min": 28.0,
+            "pullback_put_lo": 45.0,
+            "pullback_put_hi": 62.0,
+            "pullback_put_max": 72.0
         },
         "bounce_limit": 12.0,
         "ma_slope_min": 0.02,
         "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Vol. R_75 วิ่งแรง ไม่รอย่อ ใช้ TREND_FOLLOWING แทน"
+        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
     },
     "1HZ100V": {
         "strategy": "TREND_FOLLOWING",
@@ -64,10 +70,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 48.0
+            "call_min": 45,
+            "call_max": 72,
+            "put_min": 28,
+            "put_max": 55
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.025,
@@ -79,10 +85,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 48.0
+            "call_min": 55.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
+            "put_max": 45.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
@@ -95,10 +101,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 48.0
+            "call_min": 55.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
+            "put_max": 45.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
@@ -111,30 +117,14 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 48.0
+            "call_min": 55.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
+            "put_max": 45.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
         "min_trades_before_trust": 150
-    },
-    "1HZ75V_HIGH_VOL": {
-        "strategy": "TREND_FOLLOWING",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0
-        },
-        "bounce_limit": 10.0,
-        "ma_slope_min": 0.02,
-        "min_trades_before_trust": 0
     },
     "1HZ25V": {
         "strategy": "TREND_FOLLOWING",
@@ -142,10 +132,10 @@
             "CALL"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 48.0
+            "call_min": 55.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
+            "put_max": 45.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
@@ -158,17 +148,17 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 48.0
+            "call_min": 45.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 55.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
         "min_trades_before_trust": 0
     },
     "1HZ50V_HIGH_VOL": {
-        "strategy": "TREND_FOLLOWING",
+        "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
             "CALL",
             "PUT"
@@ -177,12 +167,18 @@
             "call_min": 45.0,
             "call_max": 72.0,
             "put_min": 28.0,
-            "put_max": 55.0
+            "put_max": 55.0,
+            "pullback_call_lo": 38.0,
+            "pullback_call_hi": 55.0,
+            "pullback_call_min": 28.0,
+            "pullback_put_lo": 45.0,
+            "pullback_put_hi": 62.0,
+            "pullback_put_max": 72.0
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.02,
         "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Volatility. เปิด RSI ให้กว้างขึ้นเพื่อรองรับ Whipsaw / Oversold ลึกๆ ที่ MACD มักจะ Divergence ชั่วคราว"
+        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
     },
     "1HZ50V_LOW_VOL": {
         "strategy": "PULLBACK_ENTRY",
@@ -227,7 +223,7 @@
         "notes": "Base Profile: Expanded RSI slightly to catch early trends. (Low intrinsic volatility asset)"
     },
     "1HZ10V_HIGH_VOL": {
-        "strategy": "TREND_FOLLOWING",
+        "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
             "CALL",
             "PUT"
@@ -236,12 +232,18 @@
             "call_min": 45.0,
             "call_max": 72.0,
             "put_min": 28.0,
-            "put_max": 55.0
+            "put_max": 55.0,
+            "pullback_call_lo": 38.0,
+            "pullback_call_hi": 55.0,
+            "pullback_call_min": 28.0,
+            "pullback_put_lo": 45.0,
+            "pullback_put_hi": 62.0,
+            "pullback_put_max": 72.0
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.015,
         "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Volatility. เปิดกรอบ RSI กว้างมากเพื่อจับจังหวะ Momentum Spike ที่รุนแรงของ 1HZ10V"
+        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
     },
     "1HZ10V_LOW_VOL": {
         "strategy": "PULLBACK_ENTRY",
@@ -263,7 +265,7 @@
         "notes": "Adaptive: Low Volatility (Sideways). ขยายกรอบรับ Pullback (35/62/38/65) และเพิ่ม Bounce เป็น 15.0 เพื่อลดการบล็อกออเดอร์"
     },
     "1HZ100V_HIGH_VOL": {
-        "strategy": "TREND_FOLLOWING",
+        "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
             "CALL",
             "PUT"
@@ -272,12 +274,18 @@
             "call_min": 45.0,
             "call_max": 72.0,
             "put_min": 28.0,
-            "put_max": 55.0
+            "put_max": 55.0,
+            "pullback_call_lo": 38.0,
+            "pullback_call_hi": 55.0,
+            "pullback_call_min": 28.0,
+            "pullback_put_lo": 45.0,
+            "pullback_put_hi": 62.0,
+            "pullback_put_max": 72.0
         },
         "bounce_limit": 10.0,
         "ma_slope_min": 0.02,
         "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Vol. เปิด RSI กว้างรองรับ momentum spike, slope ต่ำลงเล็กน้อย"
+        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
     },
     "1HZ100V_LOW_VOL": {
         "strategy": "PULLBACK_ENTRY",
@@ -297,6 +305,29 @@
         "ma_slope_min": 0.015,
         "min_trades_before_trust": 0,
         "notes": "Adaptive: Low Vol. ตลาดช้า เปลี่ยนเป็น Pullback entry"
+    },
+    "1HZ75V_HIGH_VOL": {
+        "strategy": "PULLBACK_ENTRY",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 45.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 55.0,
+            "pullback_call_lo": 38.0,
+            "pullback_call_hi": 55.0,
+            "pullback_call_min": 28.0,
+            "pullback_put_lo": 45.0,
+            "pullback_put_hi": 62.0,
+            "pullback_put_max": 72.0
+        },
+        "bounce_limit": 10.0,
+        "ma_slope_min": 0.02,
+        "min_trades_before_trust": 0,
+        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
     },
     "DEFAULT": {
         "strategy": "TREND_FOLLOWING",
