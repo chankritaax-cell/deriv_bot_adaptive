@@ -6,10 +6,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45,
-            "call_max": 72,
-            "put_min": 28,
-            "put_max": 55,
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0,
             "pullback_put_lo": 45.0,
             "pullback_put_hi": 58.0,
             "pullback_put_max": 65.0,
@@ -41,15 +41,15 @@
         "notes": "Adaptive: Low Volatility (Sideways). ลด Slope ลงมาที่ 0.015% เพื่อแก้ปัญหาโดนบล็อกตอนกราฟเอื่อย และขยายกรอบย่อตัวให้กว้างขึ้น"
     },
     "R_75_HIGH_VOL": {
-        "strategy": "TREND_FOLLOWING",
+        "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
             "CALL",
             "PUT"
         ],
         "rsi_bounds": {
             "call_min": 45.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
             "put_max": 55.0
         },
         "bounce_limit": 12.0,
@@ -64,10 +64,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45,
-            "call_max": 72,
-            "put_min": 28,
-            "put_max": 55
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.025,
@@ -79,10 +79,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
@@ -95,10 +95,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
@@ -111,14 +111,30 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
         "min_trades_before_trust": 150
+    },
+    "1HZ75V_HIGH_VOL": {
+        "strategy": "TREND_FOLLOWING",
+        "allowed_signals": [
+            "CALL",
+            "PUT"
+        ],
+        "rsi_bounds": {
+            "call_min": 45.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 55.0
+        },
+        "bounce_limit": 10.0,
+        "ma_slope_min": 0.02,
+        "min_trades_before_trust": 0
     },
     "1HZ25V": {
         "strategy": "TREND_FOLLOWING",
@@ -126,10 +142,10 @@
             "CALL"
         ],
         "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
@@ -142,10 +158,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025,
@@ -159,8 +175,8 @@
         ],
         "rsi_bounds": {
             "call_min": 45.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
             "put_max": 55.0
         },
         "bounce_limit": 8.0,
@@ -217,10 +233,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 50.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
-            "put_max": 50.0
+            "call_min": 45.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 55.0
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.015,
@@ -254,8 +270,8 @@
         ],
         "rsi_bounds": {
             "call_min": 45.0,
-            "call_max": 68.0,
-            "put_min": 32.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
             "put_max": 55.0
         },
         "bounce_limit": 10.0,

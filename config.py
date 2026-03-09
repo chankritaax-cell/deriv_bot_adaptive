@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.2.2"     # [v5.2.2] Hard Rule RSI bounds from asset_profile (fix mismatch), Stochastic strategy-aware (85 for TREND_FOLLOWING)
+BOT_VERSION = "5.2.3"     # [v5.2.3] Stochastic PUT oversold threshold reverted to 20 (asymmetric: CALL=85 relax, PUT=20 strict)
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91

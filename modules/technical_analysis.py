@@ -352,13 +352,14 @@ class TechnicalConfirmation:
         if atr and price > 0 and (atr/price < 0.0001): return False, "Hard Block: Dead Market 🛑"
 
         # 4. Stochastic Bounce Guard (Prevent extreme oversold/overbought entries)
-        # [v5.2.2] TREND_FOLLOWING uses relaxed thresholds (85/15) — strong trends naturally
-        # have elevated Stochastic. Only block at genuinely extreme levels.
+        # [v5.2.2] CALL overbought: relaxed to 85 for TREND_FOLLOWING (strong uptrend keeps Stoch high naturally)
+        # [v5.2.3] PUT oversold: fixed back to 20 for all strategies — Stoch bouncing from 0-5 up to 15
+        #          is a BOUNCE signal, not a Downtrend continuation. Asymmetric by design.
         if safe_config_get("ENABLE_STOCHASTIC_BOUNCE_GUARD", True):
             stoch_k, stoch_d = TechnicalConfirmation.get_stochastic(df)
             if stoch_k is not None:
-                ob_threshold = 85 if strategy == "TREND_FOLLOWING" else 80
-                os_threshold = 15 if strategy == "TREND_FOLLOWING" else 20
+                ob_threshold = 85 if strategy == "TREND_FOLLOWING" else 80  # CALL: relax in strong uptrend
+                os_threshold = 20  # PUT: always 20 — Stoch recovering from extreme oversold = bounce danger
                 if signal == "PUT" and stoch_k < os_threshold:
                     return False, f"Hard Block: PUT rejected. Stochastic in oversold bounce zone ({stoch_k:.1f} < {os_threshold}) 🛑"
                 if signal == "CALL" and stoch_k > ob_threshold:

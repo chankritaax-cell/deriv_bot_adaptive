@@ -23,7 +23,8 @@
       "Bash(python -c \"from modules.ai_engine import analyze_and_trade; print\\(''ai_engine OK''\\)\")",
       "Bash(python -c \"from modules.ai_engine import analyze_and_decide; print\\(''ai_engine OK''\\)\")",
       "Bash(python -c \"from modules.asset_selector import AssetSelector; print\\(''asset_selector OK''\\)\")",
-      "Bash(python logs/backtest_rsi_guard.py)"
+      "Bash(python logs/backtest_rsi_guard.py)",
+      "Bash(python logs/backtest_stoch_threshold.py)"
     ]
   }
 }
