@@ -288,16 +288,27 @@ async def ask_chatgpt_bet_gate(context):
     if not getattr(config, "USE_CHATGPT_BET_GATE", False): return None
 
     prompt = f"""
-    ACT AS: Senior Binary Options Risk Gate.
-    TASK: Approve or Reject trade using DETERMINISTIC RULES.
-    CONTEXT:
-    PROPOSED_ACTION: {action}
-    INCOMING_CONFIDENCE: {context.get('ai_confidence', 0.0)}
-    TREND: {context.get('trend', 'Unknown')}
-    RSI: {context.get('rsi', 'Unknown')}
-    ATR_PCT: {context.get('atr_pct', 'Unknown')}
-    MA_SLOPE: {context.get('slope_pct', 'Unknown')}
-    OUTPUT JSON ONLY: {{"approve": true | false, "confidence": 0.0-1.0, "reason": "..."}}
+    ACT AS: Chief Risk Officer (CRO) for a High-Frequency Trading Desk.
+    TASK: VETO (Reject) or APPROVE the proposed {action} signal.
+    
+    TRADE CONTEXT:
+    - Action: {action}
+    - Incoming Analyst Confidence: {context.get('ai_confidence', 0.0)}
+    - Trend (MA): {context.get('trend', 'Unknown')} (Slope: {context.get('slope_pct', 'Unknown')}%)
+    - RSI: {context.get('rsi', 'Unknown')}
+    - Volatility (ATR %): {context.get('atr_pct', 'Unknown')}%
+    
+    STRICT VETO RULES (Return approve: false if ANY match):
+    1. WHIPSAW RISK: If ATR % is extremely high and the signal is chasing the trend at the peak.
+    2. MOMENTUM EXHAUSTION: If RSI is getting too close to absolute limits (e.g., > 72 for CALL, < 28 for PUT).
+    3. WEAK CONFLUENCE: If Trend is SIDEWAYS or Slope is flat (near 0.00%) but trying to force a trade.
+    
+    SCORING CONFIDENCE:
+    - Give > 0.85 ONLY if all metrics perfectly align safely.
+    - Give < 0.80 if there is any doubt (this will trigger a safety block).
+    
+    OUTPUT JSON ONLY: 
+    {{"approve": true | false, "confidence": <float>, "reason": "Quantitative risk assessment"}}
     """
     start_time = time.time()
     loop = asyncio.get_running_loop()
@@ -515,18 +526,28 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         stoch_str = f"Stoch K={stoch_k_val:.1f}, D={stoch_d_val:.1f}" if stoch_k_val is not None and stoch_d_val is not None else "Stoch: N/A"
 
         prompt = f"""
-        You are a TREND ANALYST for {asset}. Identify the dominant 1-minute trend direction.
-        MARKET CONTEXT (1m Timeframe):
+        You are a QUANTITATIVE TREND ANALYST for {asset} on the 1-minute timeframe.
+        
+        MARKET CONTEXT:
         {market_data_summary}
         Current RSI: {f"{rsi_val:.1f}" if rsi_val is not None else "N/A"}
-        Current Trend (MA Slope): {det_trend} ({slope:.4f}%)
+        Current MA Trend: {det_trend} (Slope: {slope:.4f}%)
         Current Stochastic: {stoch_str}
-        DECISION RULES:
-        - Enter CALL if trend is UPTREND (MA slope > 0) and RSI confirms upward momentum.
-        - Enter PUT if trend is DOWNTREND (MA slope < 0) and RSI confirms downward momentum.
-        - SKIP if trend is SIDEWAYS, or MACD contradicts the MA trend direction.
-        NOTE: Stochastic is supplementary context only. The system has a dedicated Exhaustion Guard that blocks extreme Stochastic levels (K<20 or K>80) independently. Do NOT use Stochastic as a primary rejection reason.
-        Return JSON ONLY: {{"action": "CALL" | "PUT" | "SKIP", "confidence": 0.85, "reason": "Short explanation"}}
+        
+        DECISION MATRIX:
+        1. "CALL": Requires UPTREND (Slope > 0) AND RSI showing upward momentum without being overbought.
+        2. "PUT": Requires DOWNTREND (Slope < 0) AND RSI showing downward momentum without being oversold.
+        3. "SKIP": If SIDEWAYS, conflicting signals, or momentum is exhausted.
+
+        CONFIDENCE SCORING (0.0 to 1.0):
+        You MUST calculate the confidence score dynamically based on signal alignment:
+        - 0.90 to 0.95 (Sniper Entry): Perfect alignment. High MA Slope + Ideal RSI Zone (Not extreme) + Strong candle momentum.
+        - 0.85 to 0.89 (Standard Entry): Good alignment. Clear trend but average momentum.
+        - 0.75 to 0.84 (Weak Entry): Trend exists but indicators show friction (e.g., RSI getting close to bounds).
+        - < 0.75: Force action to "SKIP".
+        
+        Return JSON ONLY using the exact format:
+        {{"action": "CALL" | "PUT" | "SKIP", "confidence": <calculated_float>, "reason": "Detailed quantitative explanation"}}
         """
         analyst_start = time.time()
         loop = asyncio.get_running_loop()
@@ -919,7 +940,22 @@ async def choose_best_asset(api, asset_summaries):
     - SECONDARY: {', '.join(tiers.get('TIER_2', []))}
     - AVOID: {', '.join(tiers.get('TIER_3', []))}
     """
-    prompt = f"ACT AS: Senior Quantitative Strategist. Select BEST asset.\nSUMMARIES:\n{json.dumps(asset_summaries, indent=2)}\n{tier_info}\nOUTPUT JSON ONLY: {{\"best_asset\": \"SYMBOL\", \"reason\": \"...\"}}"
+    prompt = f"""
+    ACT AS: Senior Portfolio Manager (Defensive Strategy).
+    TASK: Select the SAFEST and most reliable asset to trade next.
+    
+    CANDIDATE SUMMARIES:
+    {json.dumps(asset_summaries, indent=2)}
+    {tier_info}
+    
+    SELECTION CRITERIA (Strict Priority):
+    1. STABILITY FIRST: Prefer 'NORMAL' or 'LOW_VOL' regimes. Heavily penalize 'HIGH_VOL' unless its win rate is exceptionally proven.
+    2. SAMPLE SIZE: Trust assets with >30 trades (Total Signals) over assets with 3-5 lucky recent trades.
+    3. COMPOSITE SCORE: Choose the highest overall composite score that does NOT violate stability rules.
+    
+    OUTPUT JSON ONLY: 
+    {{"best_asset": "SYMBOL", "reason": "Why this minimizes risk while keeping >50% WR"}}
+    """
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, call_ai_with_failover, prompt, "ASSET_SCANNER", 0.3)
     if result and isinstance(result, dict):

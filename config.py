@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.2.5"     # [v5.2.5] Disable 1HZ75V (36.4% WR, -5.24 XRP — worst asset) + Lower 1HZ100V call_max 72→65
+BOT_VERSION = "5.2.6"     # [v5.2.6] FULL SAFETY: Stake 0.8 XRP + Max MG 1 + Anti-Whipsaw Profiles
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -71,13 +71,13 @@ PROFILES = {
         "AI_CONFIDENCE_THRESHOLD": 0.80,
     },
    "TIER_COUNCIL": {
-        "AMOUNT": 1.0,
+        "AMOUNT": 0.8,                  # [v5.2.6] ลดจาก 1.0→0.8 XRP — Safety First
         "MAX_DAILY_LOSS_PERCENT": 100.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 15,  # เผื่อพื้นที่ให้หายใจนิดนึงเวลาตลาดผันผวน
-        "MAX_MARTINGALE_STEPS": 1,      # [v5.2.3] Option C: ทบสูงสุด 1 ครั้ง (1→2 only) Risk-Adjusted ดีสุด
-        "MAX_STAKE_AMOUNT": 2,          # [v5.2.3] ลด cap จาก 4→2 (ตาม max step ใหม่)
+        "MAX_MARTINGALE_STEPS": 1,      # ทบสูงสุด 1 ครั้ง (0.8→1.6 only) จำกัดความเสียหาย
+        "MAX_STAKE_AMOUNT": 1.6,        # [v5.2.6] 0.8 * 2.0 = 1.6 XRP (cap ไม้ทบ)
         "MARTINGALE_MULTIPLIER": 2.0,
-        "AI_CONFIDENCE_THRESHOLD": 0.80, # บังคับให้ AI ต้องมั่นใจ 80% ขึ้นไปถึงจะให้ยิง!
+        "AI_CONFIDENCE_THRESHOLD": 0.85, # [v5.2.6] ขึ้นจาก 0.80→0.85 บังคับให้ AI มั่นใจ 85%+ ถึงยิงไม้แรก
     },
 }
 
@@ -157,9 +157,9 @@ AI_CONF_BET_MIN_MULTIPLIER = 0.7  # [v3.11.27] Allow risk reduction
 # 🎯 Sniper Recovery System (Dynamic Confidence Threshold)
 # ---------------------------------------------------------
 # [v5.2.0] Tuned from data: AI sends 0.85 (77%) and 0.90 (23%) — old 0.90 threshold blocked 77% of Step 2 signals
-CONFIDENCE_BASE = 0.75        # ไม้แรก: filter เฉพาะสัญญาณขยะ (AI ส่ง 0.85+ อยู่แล้ว 99.7%)
-CONFIDENCE_MG_STEP_1 = 0.85   # ไม้ทบ 1 ($2): คงไว้ — ทำงานดีอยู่แล้ว (WR 62.5%)
-CONFIDENCE_MG_STEP_2 = 0.85   # [v5.2.3] ไม้ทบ 2 ($4): ไม่ใช้แล้วหลัง Option C (MAX_STEPS=1) — คงไว้เผื่อ fallback
+CONFIDENCE_BASE = 0.85        # [v5.2.6] ไม้แรก: ขึ้นจาก 0.75→0.85 — Safety First, กรองสัญญาณอ่อน
+CONFIDENCE_MG_STEP_1 = 0.90   # [v5.2.6] ไม้ทบ 1 (1.6 XRP): ขึ้นจาก 0.85→0.90 — ต้องการความแม่นยำสูงสุดก่อนแก้พอร์ต
+CONFIDENCE_MG_STEP_2 = 0.90   # ไม้ทบ 2 (ไม่ใช้ใน MAX_STEPS=1) — คงไว้เผื่อ fallback
 
 # BOT_VERSION declaration moved to top
 
@@ -200,6 +200,9 @@ REGIME_STRATEGY_NORMAL   = os.getenv("REGIME_STRATEGY_NORMAL",   "AUTO")
 # AUTO = ใช้ strategy จาก asset_profiles.json ตามปกติ
 
 ENABLE_STOCHASTIC_BOUNCE_GUARD = True
+# [v5.2.6] Stochastic Strict Thresholds — Anti-Whipsaw gate
+STOCH_PUT_STRICT = 20    # ห้ามเปิด PUT หาก Stoch < 20 (Oversold zone — bounce risk)
+STOCH_CALL_STRICT = 80   # ห้ามเปิด CALL หาก Stoch > 80 (Overbought zone — reversal risk)
 
 
 

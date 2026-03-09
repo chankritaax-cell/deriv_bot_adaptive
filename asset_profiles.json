@@ -6,39 +6,19 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45,
-            "call_max": 72,
-            "put_min": 28,
-            "put_max": 55,
-            "pullback_put_lo": 45.0,
-            "pullback_put_hi": 58.0,
-            "pullback_put_max": 65.0,
-            "pullback_call_lo": 42.0,
+            "call_min": 45.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 55.0,
+            "pullback_call_lo": 38.0,
             "pullback_call_hi": 55.0,
-            "pullback_call_min": 35.0
+            "pullback_call_min": 28.0,
+            "pullback_put_lo": 45.0,
+            "pullback_put_hi": 62.0,
+            "pullback_put_max": 72.0
         },
         "bounce_limit": 10.0,
-        "ma_slope_min": 0.025,
-        "min_trades_before_trust": 0
-    },
-    "R_75_LOW_VOL": {
-        "strategy": "PULLBACK_ENTRY",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "pullback_put_lo": 42.0,
-            "pullback_put_hi": 60.0,
-            "pullback_put_max": 68.0,
-            "pullback_call_lo": 40.0,
-            "pullback_call_hi": 58.0,
-            "pullback_call_min": 32.0
-        },
-        "bounce_limit": 8.0,
-        "ma_slope_min": 0.015,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: Low Volatility (Sideways). ลด Slope ลงมาที่ 0.015% เพื่อแก้ปัญหาโดนบล็อกตอนกราฟเอื่อย และขยายกรอบย่อตัวให้กว้างขึ้น"
+        "ma_slope_min": 0.025
     },
     "R_75_HIGH_VOL": {
         "strategy": "PULLBACK_ENTRY",
@@ -47,162 +27,51 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0,
-            "pullback_call_lo": 38.0,
-            "pullback_call_hi": 55.0,
-            "pullback_call_min": 28.0,
-            "pullback_put_lo": 45.0,
-            "pullback_put_hi": 62.0,
-            "pullback_put_max": 72.0
+            "pullback_call_lo": 35.0,
+            "pullback_call_hi": 52.0,
+            "pullback_call_min": 25.0,
+            "pullback_put_lo": 48.0,
+            "pullback_put_hi": 65.0,
+            "pullback_put_max": 75.0
         },
         "bounce_limit": 12.0,
         "ma_slope_min": 0.02,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
+        "notes": "Anti-Whipsaw: บังคับรอให้กราฟย่อตัวหนักๆ เท่านั้นถึงจะเข้า"
     },
     "1HZ100V": {
-        "strategy": "TREND_FOLLOWING",
+        "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
             "CALL",
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45,
-            "call_max": 65,
-            "put_min": 28,
-            "put_max": 55
+            "call_min": 52.0,
+            "call_max": 65.0,
+            "put_min": 35.0,
+            "put_max": 48.0
         },
         "bounce_limit": 8.0,
-        "ma_slope_min": 0.025,
-        "min_trades_before_trust": 0,
-        "notes": "[v5.2.5] Lowered call_max 72→65 — TREND_FOLLOWING should not enter CALL at RSI 70+ (overbought zone)"
+        "ma_slope_min": 0.025
     },
-    "R_25": {
-        "strategy": "TREND_FOLLOWING",
+    "1HZ100V_HIGH_VOL": {
+        "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
+            "CALL",
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
+            "pullback_call_lo": 35.0,
+            "pullback_call_hi": 50.0,
+            "pullback_call_min": 25.0,
+            "pullback_put_lo": 50.0,
+            "pullback_put_hi": 65.0,
+            "pullback_put_max": 75.0
         },
-        "bounce_limit": 6.0,
-        "ma_slope_min": 0.025,
-        "min_trades_before_trust": 150
+        "bounce_limit": 10.0,
+        "ma_slope_min": 0.02,
+        "notes": "เปลี่ยนจาก Trend Following เป็น Pullback เพื่อหยุดการแพ้ปลายดอย"
     },
     "R_50": {
-        "strategy": "TREND_FOLLOWING",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
-        },
-        "bounce_limit": 6.0,
-        "ma_slope_min": 0.025,
-        "min_trades_before_trust": 150
-    },
-    "1HZ75V": {
-        "strategy": "TREND_FOLLOWING",
-        "enabled": false,
-        "_disabled_reason": "[v5.2.5] Disabled — 36.4% WR / -5.24 XRP across 11 trades (worst asset). Removed from scan pool.",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
-        },
-        "bounce_limit": 6.0,
-        "ma_slope_min": 0.025,
-        "min_trades_before_trust": 150
-    },
-    "1HZ25V": {
-        "strategy": "TREND_FOLLOWING",
-        "allowed_signals": [
-            "CALL"
-        ],
-        "rsi_bounds": {
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
-        },
-        "bounce_limit": 6.0,
-        "ma_slope_min": 0.025,
-        "min_trades_before_trust": 150
-    },
-    "1HZ50V": {
-        "strategy": "TREND_FOLLOWING",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0
-        },
-        "bounce_limit": 6.0,
-        "ma_slope_min": 0.025,
-        "min_trades_before_trust": 0
-    },
-    "1HZ50V_HIGH_VOL": {
-        "strategy": "PULLBACK_ENTRY",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0,
-            "pullback_call_lo": 38.0,
-            "pullback_call_hi": 55.0,
-            "pullback_call_min": 28.0,
-            "pullback_put_lo": 45.0,
-            "pullback_put_hi": 62.0,
-            "pullback_put_max": 72.0
-        },
-        "bounce_limit": 8.0,
-        "ma_slope_min": 0.02,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
-    },
-    "1HZ50V_LOW_VOL": {
-        "strategy": "PULLBACK_ENTRY",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "pullback_put_lo": 45.0,
-            "pullback_put_hi": 58.0,
-            "pullback_put_max": 65.0,
-            "pullback_call_lo": 42.0,
-            "pullback_call_hi": 55.0,
-            "pullback_call_min": 35.0
-        },
-        "bounce_limit": 4.0,
-        "ma_slope_min": 0.015,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: Low Volatility. เมื่อตลาดเริ่มช้าลง เปลี่ยนมาดักเข้าแบบ Pullback แทน"
-    },
-    "1HZ10V": {
         "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "CALL",
@@ -212,30 +81,18 @@
             "call_min": 52.0,
             "call_max": 68.0,
             "put_min": 32.0,
-            "put_max": 48.0,
-            "pullback_put_lo": 42.0,
-            "pullback_put_hi": 55.0,
-            "pullback_put_max": 62.0,
-            "pullback_call_lo": 45.0,
-            "pullback_call_hi": 58.0,
-            "pullback_call_min": 38.0
+            "put_max": 48.0
         },
-        "bounce_limit": 5.0,
-        "ma_slope_min": 0.01,
-        "min_trades_before_trust": 0,
-        "notes": "Base Profile: Expanded RSI slightly to catch early trends. (Low intrinsic volatility asset)"
+        "bounce_limit": 6.0,
+        "ma_slope_min": 0.025
     },
-    "1HZ10V_HIGH_VOL": {
+    "1HZ50V_HIGH_VOL": {
         "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
             "CALL",
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0,
             "pullback_call_lo": 38.0,
             "pullback_call_hi": 55.0,
             "pullback_call_min": 28.0,
@@ -244,70 +101,7 @@
             "pullback_put_max": 72.0
         },
         "bounce_limit": 8.0,
-        "ma_slope_min": 0.015,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
-    },
-    "1HZ10V_LOW_VOL": {
-        "strategy": "PULLBACK_ENTRY",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "pullback_put_lo": 35.0,
-            "pullback_put_hi": 62.0,
-            "pullback_put_max": 68.0,
-            "pullback_call_lo": 38.0,
-            "pullback_call_hi": 65.0,
-            "pullback_call_min": 32.0
-        },
-        "bounce_limit": 15.0,
-        "ma_slope_min": 0.005,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: Low Volatility (Sideways). ขยายกรอบรับ Pullback (35/62/38/65) และเพิ่ม Bounce เป็น 15.0 เพื่อลดการบล็อกออเดอร์"
-    },
-    "1HZ100V_HIGH_VOL": {
-        "strategy": "PULLBACK_ENTRY",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0,
-            "pullback_call_lo": 38.0,
-            "pullback_call_hi": 55.0,
-            "pullback_call_min": 28.0,
-            "pullback_put_lo": 45.0,
-            "pullback_put_hi": 62.0,
-            "pullback_put_max": 72.0
-        },
-        "bounce_limit": 10.0,
-        "ma_slope_min": 0.02,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
-    },
-    "1HZ100V_LOW_VOL": {
-        "strategy": "PULLBACK_ENTRY",
-        "allowed_signals": [
-            "CALL",
-            "PUT"
-        ],
-        "rsi_bounds": {
-            "pullback_put_lo": 44.0,
-            "pullback_put_hi": 58.0,
-            "pullback_put_max": 65.0,
-            "pullback_call_lo": 42.0,
-            "pullback_call_hi": 56.0,
-            "pullback_call_min": 35.0
-        },
-        "bounce_limit": 6.0,
-        "ma_slope_min": 0.015,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: Low Vol. ตลาดช้า เปลี่ยนเป็น Pullback entry"
+        "ma_slope_min": 0.02
     },
     "1HZ75V_HIGH_VOL": {
         "strategy": "PULLBACK_ENTRY",
@@ -316,10 +110,6 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0,
             "pullback_call_lo": 38.0,
             "pullback_call_hi": 55.0,
             "pullback_call_min": 28.0,
@@ -328,21 +118,19 @@
             "pullback_put_max": 72.0
         },
         "bounce_limit": 10.0,
-        "ma_slope_min": 0.02,
-        "min_trades_before_trust": 0,
-        "notes": "Adaptive: High Volatility. Changed to PULLBACK_ENTRY to avoid Whipsaw."
+        "ma_slope_min": 0.02
     },
     "DEFAULT": {
-        "strategy": "TREND_FOLLOWING",
+        "strategy": "PULLBACK_ENTRY",
         "allowed_signals": [
             "CALL",
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0,
+            "call_min": 52.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0,
             "pullback_put_lo": 44.0,
             "pullback_put_hi": 56.0,
             "pullback_put_max": 63.0,
@@ -351,8 +139,6 @@
             "pullback_call_min": 37.0
         },
         "bounce_limit": 6.0,
-        "ma_slope_min": 0.025,
-        "min_trades_before_trust": 0,
-        "notes": "SAFETY NET: หาก Asset Selector สแกนเจอ Asset ตัวใหม่ที่ไม่มีในลิสต์นี้ จะใช้พารามิเตอร์นี้เป็นค่ามาตรฐาน (มาตรฐานสากล)"
+        "ma_slope_min": 0.025
     }
 }
