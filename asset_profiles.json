@@ -71,13 +71,14 @@
         ],
         "rsi_bounds": {
             "call_min": 45,
-            "call_max": 72,
+            "call_max": 65,
             "put_min": 28,
             "put_max": 55
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.025,
-        "min_trades_before_trust": 0
+        "min_trades_before_trust": 0,
+        "notes": "[v5.2.5] Lowered call_max 72→65 — TREND_FOLLOWING should not enter CALL at RSI 70+ (overbought zone)"
     },
     "R_25": {
         "strategy": "TREND_FOLLOWING",
@@ -112,6 +113,8 @@
     },
     "1HZ75V": {
         "strategy": "TREND_FOLLOWING",
+        "enabled": false,
+        "_disabled_reason": "[v5.2.5] Disabled — 36.4% WR / -5.24 XRP across 11 trades (worst asset). Removed from scan pool.",
         "allowed_signals": [
             "CALL",
             "PUT"

@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.2.4"     # [v5.2.4] Cut and Run gate (MG Step>=1 only) + Fallback Guard smart sleep + Asset Selector fallback tier (>35% WR)
+BOT_VERSION = "5.2.5"     # [v5.2.5] Disable 1HZ75V (36.4% WR, -5.24 XRP — worst asset) + Lower 1HZ100V call_max 72→65
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91

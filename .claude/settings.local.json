@@ -29,7 +29,8 @@
       "Bash(grep -n \"cut.and.run\\\\|Cut.and.Run\\\\|CUT_AND_RUN\\\\|cut_and_run\" modules/*.py config.py)",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''bot.py''\\).read\\(\\)\\); print\\(''bot.py: OK''\\)\")",
       "Bash(python -c \"import config; print\\(f''Version: {config.BOT_VERSION}''\\)\")",
-      "Bash(python -c \"import sys; sys.stdout.reconfigure\\(encoding=''utf-8''\\); import config; print\\(f''Version: {config.BOT_VERSION}''\\)\")"
+      "Bash(python -c \"import sys; sys.stdout.reconfigure\\(encoding=''utf-8''\\); import config; print\\(f''Version: {config.BOT_VERSION}''\\)\")",
+      "Bash(py -3 -c \":*)"
     ]
   }
 }
