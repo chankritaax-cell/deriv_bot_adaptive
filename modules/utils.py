@@ -569,7 +569,7 @@ def get_crypto_thb_rate(symbol="XRP"):
 TRADE_STATE_FILE = os.path.join(ROOT, "logs", "dashboard", "trade_state.json")
 
 def load_martingale_state():
-    """[v5.2.0] Load persistent Martingale state. Returns: (mg_step, base_amount) tuple for backward compat."""
+    """[v5.2.0] Load persistent Martingale state. Returns: (mg_step, base_amount, last_loss_timestamp)"""
     base_amount = getattr(config, "AMOUNT", 1.0)
     if os.path.exists(TRADE_STATE_FILE):
         try:
@@ -580,21 +580,36 @@ def load_martingale_state():
                 if saved_acct != current_acct:
                     log_print(f"⚠️ Martingale state account_type mismatch ({saved_acct} vs {current_acct}) — resetting")
                     save_martingale_state(0)
-                    return 0, base_amount
-                return data.get("mg_step", 0), base_amount
+                    return 0, base_amount, 0.0
+                return data.get("mg_step", 0), base_amount, data.get("last_loss_timestamp", 0.0)
         except Exception as e:
-            log_print(f"⚠️ Failed to load Martingale state: {e}")
-    return 0, base_amount
+            log_print(f"⚠️ Failed to load Martingale state: {e} — auto-resetting")
+            save_martingale_state(0)  # [v5.2.6] Auto-repair corrupted/empty state file
+    return 0, base_amount, 0.0
 
-def save_martingale_state(mg_step, current_stake=None):
+def save_martingale_state(mg_step, current_stake=None, last_loss_timestamp=None):
     """[v5.2.0] Save persistent Martingale state. current_stake is vestigial (bot recalculates from config.AMOUNT * 2^mg_step)."""
     try:
+        if last_loss_timestamp is None:
+            if mg_step > 0:
+                old_ts = 0.0
+                if os.path.exists(TRADE_STATE_FILE):
+                    try:
+                        with open(TRADE_STATE_FILE, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            old_ts = data.get("last_loss_timestamp", 0.0)
+                    except: pass
+                last_loss_timestamp = old_ts if old_ts > 0.0 else time.time()
+            else:
+                last_loss_timestamp = 0.0
+
         os.makedirs(os.path.dirname(TRADE_STATE_FILE), exist_ok=True)
         temp_file = TRADE_STATE_FILE + f".tmp.{os.getpid()}"
         with open(temp_file, "w", encoding="utf-8") as f:
             json.dump({
                 "mg_step": mg_step,
                 "account_type": getattr(config, "DERIV_ACCOUNT_TYPE", "demo"),
+                "last_loss_timestamp": last_loss_timestamp
             }, f, ensure_ascii=False)
             f.flush()
             os.fsync(f.fileno())

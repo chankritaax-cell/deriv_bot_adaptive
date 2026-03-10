@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.2.6"     # [v5.2.6] FULL SAFETY: Stake 0.8 XRP + Max MG 1 + Anti-Whipsaw Profiles
+BOT_VERSION = "5.2.7"     # [v5.2.6] FULL SAFETY: Stake 0.8 XRP + Max MG 1 + Anti-Whipsaw Profiles
 COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -71,11 +71,11 @@ PROFILES = {
         "AI_CONFIDENCE_THRESHOLD": 0.80,
     },
    "TIER_COUNCIL": {
-        "AMOUNT": 0.8,                  # [v5.2.6] ลดจาก 1.0→0.8 XRP — Safety First
+        "AMOUNT": 1,                  # [v5.2.6] ลดจาก 1.0→0.8 XRP — Safety First
         "MAX_DAILY_LOSS_PERCENT": 100.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 15,  # เผื่อพื้นที่ให้หายใจนิดนึงเวลาตลาดผันผวน
         "MAX_MARTINGALE_STEPS": 1,      # ทบสูงสุด 1 ครั้ง (0.8→1.6 only) จำกัดความเสียหาย
-        "MAX_STAKE_AMOUNT": 1.6,        # [v5.2.6] 0.8 * 2.0 = 1.6 XRP (cap ไม้ทบ)
+        "MAX_STAKE_AMOUNT": 2,        # [v5.2.6] 0.8 * 2.0 = 1.6 XRP (cap ไม้ทบ)
         "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.85, # [v5.2.6] ขึ้นจาก 0.80→0.85 บังคับให้ AI มั่นใจ 85%+ ถึงยิงไม้แรก
     },
@@ -89,6 +89,7 @@ MAX_MARTINGALE_STEPS = selected_config.get("MAX_MARTINGALE_STEPS", 0)
 MAX_STAKE_AMOUNT = selected_config.get("MAX_STAKE_AMOUNT", 0)
 MARTINGALE_MULTIPLIER = selected_config["MARTINGALE_MULTIPLIER"]
 AI_CONFIDENCE_THRESHOLD = selected_config["AI_CONFIDENCE_THRESHOLD"]  # [v3.6.7] Using profile value
+MARTINGALE_RESET_TIMEOUT_MINS = 60
 
 # Ollama Settings
 OLLAMA_MODEL = "qwen2.5:14b"
@@ -110,14 +111,16 @@ def _parse_asset_list(env_var, default_val):
     return [x.strip() for x in val.split(",") if x.strip()]
 
 # Assets (Volatility Indices)
-ASSETS_VOLATILITY = _parse_asset_list("ASSETS_VOLATILITY", "1HZ100V,1HZ75V,1HZ50V,1HZ25V,1HZ10V")
+# [v5.2.5] 1HZ75V ถูกลบออก — 36.4% WR / -5.24 XRP (worst asset, disabled)
+ASSETS_VOLATILITY = _parse_asset_list("ASSETS_VOLATILITY", "R_75,1HZ100V,1HZ50V,R_25,R_50,1HZ25V,1HZ10V")
 
 # [v3.6.7] Asset Priority Tiers (Recalculated from Trade History)
+# [v5.2.5] ลบ 1HZ75V ออกจาก TIER_3 (disabled), อัปเดต TIER_COUNCIL default
 ASSET_PRIORITY_TIERS = {
-    "TIER_1": _parse_asset_list("ASSET_TIER_1", "1HZ50V,R_75"),
-    "TIER_2": _parse_asset_list("ASSET_TIER_2", "1HZ25V,1HZ100V,R_10,R_25,R_100"),
-    "TIER_3": _parse_asset_list("ASSET_TIER_3", "1HZ75V,R_50,1HZ10V"),
-    "TIER_COUNCIL": _parse_asset_list("ASSET_TIER_COUNCIL", "R_75,R_25")
+    "TIER_1": _parse_asset_list("ASSET_TIER_1", "R_75,1HZ50V"),
+    "TIER_2": _parse_asset_list("ASSET_TIER_2", "1HZ100V"),
+    "TIER_3": _parse_asset_list("ASSET_TIER_3", "R_50,1HZ10V"),
+    "TIER_COUNCIL": _parse_asset_list("ASSET_TIER_COUNCIL", "R_75,1HZ50V,1HZ100V")  # [v5.2.6] ตรงกับ .env จริง
 }
 ACTIVE_ASSET = os.getenv("ACTIVE_ASSET", "R_75") # ดึงค่าจาก .env ถ้าไม่มีให้ใช้ R_75 เป็นค่าเริ่มต้น
 
@@ -134,7 +137,7 @@ USE_AI_ANALYST = True
 USE_AI_RISK_MANAGER = True
 ENABLE_HARD_RULES = True  # [v3.5.3] Toggle hard safety checks (RSI/MACD blocks)
 USE_CHATGPT_BET_GATE = True
-BET_GATE_CONFIDENCE_THRESHOLD = 0.80
+BET_GATE_CONFIDENCE_THRESHOLD = 0.85  # [v5.2.6] ขึ้นจาก 0.80→0.85 ให้ตรงกับ CONFIDENCE_BASE และ AI_CONFIDENCE_THRESHOLD
 # AI Limits
 CHATGPT_MAX_CALLS_PER_DAY = 200
 AI_DAILY_LIMITS = {
@@ -164,9 +167,9 @@ CONFIDENCE_MG_STEP_2 = 0.90   # ไม้ทบ 2 (ไม่ใช้ใน MAX_
 # BOT_VERSION declaration moved to top
 
 # [Safety Guards & Limits]
-MIN_STAKE_AMOUNT = 1.0
+MIN_STAKE_AMOUNT = 0.8   # [v5.2.6] ปรับให้ตรงกับ TIER_COUNCIL AMOUNT=0.8 (เดิม 1.0 ทำให้ยิงไม่ได้!)
 SLIPPAGE_BUFFER = 0.10
-ENABLE_RSI_GUARD = True   
+ENABLE_RSI_GUARD = True
 
 # [v5.1.6 LEGACY] RSI bounds below are NO LONGER USED by smart_trader.py
 # Active RSI bounds are defined per-asset in asset_profiles.json → rsi_bounds
@@ -181,7 +184,7 @@ RSI_PUT_UPPER = 48.0
 # Regime thresholds below ARE still used by ai_engine.py regime detection
 MIN_ATR_THRESHOLD_PCT = 0.015
 MAX_ATR_THRESHOLD_PCT = 0.30
-MA_SLOPE_THRESHOLD_PCT = 0.015
+MA_SLOPE_THRESHOLD_PCT = 0.020  # [v5.2.6] ขึ้นจาก 0.015→0.020 ให้ตรงกับ AI prompt (slope > 0.02% = UPTREND) ป้องกันเสีย AI call ฟรี
 
 # [v5.0 Adaptive Engine] Regime Detection Thresholds
 # R_ assets (Volatility Index): lower ATR range
@@ -194,7 +197,7 @@ REGIME_LOW_VOL_THRESHOLD_1HZ  = float(os.getenv("REGIME_LOW_VOL_1HZ",  "0.030"))
 
 # [v5.0 Adaptive Engine] Strategy auto-selection per regime
 # When regime shifts, bot overrides profile strategy with these
-REGIME_STRATEGY_HIGH_VOL = os.getenv("REGIME_STRATEGY_HIGH_VOL", "TREND_FOLLOWING")
+REGIME_STRATEGY_HIGH_VOL = os.getenv("REGIME_STRATEGY_HIGH_VOL", "PULLBACK_ENTRY")  # [v5.2.6] TREND→PULLBACK: Anti-Whipsaw (ทุก _HIGH_VOL profile ใช้ PULLBACK แล้ว)
 REGIME_STRATEGY_LOW_VOL  = os.getenv("REGIME_STRATEGY_LOW_VOL",  "PULLBACK_ENTRY")
 REGIME_STRATEGY_NORMAL   = os.getenv("REGIME_STRATEGY_NORMAL",   "AUTO")
 # AUTO = ใช้ strategy จาก asset_profiles.json ตามปกติ
