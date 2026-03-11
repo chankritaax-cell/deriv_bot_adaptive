@@ -176,8 +176,8 @@ ENABLE_RSI_GUARD = True
 # Kept for backward compatibility with any external tools referencing these values
 RSI_CALL_MAX = 68
 RSI_PUT_LOWER = 32
-RSI_CALL_MIN = 52.0
-RSI_PUT_UPPER = 48.0
+RSI_CALL_MIN = 55.0
+RSI_PUT_UPPER = 45.0
 
 # [v5.1.6 LEGACY] ATR/Slope thresholds below are NO LONGER USED by smart_trader.py
 # Active values come from asset_profiles.json → ma_slope_min, bounce_limit

@@ -6,10 +6,6 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 45.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 55.0,
             "pullback_call_lo": 38.0,
             "pullback_call_hi": 55.0,
             "pullback_call_min": 28.0,
@@ -45,10 +41,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 48.0
+            "call_min": 55.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 45.0
         },
         "bounce_limit": 8.0,
         "ma_slope_min": 0.025
@@ -78,10 +74,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
+            "call_min": 55.0,
             "call_max": 68.0,
             "put_min": 32.0,
-            "put_max": 48.0
+            "put_max": 45.0
         },
         "bounce_limit": 6.0,
         "ma_slope_min": 0.025
@@ -127,10 +123,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 52.0,
+            "call_min": 55.0,
             "call_max": 68.0,
             "put_min": 32.0,
-            "put_max": 48.0,
+            "put_max": 45.0,
             "pullback_put_lo": 44.0,
             "pullback_put_hi": 56.0,
             "pullback_put_max": 63.0,
