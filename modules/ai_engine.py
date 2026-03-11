@@ -256,13 +256,21 @@ def _get_bet_gate_metrics(df_1m, asset, strategy):
     ds = dashboard_get_state()
     history = ds.get("trade_history", [])
     
-    # ดึงประวัติ Asset (ถ้าไม่มีให้คืนค่า "N/A" แทน 0.0)
+    # ดึงประวัติ Asset — suppress if < 3 trades to avoid 0%/100% bias
     asset_trades = [t for t in history if t.get("asset") == asset]
-    asset_wr = (sum(1 for t in asset_trades[-20:] if t.get("result") == "WIN") / len(asset_trades[-20:])) * 100 if asset_trades else "N/A"
+    _a_sample = asset_trades[-20:]
+    if len(_a_sample) < 3:
+        asset_wr_str = f"N/A (Only {len(_a_sample)} trades)"
+    else:
+        asset_wr_str = f"{(sum(1 for t in _a_sample if t.get('result') == 'WIN') / len(_a_sample)) * 100:.1f}%"
     
-    # ดึงประวัติ Strategy (ถ้าไม่มีให้คืนค่า "N/A" แทน 0.0)
+    # ดึงประวัติ Strategy — suppress if < 3 trades to avoid 0%/100% bias
     strat_trades = [t for t in history if t.get("strategy") == strategy]
-    strat_wr = (sum(1 for t in strat_trades[-20:] if t.get("result") == "WIN") / len(strat_trades[-20:])) * 100 if strat_trades else "N/A"
+    _s_sample = strat_trades[-20:]
+    if len(_s_sample) < 3:
+        strat_wr_str = f"N/A (Only {len(_s_sample)} trades)"
+    else:
+        strat_wr_str = f"{(sum(1 for t in _s_sample if t.get('result') == 'WIN') / len(_s_sample)) * 100:.1f}%"
     
     vol_spike = False
     if df_1m is not None and len(df_1m) >= 28:
@@ -275,8 +283,8 @@ def _get_bet_gate_metrics(df_1m, asset, strategy):
         except: pass
         
     return {
-        "asset_winrate_20": f"{asset_wr:.1f}%" if isinstance(asset_wr, (float, int)) else "N/A (No Trade History)",
-        "strategy_winrate_20": f"{strat_wr:.1f}%" if isinstance(strat_wr, (float, int)) else "N/A (No Trade History)",
+        "asset_winrate_20": asset_wr_str,
+        "strategy_winrate_20": strat_wr_str,
         "daily_pnl": f"${ds.get('profit', 0.0):.2f}", 
         "current_loss_streak": ds.get("loss_streak", 0),
         "current_win_streak": ds.get("win_streak", 0), 

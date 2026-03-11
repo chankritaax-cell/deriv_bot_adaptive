@@ -581,7 +581,14 @@ def load_martingale_state():
                     log_print(f"⚠️ Martingale state account_type mismatch ({saved_acct} vs {current_acct}) — resetting")
                     save_martingale_state(0)
                     return 0, base_amount, 0.0
-                return data.get("mg_step", 0), base_amount, data.get("last_loss_timestamp", 0.0)
+                mg_step = data.get("mg_step", 0)
+                last_loss = data.get("last_loss_timestamp", 0.0)
+                
+                # [v5.2.x] Fallback for legacy state files that don't have the timestamp
+                if mg_step > 0 and last_loss == 0.0:
+                    last_loss = os.path.getmtime(TRADE_STATE_FILE)
+                
+                return mg_step, base_amount, last_loss
         except Exception as e:
             log_print(f"⚠️ Failed to load Martingale state: {e} — auto-resetting")
             save_martingale_state(0)  # [v5.2.6] Auto-repair corrupted/empty state file
