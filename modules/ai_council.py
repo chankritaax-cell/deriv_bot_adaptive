@@ -32,8 +32,8 @@ PENDING_FILE = os.path.join(COUNCIL_LOG_DIR, "pending_proposals.json")
 
 os.makedirs(COUNCIL_LOG_DIR, exist_ok=True)
 
-# Safety: only allow editing project .py files
-EDITABLE_EXTENSIONS = {".py"}
+# Safety: only allow editing project .py and .json files (v5.4.0)
+EDITABLE_EXTENSIONS = {".py", ".json"}
 PROTECTED_FILES = {"ai_council.py", "test_ai_council.py"}
 
 def _get_history():
@@ -216,6 +216,12 @@ def _build_project_map():
             
             rel_path = fname if label == "." else f"{label}/{fname}"
             project_files.append(f"  - {rel_path} — {desc}")
+            
+    # [v5.4.0] Include asset_profiles.json for targeted configuration edits
+    profile_path = os.path.join(ROOT, "asset_profiles.json")
+    if os.path.exists(profile_path):
+        project_files.append(f"\n📂 DATA/")
+        project_files.append(f"  - asset_profiles.json — Asset-specific strategy parameters")
             
     return "\n".join(project_files)
 
@@ -589,6 +595,28 @@ async def resolve_error(error_msg, tb_text):
         else:
             log_print(f"🏛️ [AI Council] ❌ Auto-Fix FAILED: {result['message']}")
             return None
+    elif config.DERIV_ACCOUNT_TYPE == "real" and not getattr(config, "COUNCIL_REAL_ADVISORY_ONLY", True):
+        log_print("🏛️ [AI Council] ACCOUNT=REAL (Autonomy ON): Attempting Auto-Fix...")
+        result = _apply_proposal(proposal)
+        
+        record = {
+            "id": f"FIX-REAL-{int(time.time())}",
+            "type": "AUTO_FIX_REAL",
+            "context": context,
+            "proposal": proposal,
+            "result": result,
+            "timestamp": context["timestamp"]
+        }
+        history = _get_history()
+        history.append(record)
+        _save_history(history)
+        
+        if result["success"]:
+            log_print(f"🏛️ [AI Council] ✅ REAL Auto-Fix APPLIED: {result['message']}")
+            return "RESTART_REQUIRED"
+        else:
+            log_print(f"🏛️ [AI Council] ❌ REAL Auto-Fix FAILED: {result['message']}")
+            return None
     else:
         if getattr(config, "COUNCIL_REAL_ADVISORY_ONLY", True):
             log_print("🏛️ [AI Council] REAL Account (Advisory Mode): Suggestion follows:")
@@ -683,6 +711,23 @@ def _build_council_prompt(context):
             if os.path.exists(extra_path):
                 content, _ = _read_file_content(extra_path, max_lines=200)
                 source_sections.append(f"### {extra_file}:\n```python\n{content}\n```")
+
+    # [v5.4.0] Targeted Asset Profile Context Injection
+    if error_type == "CONSECUTIVE_LOSS":
+        asset = context.get("active_asset", "UNKNOWN")
+        profile_path = os.path.join(ROOT, "asset_profiles.json")
+        if os.path.exists(profile_path):
+            try:
+                with open(profile_path, "r", encoding="utf-8") as f:
+                    profiles = json.load(f)
+                asset_data = profiles.get(asset, {})
+                if asset_data:
+                    source_sections.append(
+                        f"### {asset} PROFILE (Targeted Context):\n"
+                        f"This is the current configuration for the asset that just lost. ONLY modify these parameters if fixing {asset} specifically.\n"
+                        f"```json\n{json.dumps({asset: asset_data}, indent=2)}\n```"
+                    )
+            except: pass
     
     source_context = "\n\n".join(source_sections) if source_sections else "(No source code available)"
     
@@ -700,7 +745,10 @@ def _build_council_prompt(context):
             history_lines.append(f"   Error: {fix.get('error', 'N/A')[:100]}")
             history_lines.append(f"   Files Changed: {', '.join(fix.get('files_changed', []))}")
             history_lines.append(f"   {success_icon} Outcome: {fix.get('outcome', 'N/A')}")
-        history_lines.append("\n💡 IMPORTANT: If similar fix failed before, try a DIFFERENT approach!")
+        history_lines.append("\n⚠️ OSCILLATION PROTECTION (v5.4.0):")
+        history_lines.append("If a similar fix failed before OR was applied recently, do NOT revert to the previous state.")
+        history_lines.append("Analyze why the previous tweak wasn't enough and propose a more significant or different change.")
+        history_lines.append("Avoid 'solving' a problem by reverting to a state that caused the problem in the first place.")
         history_section = "\n".join(history_lines) + "\n\n"
     
     # 🔥 Build Trading Stats Section

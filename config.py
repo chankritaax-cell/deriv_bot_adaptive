@@ -7,8 +7,8 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.2.7"     # [v5.2.6] FULL SAFETY: Stake 0.8 XRP + Max MG 1 + Anti-Whipsaw Profiles
-COUNCIL_REAL_ADVISORY_ONLY = True  # If True, AI Council only gives advice in REAL mode, never pauses or edits code.
+BOT_VERSION = "5.4.0"     # [v5.4.0] Full Loop Autonomy: Autonomous AI Council + JSON Profile Edits
+COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
 USD_THB_RATE_FALLBACK = 36.50
@@ -137,7 +137,7 @@ USE_AI_ANALYST = True
 USE_AI_RISK_MANAGER = True
 ENABLE_HARD_RULES = True  # [v3.5.3] Toggle hard safety checks (RSI/MACD blocks)
 USE_CHATGPT_BET_GATE = True
-BET_GATE_CONFIDENCE_THRESHOLD = 0.85  # [v5.2.6] ขึ้นจาก 0.80→0.85 ให้ตรงกับ CONFIDENCE_BASE และ AI_CONFIDENCE_THRESHOLD
+BET_GATE_CONFIDENCE_THRESHOLD = 0.85  # Consolidated threshold for Unified AI Decision Engine
 # AI Limits
 CHATGPT_MAX_CALLS_PER_DAY = 200
 AI_DAILY_LIMITS = {
@@ -233,12 +233,12 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 # AI Task Routing
 ENABLE_AI_TASK_ROUTING = True
 AI_TASK_ROUTING = {
-    "ASSET_SCANNER":        ["CHATGPT", "GEMINI"],  # ChatGPT เก่งเรื่องสแกนไว
-    "TREND_FILTER":         ["CHATGPT", "GEMINI"],
-    "AI_ANALYST":           ["GEMINI", "CHATGPT"],  # Gemini เก่งเรื่องหา Pattern กราฟ
-    "BET_GATE":             ["CLAUDE", "CHATGPT"],  # 🟢 เปลี่ยนให้ Claude คุมประตูด่านสุดท้าย
-    "RISK_MANAGER":         ["CLAUDE", "GEMINI"],   # 🟢 ให้ Claude จัดการความเสี่ยง
-    "COUNCIL":              ["CLAUDE", "CHATGPT"],  # 🟢 ให้ Claude เป็นประธานสภาวิเคราะห์ความพ่ายแพ้
+    "ASSET_SCANNER":        ["GEMINI", "CHATGPT"],
+    "TREND_FILTER":         ["GEMINI", "CHATGPT"],
+    "AI_ANALYST":           ["GEMINI"],             # 🚀 Force Gemini for Unified Engine
+    "BET_GATE":             ["GEMINI"],             # 🚀 Force Gemini for Unified Engine
+    "RISK_MANAGER":         ["GEMINI", "CLAUDE"],
+    "COUNCIL":              ["CLAUDE", "CHATGPT"],
 }
 COUNCIL_TASK_NAME = "COUNCIL"
 COUNCIL_MULTI_VOTE = True

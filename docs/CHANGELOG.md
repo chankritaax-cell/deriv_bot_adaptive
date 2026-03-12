@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.4.0] - 2026-03-12
+### 🏛️ Autonomous AI Council (Full Loop)
+- **[ARCH] Autonomy Enabled**: AI Council can now automatically apply fixes on REAL accounts (`COUNCIL_REAL_ADVISORY_ONLY = False`).
+- **[DATA] JSON Profile Edits**: Council is now permitted to modify `asset_profiles.json` directly to tune strategy parameters.
+- **[CONTEXT] Targeted Injection**: AI now receives specific profiles for the losing asset, ensuring precision and preventing cross-asset contamination.
+- **[GUARD] Oscillation Protection**: Enhanced historical context injection prevents the AI from "revolving" or oscillating through recently failed configurations.
+
+## [v5.3.2] - 2026-03-11
+### ⚡ Efficiency & Monitoring
+- **[PERF] Data Trimming**: Restricted market data payload to 100 recent rows for Gemini context, significantly reducing token consumption and processing latency.
+- **[LOGS] Decision Audit**: Added detailed audit logs comparing AI Confidence vs Local Risk Score per trade cycle.
+- **[MONITOR] Latency Tracking**: Implemented millisecond-accurate tracking for AI analysis and total cycle processing time.
+
+## [v5.3.1] - 2026-03-11
+### 🛡️ Safety & Local Validation
+- **[SECURITY] Local Risk Layer**: Implemented a mathematical validation layer (`calculate_local_risk_score`) that acts independently of AI.
+- **[GUARD] Hard VETO**: Bot now automatically VETOs any trade with a Local Risk Score < 0.50, even if approved by AI.
+- **[CRTIICAL] Redundant Auth**: Validates Trend (Slope), Momentum (RSI/Stoch), and Performance (Win Rate/Vol) via hardcoded logic.
+
+## [v5.3.0] - 2026-03-11
+### 🏗️ Unified AI Engine & Super Prompt
+- **[ARCH] Unified Engine**: Consolidated `AI_ANALYST` and `BET_GATE` into a single, high-speed Gemini 2.0 Flash call, reducing network roundtrips.
+- **[PROMPT] Super Prompt**: Re-engineered AI role as "Chief Investment Officer & Senior Risk Manager" with a 2-step thinking process (Technical Audit -> Risk Filter).
+- **[DATA] MACD Injection**: Added MACD histogram to the AI analysis context for better trend-following precision.
+- **[SCHEMA] JSON Mode**: Enforced strict JSON response schema for predictable decision parsing.
+
 ## [v5.1.5] - 2026-03-07
 ### 📝 Docs & Version Sync
 - **[DOCS] README.md**: Updated version to v5.1.5, added Sniper Recovery / Stochastic Guard / Stream Auto-Reconnect to key features, fixed project structure to reflect `modules/` layout, updated config section.

@@ -291,78 +291,105 @@ def _get_bet_gate_metrics(df_1m, asset, strategy):
         "volatility_spike": vol_spike
     }
 
-async def ask_chatgpt_bet_gate(context):
-    action = str(context.get("signal", "")).upper().strip()
-    rsi_val = _fc_to_float(context.get("rsi"))
-
-    # [v5.2.6 FIX] Use per-asset RSI bounds instead of legacy defaults
-    _gate_profile = context.get("asset_profile")
-    call_lo, call_hi = _get_rsi_bounds_call(_gate_profile)
-    put_lo, put_hi = _get_rsi_bounds_put(_gate_profile)
-    rsi_validated = (rsi_val is not None) and is_rsi_valid_for_signal(action, rsi_val, _gate_profile)
-
-    if action in ("CALL", "PUT") and rsi_val is not None and not rsi_validated:
-        lo, hi = (call_lo, call_hi) if action == "CALL" else (put_lo, put_hi)
-        return {"action": "SKIP", "confidence": 1.0, "reason": f"Deterministic RSI guard: RSI={float(rsi_val):.1f} outside [{lo},{hi}] for {action}"}
-
-    if not getattr(config, "USE_CHATGPT_BET_GATE", False): return None
-
-    # [v5.2.6] Enhanced prompt — includes metrics, asset name, regime, Stochastic
+async def unified_ai_decision_engine(context):
+    """
+    [v5.3.0] Unified Decision Engine using Gemini 2.0 Flash.
+    Consolidates Market Analyst + Bet Gate into a single async call.
+    """
+    action_type = str(context.get("action_type", "DISCOVERY")).upper()
     asset_name = str(context.get("asset", "Unknown"))
     metrics = context.get("metrics", {})
     current_regime = context.get("regime", "NORMAL")
     stoch_k = context.get("stoch_k", "N/A")
-    rsi_lo, rsi_hi = (call_lo, call_hi) if action == "CALL" else (put_lo, put_hi)
+    rsi_val = context.get("rsi", "N/A")
+    det_trend = context.get("trend", "Unknown")
+    
+    # RSI Bounds for reference in prompt
+    profile = context.get("asset_profile")
+    call_lo, call_hi = _get_rsi_bounds_call(profile)
+    put_lo, put_hi = _get_rsi_bounds_put(profile)
 
-    prompt = f"""ACT AS: Chief Risk Officer (CRO) for a Binary Options Trading Desk.
-TASK: VETO (reject) or APPROVE the proposed {action} trade on {asset_name}.
+    macd_hist = context.get("macd_hist", "N/A")
+    daily_pnl = metrics.get("daily_pnl", "N/A")
 
-TRADE CONTEXT:
-- Action: {action}
+    prompt = f"""Role: Act as Chief Investment Officer (CIO) and Senior Risk Manager for a Quantitative Trading Desk.
+Task: Analyze Market Data and Risk Metrics to provide a final Trade Decision.
+
+Input Context:
+1. MARKET DATA:
 - Asset: {asset_name} | Regime: {current_regime}
-- Analyst Confidence: {context.get('ai_confidence', 0.0)}
-- Trend (MA): {context.get('trend', 'Unknown')} (Slope: {context.get('slope_pct', 'Unknown')}%)
-- RSI: {context.get('rsi', 'Unknown')} (Valid {action} range: {rsi_lo:.0f}-{rsi_hi:.0f})
+- Trend (MA): {det_trend} (Slope: {context.get('slope_pct', 'Unknown')}%)
+- RSI: {rsi_val} (Target Areas: CALL {call_lo:.0f}-{call_hi:.0f} | PUT {put_lo:.0f}-{put_hi:.0f})
 - Stochastic K: {stoch_k}
+- MACD Histogram: {macd_hist}
 - Volatility (ATR %): {context.get('atr_pct', 'Unknown')}%
+- Price Action: {context.get('market_summary', 'N/A')}
 
-HISTORICAL RISK METRICS:
-- Asset Win Rate (last 20 trades): {metrics.get('asset_winrate_20', 'N/A')}
-- Strategy Win Rate (last 20 trades): {metrics.get('strategy_winrate_20', 'N/A')}
-- Daily P&L: {metrics.get('daily_pnl', 'N/A')}
+2. RISK METRICS:
+- Asset Win Rate (last 20): {metrics.get('asset_winrate_20', 'N/A')}
+- Daily P&L: {daily_pnl}
 - Current Loss Streak: {metrics.get('current_loss_streak', 0)}
-- Volatility Spike Detected: {metrics.get('volatility_spike', False)}
+- Volatility Spike: {metrics.get('volatility_spike', False)}
 
-STRICT VETO RULES (approve: false if ANY match):
-1. WHIPSAW RISK: ATR% extremely high with signal chasing trend at peak.
-2. MOMENTUM EXHAUSTION: RSI outside the valid range above, or Stochastic in extreme zone (K < 20 for PUT, K > 80 for CALL).
-3. WEAK CONFLUENCE: Trend is SIDEWAYS or Slope near 0% but trying to force a trade.
-4. LOSING STREAK: If loss streak >= 3, require exceptionally strong confluence to approve.
-5. VOLATILITY SPIKE: If spike detected, only approve with very high confidence (> 0.90).
+Thinking Process:
+Step 1 (Technical Audit): Verify if market momentum and indicators align with a CALL or PUT setup.
+   - CALL: Trend must be UPTREND, RSI must be in range, Stoch K must not be Overbought (< 80).
+   - PUT: Trend must be DOWNTREND, RSI must be in range, Stoch K must not be Oversold (> 20).
+Step 2 (Risk Filtering): Apply institutional risk rules.
+   - If Win Rate < 50% or Loss Streak >= 2: Be extremely selective. Only APPROVE if technical confluence is perfect (Confidence > 0.90).
+   - If Volatility Spike is True: VETO any trade unless momentum is exceptionally strong.
+   - If Daily P&L is significantly negative: Tighten entry requirements.
 
-DEFAULT IS VETO. Only approve if ALL risk checks pass.
-
-SCORING: Give > 0.85 only if all metrics safely align. Give < 0.80 for any doubt.
-
-OUTPUT JSON ONLY:
-{{"approve": true | false, "confidence": <float 0.0-1.0>, "reason": "Quantitative risk assessment"}}"""
+Output Format: Respond with JSON only in this format:
+{{"decision": "APPROVE" | "VETO", "confidence": <float 0.0-1.0>, "signal": "CALL" | "PUT" | "SKIP", "reason": "Short Thai reasoning"}}"""
 
     start_time = time.time()
-    loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, call_ai_with_failover, prompt, "BET_GATE", 0.3)
+    # Call Gemini via ai_providers (task routing handles model selection)
+    result = await asyncio.get_running_loop().run_in_executor(
+        None, call_ai_with_failover, prompt, "AI_ANALYST", 0.3, 300
+    )
     latency = time.time() - start_time
 
-    if isinstance(result, dict):
-        approve = _fc_parse_bool(result.get("approve"), default=None)
-        gate_conf = _fc_norm_conf(result.get("confidence"), default=0.0)
-        reason = str(result.get("reason") or "No reason")
-        # [v5.2.6 FIX] Removed broken RSI override (was dead code — set conf 0.60 < threshold 0.80)
-        if approve is not None:
-            return {"action": "ENTER" if approve else "SKIP", "confidence": gate_conf, "reason": reason, "latency": latency}
+    if result and isinstance(result, dict):
+        result["latency"] = latency
+        return result
+        
+    return {"action": "VETO", "confidence": 0.0, "signal": "SKIP", "reason": "AI Offline — FAIL-CLOSED", "latency": latency}
 
-    # [v5.2.6 FIX] FAIL-CLOSED: return SKIP, not ENTER (was FAIL-OPEN bug)
-    log_print("   ⚠️ Bet Gate AI Offline/Invalid JSON. FAIL-CLOSED → SKIP.")
-    return {"action": "SKIP", "confidence": 0.0, "reason": "Bet Gate AI Offline — FAIL-CLOSED", "latency": latency}
+def calculate_local_risk_score(metrics, signal, context):
+    """
+    [v5.3.1] Mathematical Validation Layer (Non-AI).
+    Returns a score between 0.0 and 1.0 based on hard technical/performance rules.
+    """
+    score = 0.0
+    
+    # 1. Trend (0.4)
+    slope = context.get("slope_pct", 0)
+    if signal == "CALL" and slope > 0.02: score += 0.4
+    elif signal == "PUT" and slope < -0.02: score += 0.4
+    
+    # 2. Momentum (0.3)
+    # RSI (0.15)
+    rsi_val = _fc_to_float(context.get("rsi"))
+    profile = context.get("asset_profile")
+    if rsi_val is not None and is_rsi_valid_for_signal(signal, rsi_val, profile):
+        score += 0.15
+        
+    # Stoch (0.15)
+    stoch_k = _fc_to_float(context.get("stoch_k"))
+    if stoch_k is not None:
+        if signal == "CALL" and stoch_k < 80: score += 0.15
+        elif signal == "PUT" and stoch_k > 20: score += 0.15
+        
+    # 3. Performance (0.3)
+    # Win Rate (0.2)
+    win_rate = _fc_to_float(metrics.get("asset_winrate_20", 0))
+    if win_rate > 0.50: score += 0.2
+    
+    # Volatility Spike (0.1)
+    if not metrics.get("volatility_spike", False): score += 0.1
+    
+    return round(score, 2)
 
 def _get_feature_df(df_1m, granularity_sec=60):
     if df_1m is None or len(df_1m) < 3: return None
@@ -380,13 +407,18 @@ def _get_feature_df(df_1m, granularity_sec=60):
         df_feat = df_1m.iloc[:-1].copy()
         dropped = True
         
+    # [v5.3.2] Data Trimming: Limit to recent 100 rows for token efficiency
+    if len(df_feat) > 100:
+        df_feat = df_feat.iloc[-100:].copy()
+        
     if len(df_feat) < 3: return None
-    log_print(f"   🧩 Feature DF: rows={len(df_feat)} last_ts={int(df_feat.iloc[-1]['timestamp'])} (dropped_live={dropped})")
+    log_print(f"   🧩 Feature DF: rows={len(df_feat)} last_ts={int(df_feat.iloc[-1]['timestamp'])} (trimmed=100)")
     return df_feat
 
 async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     global _perf_metrics
     _perf_metrics["total_cycles"] += 1
+    cycle_start = time.time() # [v5.3.2] Cycle Latency Start
     
     signal = "HOLD"
     confidence = 0.0
@@ -397,8 +429,9 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     slope = 0.0
     det_trend = "SIDEWAYS"
     raw_snapshot = {}
-    analyst_latency = 0.0
-    gate_decision = {}
+    unified_latency = 0.0
+    ai_decision = {}
+    local_score = 0.0 # [v5.3.2]
     
     is_safe, sentiment_reason = check_market_sentiment()
     if not is_safe:
@@ -556,11 +589,6 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         return None
 
     if getattr(config, "USE_AI_ANALYST", True):
-        # [v5.2.6 FIX] Use per-asset RSI bounds, not legacy defaults
-        R_C_MIN, R_C_MAX = _get_rsi_bounds_call(_early_profile)
-        R_P_LOWER, R_P_UPPER = _get_rsi_bounds_put(_early_profile)
-        MIN_CONF = getattr(config, "AI_CONFIDENCE_THRESHOLD", 0.75)
-
         # [v5.1.4] Fetch Stochastic for Exhaustion Guard in prompt
         stoch_k_val, stoch_d_val = None, None
         try:
@@ -570,162 +598,98 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             pass
         stoch_str = f"Stoch K={stoch_k_val:.1f}, D={stoch_d_val:.1f}" if stoch_k_val is not None and stoch_d_val is not None else "Stoch: N/A"
 
-        # [v5.2.6] Stochastic strict thresholds for prompt rules
-        _stoch_call_limit = int(getattr(config, "STOCH_CALL_STRICT", 80))
-        _stoch_put_limit = int(getattr(config, "STOCH_PUT_STRICT", 20))
-        _current_regime = _regime_state.get(asset, "NORMAL")
+        # Calculate MACD Histogram before AI call
+        macd_hist = 0.0
+        try:
+            _, _, hist_val = _SMART_TRADER.tech.get_macd(df_feat)
+            macd_hist = float(hist_val) if hist_val is not None else 0.0
+        except: pass
 
-        # [v5.2.6] Enhanced AI Analyst prompt — Stoch rules, Regime info, SKIP-first bias, concrete thresholds
-        prompt = f"""You are a QUANTITATIVE TREND ANALYST for {asset} on the 1-minute timeframe.
+        # Gather context for Unified Engine
+        metrics = _get_bet_gate_metrics(df_feat, asset, "UNIFIED") # Strategy unknown yet
+        context = {
+            "asset": asset,
+            "metrics": metrics,
+            "regime": _regime_state.get(asset, "NORMAL"),
+            "stoch_k": stoch_k_val if stoch_k_val is not None else "N/A",
+            "rsi": f"{rsi_val:.1f}" if rsi_val is not None else "N/A",
+            "macd_hist": round(macd_hist, 6),
+            "trend": det_trend,
+            "slope_pct": round(slope, 4),
+            "atr_pct": round(atr_pct, 4),
+            "asset_profile": _early_profile,
+            "market_summary": market_data_summary
+        }
 
-MARKET CONTEXT:
-{market_data_summary}
-RSI: {f"{rsi_val:.1f}" if rsi_val is not None else "N/A"}
-MA Trend: {det_trend} (Slope: {slope:.4f}%)
-Stochastic: {stoch_str}
-Market Regime: {_current_regime}
-
-IMPORTANT: Your DEFAULT action is "SKIP". Only suggest CALL or PUT if ALL conditions below are met.
-
-DECISION MATRIX:
-1. "CALL" — ALL required: UPTREND (Slope > +0.02%) AND RSI in [{R_C_MIN:.0f}-{R_C_MAX:.0f}] (rising, not overbought) AND Stoch K < {_stoch_call_limit}.
-2. "PUT"  — ALL required: DOWNTREND (Slope < -0.02%) AND RSI in [{R_P_LOWER:.0f}-{R_P_UPPER:.0f}] (falling, not oversold) AND Stoch K > {_stoch_put_limit}.
-3. "SKIP" — MANDATORY if: SIDEWAYS trend, conflicting indicators, RSI outside valid range, Stochastic in extreme zone (K < {_stoch_put_limit} or K > {_stoch_call_limit}), momentum exhausted, or ANY uncertainty.
-
-CONFIDENCE SCORING (strict numerical anchors):
-- 0.90-0.95: ALL indicators aligned. Strong slope + RSI mid-range + Stochastic confirming trend direction + clean candle momentum.
-- 0.85-0.89: Clear trend with good momentum. One minor friction acceptable (e.g., RSI near bound edge).
-- 0.80-0.84: Trend exists but friction present. Only acceptable if slope is strong (> 0.04%).
-- Below 0.80: MUST return "SKIP". Do NOT trade.
-
-OUTPUT JSON ONLY:
-{{"action": "CALL" | "PUT" | "SKIP", "confidence": <float>, "reason": "Concise quantitative explanation"}}"""
-        analyst_start = time.time()
-        loop = asyncio.get_running_loop()
-        ai_decision = await loop.run_in_executor(None, call_ai_with_failover, prompt, "AI_ANALYST", 0.5)
-        analyst_latency = time.time() - analyst_start
+        # CALL UNIFIED ENGINE (Gemini 2.0 Flash)
+        ai_decision = await unified_ai_decision_engine(context)
+        unified_latency = ai_decision.get("latency", 0.0)
 
         if ai_decision and isinstance(ai_decision, dict):
-            action_raw = str(ai_decision.get("action", "SKIP")).upper().strip()
-            signal = "SKIP" if action_raw in ["NO TRADE", "NO_TRADE", "HOLD", "WAIT", "SKIP"] else action_raw
+            decision = str(ai_decision.get("decision", "VETO")).upper().strip()
+            action_raw = str(ai_decision.get("signal", "SKIP")).upper().strip()
+            
+            signal = "SKIP" if action_raw in ["NO TRADE", "NO_TRADE", "HOLD", "WAIT", "SKIP"] or decision == "VETO" else action_raw
             confidence = _fc_norm_conf(ai_decision.get("confidence", 0.0), default=0.0)
             ai_reason = ai_decision.get("reason", "")
             
-            macd_hist = 0.0
-            try:
-                _, _, hist_val = _SMART_TRADER.tech.get_macd(df_feat)
-                macd_hist = float(hist_val) if hist_val is not None else 0.0
-            except: pass
+            # [v5.3.1] Local Risk Validation Layer (Hard VETO)
+            local_score = calculate_local_risk_score(metrics, signal, context) if signal in ["CALL", "PUT"] else 0.0
+            
+            if decision == "APPROVE" and signal in ["CALL", "PUT"]:
+                if local_score < 0.5:
+                    log_print(f"   🛡️ LOCAL VETO: AI said APPROVE, but Local Risk Score is {local_score:.2f} (< 0.50). Overriding to VETO.")
+                    decision = "VETO"
+                    signal = "SKIP"
+                    ai_reason = f"(LOCAL VETO: score {local_score}) " + ai_reason
+                else:
+                    log_print(f"   🛡️ Local Risk Score: {local_score:.2f} (Passed)")
 
             raw_snapshot = {"rsi": rsi_val, "slope": slope, "atr_pct": atr_pct, "macd_hist": macd_hist, "atr": atr}
 
-            log_print(f"   🤖 AI Intent: {signal} (Conf: {confidence})")
+            log_print(f"   🤖 Unified AI: {signal} (Decision: {decision}, Conf: {confidence}) | Latency: {unified_latency:.2f}s")
+            # [v5.3.2] Decision Audit Log
+            log_print(f"   📝 [Decision Audit] AI Conf: {confidence:.2f} | Local Risk Score: {local_score:.2f} | Final: {signal}")
             if ai_reason: log_print(f"   💡 Reason: {ai_reason}")
 
             if signal == "SKIP":
                 _perf_metrics["ai_skip_cycles"] += 1
                 return None
 
+            # [Post-AI Hard Rules & Safety Checks]
             if rsi_val is not None and not is_rsi_valid_for_signal(signal, rsi_val, _early_profile):
                 lo, hi = _get_rsi_bounds_call(_early_profile) if signal == "CALL" else _get_rsi_bounds_put(_early_profile)
                 log_print(f"   🛑 POST-AI BLOCK: {signal} rejected. RSI {rsi_val:.1f} out of bounds ({lo}-{hi})")
                 _perf_metrics["post_ai_block_cycles"] += 1
                 return None
 
-            # [v5.2.6] Stochastic Strict Guard (Anti-Whipsaw) — ป้องกันเข้า zone อันตราย
             if stoch_k_val is not None:
                 _stoch_put_strict = float(getattr(config, "STOCH_PUT_STRICT", 20))
                 _stoch_call_strict = float(getattr(config, "STOCH_CALL_STRICT", 80))
                 if signal == "PUT" and stoch_k_val < _stoch_put_strict:
-                    log_print(f"   🛑 POST-AI BLOCK (Stoch Strict): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict:.0f} (Oversold bounce risk)")
+                    log_print(f"   🛑 POST-AI BLOCK (Stoch Strict): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict:.0f}")
                     _perf_metrics["post_ai_block_cycles"] += 1
                     return None
                 if signal == "CALL" and stoch_k_val > _stoch_call_strict:
-                    log_print(f"   🛑 POST-AI BLOCK (Stoch Strict): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict:.0f} (Overbought reversal risk)")
+                    log_print(f"   🛑 POST-AI BLOCK (Stoch Strict): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict:.0f}")
                     _perf_metrics["post_ai_block_cycles"] += 1
                     return None
 
-            # -----------------------------------------------------------------
-            # [v5.2.0] Sniper Recovery: Dynamic Confidence Filter based on Martingale
-            # Single load — mg_step cached and reused throughout this function
-            # -----------------------------------------------------------------
+            # Sniper Recovery (Dynamic Confidence)
             from .utils import load_martingale_state
-            mg_step, _, _ = load_martingale_state()  # [v5.2.0] Single load, reused below
+            mg_step, _, _ = load_martingale_state()
+            required_conf = safe_config_get("CONFIDENCE_BASE", 0.85)
+            if mg_step == 1: required_conf = safe_config_get("CONFIDENCE_MG_STEP_1", 0.90)
+            elif mg_step >= 2: required_conf = safe_config_get("CONFIDENCE_MG_STEP_2", 0.90)
 
-            base_conf = safe_config_get("CONFIDENCE_BASE", 0.80)
-            mg1_conf  = safe_config_get("CONFIDENCE_MG_STEP_1", 0.85)
-            mg2_conf  = safe_config_get("CONFIDENCE_MG_STEP_2", 0.90)
-
-            required_conf = base_conf
-
-            if mg_step == 1:
-                required_conf = mg1_conf
-                log_print(f"   🎯 [Sniper Recovery] MG Step 1 Active: AI Confidence must be >= {required_conf:.2f}")
-            elif mg_step >= 2:
-                required_conf = mg2_conf
-                log_print(f"   🎯 [Sniper Recovery] MG Step {mg_step} Active: AI Confidence must be >= {required_conf:.2f}")
-
-            # ถ้าความมั่นใจ AI ต่ำกว่าเกณฑ์ที่ตั้งไว้ในแต่ละระดับ ให้ปัดตกทันที!
             if confidence < required_conf:
-                log_print(f"   🛑 POST-AI BLOCK (Sniper Guard): {signal} rejected. Confidence {confidence:.2f} < {required_conf:.2f} (MG Step {mg_step})")
+                log_print(f"   🛑 POST-AI BLOCK (Sniper Guard): {signal} rejected. Conf {confidence:.2f} < {required_conf:.2f}")
                 _perf_metrics["post_ai_block_cycles"] += 1
                 return None
-            # -----------------------------------------------------------------
 
-            if signal in ["CALL", "PUT"] and df_feat is not None and len(df_feat) >= 4:
-                rsi_sig = _SMART_TRADER.tech.get_rsi(df_feat)
-                rsi_prev1 = _SMART_TRADER.tech.get_rsi(df_feat.iloc[:-1])
-                rsi_prev2 = _SMART_TRADER.tech.get_rsi(df_feat.iloc[:-2])
-                
-                if rsi_sig is not None and rsi_prev1 is not None and rsi_prev2 is not None:
-                    rsi_delta_1 = rsi_sig - rsi_prev1
-                    rsi_delta_2 = rsi_prev1 - rsi_prev2
-                    
-                    bounce_limit = getattr(config, "ANTI_REVERSAL_RSI_BOUNCE_LIMIT", 3.0)
-                    
-                    if signal == "PUT" and rsi_delta_1 > bounce_limit:
-                        log_print(f"   🛑 POST-AI BLOCK (Anti-Reversal): PUT rejected. RSI Bounced +{rsi_delta_1:.1f} (Limit: {bounce_limit})")
-                        _perf_metrics["post_ai_block_cycles"] += 1
-                        return None
-                    if signal == "CALL" and rsi_delta_1 < -bounce_limit:
-                        log_print(f"   🛑 POST-AI BLOCK (Anti-Reversal): CALL rejected. RSI Pulled back {rsi_delta_1:.1f} (Limit: -{bounce_limit})")
-                        _perf_metrics["post_ai_block_cycles"] += 1
-                        return None
-
-                    momentum_check = (signal == "PUT" and rsi_delta_1 < 0 and rsi_delta_2 < 0) or (signal == "CALL" and rsi_delta_1 > 0 and rsi_delta_2 > 0)
-                    if momentum_check and confidence >= 0.85:
-                        is_high_quality = True
-                        log_print("   💎 High Quality Signal Detected (Double Momentum Confirmation)")
-
-            if signal in ["CALL", "PUT"] and df_feat is not None and len(df_feat) >= 3:
-                if getattr(config, "ENABLE_MICRO_CONF_GUARD", True):
-                    finished_c = df_feat.iloc[-1]
-                    rsi_completed = _SMART_TRADER.tech.get_rsi(df_feat)
-                    rsi_prior = _SMART_TRADER.tech.get_rsi(df_feat.iloc[:-1])
-                    is_bullish = float(finished_c['close']) > float(finished_c['open'])
-                    is_bearish = float(finished_c['close']) < float(finished_c['open'])
-                    
-                    if signal == "CALL":
-                        if not is_bullish or (rsi_prior is not None and rsi_completed <= rsi_prior):
-                            reasons = []
-                            if not is_bullish: reasons.append("Last completed candle not Bullish")
-                            if rsi_prior is not None and rsi_completed <= rsi_prior: reasons.append(f"RSI not rising ({rsi_prior:.1f} -> {rsi_completed:.1f})")
-                            log_print(f"   🛑 POST-AI BLOCK (Micro-Conf): CALL rejected. {' & '.join(reasons)}")
-                            _perf_metrics["post_ai_block_cycles"] += 1
-                            return None
-                    
-                    if signal == "PUT":
-                        if not is_bearish or (rsi_prior is not None and rsi_completed >= rsi_prior):
-                            reasons = []
-                            if not is_bearish: reasons.append("Last completed candle not Bearish")
-                            if rsi_prior is not None and rsi_completed >= rsi_prior: reasons.append(f"RSI not falling ({rsi_prior:.1f} -> {rsi_completed:.1f})")
-                            log_print(f"   🛑 POST-AI BLOCK (Micro-Conf): PUT rejected. {' & '.join(reasons)}")
-                            _perf_metrics["post_ai_block_cycles"] += 1
-                            return None
-            
             _perf_metrics["ai_suggest_cycles"] += 1
         else:
-            log_print("   ⚠️ AI Analyst offline/invalid response. FAIL-CLOSED -> SKIP.")
+            log_print("   ⚠️ Unified AI offline/invalid. FAIL-CLOSED -> SKIP.")
             _perf_metrics["ai_skip_cycles"] += 1
             return None
     else:
@@ -862,43 +826,15 @@ OUTPUT JSON ONLY:
     if ai_reason: details["reasons"].insert(0, f"Signal Source: {ai_reason}")
     if rsi_val is not None: details["reasons"].append(f"RSI: {rsi_val:.1f}")
     
-    # --- BET GATE (FINAL LAYER) ---
-    if getattr(config, "USE_CHATGPT_BET_GATE", False):
-        log_print("   🛡️ Checking with Bet Gate...")
-        metrics = _get_bet_gate_metrics(df_feat, asset, active_strategy)
-        # [v5.2.6] Enhanced gate_context — pass asset_profile, stoch_k, regime for accurate Bet Gate
-        gate_context = {
-            "asset": asset, "strategy": active_strategy, "signal": signal,
-            "ai_confidence": confidence, "trend": det_trend, "slope_pct": slope,
-            "rsi": rsi_val if rsi_val is not None else "Unknown",
-            "atr_pct": atr_pct, "macd_hist": raw_snapshot.get('macd_hist', 0.0),
-            "reasons": details.get("reasons", []), "metrics": metrics,
-            "asset_profile": asset_profile,  # [v5.2.6] Per-asset RSI bounds for Bet Gate
-            "stoch_k": f"{stoch_k_val:.1f}" if stoch_k_val is not None else "N/A",
-            "regime": _regime_state.get(asset, "NORMAL"),
-        }
-        gate_decision = await ask_chatgpt_bet_gate(gate_context)
-        
-        if gate_decision:
-            required = float(getattr(config, "BET_GATE_CONFIDENCE_THRESHOLD", 0.7))
-            gate_action = str(gate_decision.get("action", "SKIP")).upper().strip()
-            gate_conf = float(gate_decision.get("confidence", 0) or 0)
-            incoming_conf = float(confidence or 0)
-            
-            if gate_action != "ENTER" or gate_conf < required or incoming_conf < required:
-                log_print(f"   🛑 Bet Gate REJECTED: {gate_decision.get('reason', 'Unknown reason')}")
-                _perf_metrics["bet_gate_block_cycles"] += 1
-                return None
-            else:
-                log_print(f"   ✅ Bet Gate APPROVED: Action={gate_action} | GateConf={gate_conf:.2f} | IncomingConf={incoming_conf:.2f}")
-                details["bet_gate"] = gate_decision
-
-    try: details.setdefault("confidence", float(confidence))
-    except: details.setdefault("confidence", confidence)
+    # --- UNIFIED AI FINAL VERIFICATION ---
+    details.setdefault("confidence", float(confidence))
     details.setdefault("ai_reason", ai_reason)
     details.setdefault("snapshot", raw_snapshot)
-    details.setdefault("analyst_latency", analyst_latency)
-    details.setdefault("gate_latency", gate_decision.get("latency", 0.0) if gate_decision else 0.0)
+    details.setdefault("latency", unified_latency)
+
+    # [v5.3.2] Cycle Latency End
+    total_latency = time.time() - cycle_start
+    log_print(f"   ⏱️ [Latency] Total Cycle Time: {total_latency:.3f}s (AI: {unified_latency:.2f}s)")
 
     return {
         "action": signal,
@@ -906,7 +842,7 @@ OUTPUT JSON ONLY:
         "strategy": active_strategy,
         "is_high_quality": is_high_quality,
         "details": details,
-        "mg_step": mg_step  # [v5.2.0] Pass cached mg_step to bot.py (avoid re-loading file)
+        "mg_step": mg_step
     }
 
 

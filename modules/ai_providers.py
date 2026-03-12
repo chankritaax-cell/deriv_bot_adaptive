@@ -153,7 +153,7 @@ def _gemini_get_active_model():
             return model
     return None
 
-def _gemini_smart_call(prompt, temperature=0.3):
+def _gemini_smart_call(prompt, temperature=0.3, max_tokens=None):
     global GEMINI_DISABLED_UNTIL, _gemini_last_request_ts, _gemini_current_model_idx
     if not HAS_GEMINI:
         log_print("⚠️ Error: 'google-genai' library not found. Install via: pip install google-genai")
@@ -186,6 +186,7 @@ def _gemini_smart_call(prompt, temperature=0.3):
                 model=model, contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=temperature,
+                    max_output_tokens=max_tokens,
                     response_mime_type="application/json"
                 )
             )
@@ -211,7 +212,7 @@ def _gemini_smart_call(prompt, temperature=0.3):
 # 3. CHATGPT IMPLEMENTATION
 # ============================================================
 
-def _chatgpt_raw_call(prompt, temperature=0.3):
+def _chatgpt_raw_call(prompt, temperature=0.3, max_tokens=None):
     """Raw ChatGPT call that returns text."""
     global CHATGPT_DISABLED_UNTIL, _chatgpt_daily_calls, _chatgpt_daily_reset_ts
     if not getattr(config, "OPENAI_API_KEY", ""):
@@ -239,7 +240,8 @@ def _chatgpt_raw_call(prompt, temperature=0.3):
         data = {
             "model": getattr(config, "CHATGPT_MODEL", "gpt-4o"),
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature
+            "temperature": temperature,
+            "max_tokens": max_tokens
         }
         base_url = getattr(config, "OPENAI_API_BASE", "https://api.openai.com/v1")
         timeout = getattr(config, "AI_PROVIDER_TIMEOUT_SECONDS", 20)
@@ -266,7 +268,7 @@ def _chatgpt_raw_call(prompt, temperature=0.3):
 # 4. CLAUDE IMPLEMENTATION
 # ============================================================
 
-def _claude_raw_call(prompt, temperature=0.3):
+def _claude_raw_call(prompt, temperature=0.3, max_tokens=None):
     """Raw Claude call that returns text."""
     global CLAUDE_DISABLED_UNTIL
     if not getattr(config, "ANTHROPIC_API_KEY", ""):
@@ -285,7 +287,7 @@ def _claude_raw_call(prompt, temperature=0.3):
         }
         data = {
             "model": getattr(config, "CLAUDE_MODEL", "claude-sonnet-4-5-20250929"),
-            "max_tokens": 1024,
+            "max_tokens": max_tokens or 1024,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}]
         }
@@ -316,7 +318,7 @@ def _claude_raw_call(prompt, temperature=0.3):
 # 5. OLLAMA IMPLEMENTATION
 # ============================================================
 
-def _ollama_raw_call(prompt, temperature=0.3):
+def _ollama_raw_call(prompt, temperature=0.3, max_tokens=None):
     """Raw Ollama (local LLM) call that returns text. FREE - no API cost."""
     host = getattr(config, "OLLAMA_HOST", "http://localhost:11434")
     model = getattr(config, "OLLAMA_MODEL", "qwen2.5:14b")
@@ -328,7 +330,10 @@ def _ollama_raw_call(prompt, temperature=0.3):
             "model": model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": temperature}
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens
+            }
         }
         # Use longer timeout for large prompts (e.g., AI Council)
         if len(prompt) > 2000:
@@ -385,19 +390,19 @@ def _check_daily_limit(provider):
     stats = _ai_usage_stats.get(provider, {})
     return stats.get("calls", 0) < max_calls
 
-def _call_provider(provider, prompt, temperature=0.3):
+def _call_provider(provider, prompt, temperature=0.3, max_tokens=None):
     """Call a specific AI provider. Returns raw text or None."""
     call_fn = _PROVIDER_CALL_MAP.get(provider)
     if not call_fn:
         return None
     try:
-        return call_fn(prompt, temperature)
+        return call_fn(prompt, temperature, max_tokens)
     except Exception as e:
         log_print(f"⚠️ {provider} call failed: {e}")
         _track_ai_usage(provider, "error")
         return None
 
-def call_ai_with_failover(prompt, task_name="GENERAL", temperature=0.3):
+def call_ai_with_failover(prompt, task_name="GENERAL", temperature=0.3, max_tokens=None):
     """Smart AI call with task-based routing and multi-provider failover.
     
     Routes each task to the optimal AI model based on AI_TASK_ROUTING config.
@@ -421,7 +426,7 @@ def call_ai_with_failover(prompt, task_name="GENERAL", temperature=0.3):
             continue
         
         log_print(f"🧠 [{task_name}] Trying {provider}...")
-        resp_text = _call_provider(provider, prompt, temperature)
+        resp_text = _call_provider(provider, prompt, temperature, max_tokens)
         
         if resp_text:
             source = provider
@@ -459,7 +464,7 @@ def call_ai_with_failover(prompt, task_name="GENERAL", temperature=0.3):
             log_print(f"   Raw Response: {resp_text[:300]}...")
         return None
 
-def call_ai_raw_with_failover(prompt, task_name="GENERAL", temperature=0.3):
+def call_ai_raw_with_failover(prompt, task_name="GENERAL", temperature=0.3, max_tokens=None):
     """Like call_ai_with_failover but returns raw text (no JSON parsing).
     Useful for code review, summary, etc.
     """
@@ -470,7 +475,7 @@ def call_ai_raw_with_failover(prompt, task_name="GENERAL", temperature=0.3):
             continue
         
         log_print(f"🧠 [{task_name}] Trying {provider}...")
-        resp_text = _call_provider(provider, prompt, temperature)
+        resp_text = _call_provider(provider, prompt, temperature, max_tokens)
         
         if resp_text:
             log_print(f"   ✅ [{task_name}] Response from {provider}")
