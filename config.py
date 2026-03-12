@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.5.1"     # [v5.5.1] AI Prompt Optimization & AI Council Auto-Fix Trigger Reliability
+BOT_VERSION = "5.5.2"     # [v5.5.2] AI Council Context Fix & Asset Profile Permission Expansion
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91

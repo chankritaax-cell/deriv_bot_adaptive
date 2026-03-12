@@ -4,7 +4,7 @@
 *   **Multi-Model Support:** Seamlessly switches between **ChatGPT**, **Gemini**, and **Claude**.
 *   **AI Analyst:** Scans the market for the best asset and strategy every 5 minutes.
 
-### 🧠 Hybrid AI Engine (v5.5.1)
+### 🧠 Hybrid AI Engine (v5.5.2)
 The system now uses a **multi-tier AI architecture**:
 1.  **Event-Driven Streaming (v5.1.2)**: Real-time WebSocket subscriptions with 30s auto-reconnect on API silent drops.
 2.  **AI Council (v4.0.0)**: Multi-Vote system querying all 4 AI providers to diagnose and fix errors autonomously.

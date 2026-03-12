@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.5.2] - 2026-03-12
+### 🏛️ AI Council Reliability & Context
+- **[BUGFIX] AI Council Context**: Fixed an issue where the AI Council was receiving raw JSON strings instead of actual traceback/context. Now sends structured details (Asset, Strategy, Signal, AI Suggestion).
+- **[ARCH] Edited Permissions**: Expanded the AI Council's `CONSECUTIVE_LOSS` change rules to allow editing `asset_profiles.json`. This enables the Council to tune specific RSI bounds and strategy parameters directly.
+- **[CORE] Error Message Clarity**: Improved error reporting when the Council triggers on consecutive losses to include asset-specific details.
+
+
 ## [v5.5.1] - 2026-03-12
 ### 🧠 AI Prompt & Reliability Fixes
 - **[BUGFIX] AI Council Trigger**: Fixed a silent failure where the Telegram bridge dependency prevented the AI Council from triggering correctly on consecutive losses. Changed to direct `asyncio.create_task` call.

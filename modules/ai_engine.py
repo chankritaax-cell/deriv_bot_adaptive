@@ -1,7 +1,7 @@
 """
-🧠 AI Engine (Consolidated v3.11.58)
+🧠 AI Engine (Consolidated v3.11.59)
 The "Brain" of the system: Orchestrates AI Providers and Smart Trader.
-[v3.11.58] Removed Gambler's Fallacy prompts & Fixed AI Council Telegram dependency.
+[v3.11.59] Enhanced AI Council Context & Fixed Payload Triggering.
 """
 
 import asyncio
@@ -894,11 +894,17 @@ async def analyze_trade_loss(asset, strategy, signal, profit, confidence, market
             if loss_streak >= 2:
                 from . import ai_council
                 log_print(f"    🚀 Triggering AI Council for Auto-Fix (Consecutive Losses: {loss_streak})...")
-                payload = json.dumps({
-                    "text": f"Fix strategy weakness: {fix_suggestion}. Context: Loss on {asset}, {strategy}."
-                })
+                # [v5.5.1] Build proper traceback context for AI Council
+                council_context = (
+                    f"Consecutive Loss Auto-Fix Trigger\n"
+                    f"Asset: {asset} | Strategy: {strategy} | Signal: {signal}\n"
+                    f"Loss Streak: {loss_streak} | Confidence: {confidence}\n"
+                    f"AI Suggestion: {fix_suggestion}\n"
+                    f"Market Context:\n{market_data_summary}\n"
+                )
+                error_msg = f"Consecutive loss on {asset} ({strategy}): {fix_suggestion}"
                 # Call ai_council directly to avoid telegram_bridge silent failure
-                asyncio.create_task(ai_council.resolve_error("Auto-Fix triggered by consecutive losses", payload))
+                asyncio.create_task(ai_council.resolve_error(error_msg, council_context))
             else:
                 log_print(f"    ℹ️ AI Council Skip: Loss streak is only {loss_streak}. Will trigger on next consecutive loss.")
             

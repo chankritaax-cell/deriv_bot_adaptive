@@ -1,7 +1,7 @@
 """
-🏛️ AI Council — Auto-Fixer Module (v3.11.34)
+🏛️ AI Council — Auto-Fixer Module (v3.11.35)
 Specialized for real-time error detection and automated/manual fixing.
-[v3.11.34] Enhanced validation: descriptive REAL account blocks and redundant change handling.
+[v3.11.35] Expanded edit permissions to asset_profiles.json for RSI tuning.
 """
 
 import os
@@ -785,10 +785,11 @@ def _build_council_prompt(context):
     
     if error_type == "CONSECUTIVE_LOSS":
         change_rules = """CHANGE RESTRICTIONS (Consecutive Loss):
-- You may ONLY change values in config.py (thresholds, amounts, flags).
-- Do NOT modify logic in other files for trading losses.
-- Prefer safe changes: lower confidence thresholds, enable guards, switch strategies.
-- NEVER increase risk (higher amounts, disabled guards, etc.)."""
+- You may change values in config.py (thresholds, amounts, flags) OR asset_profiles.json (RSI bounds, strategy parameters).
+- For RSI tuning: Edit the asset's rsi_bounds in asset_profiles.json (keys: call_min, call_max, put_min, put_max). This is a JSON file — preserve valid JSON syntax.
+- Do NOT modify logic in .py files for trading losses.
+- Prefer safe changes: tighten RSI bounds, lower confidence thresholds, enable guards, switch strategies.
+- NEVER increase risk (higher amounts, disabled guards, wider RSI windows, etc.)."""
     elif error_type == "NO_TRADE_TIMEOUT":
         change_rules = """CHANGE RESTRICTIONS (No Trade Timeout — bot has been idle too long):
 - You may ONLY change values in config.py.
