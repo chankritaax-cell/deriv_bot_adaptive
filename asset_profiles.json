@@ -11,7 +11,11 @@
             "pullback_call_min": 28.0,
             "pullback_put_lo": 45.0,
             "pullback_put_hi": 62.0,
-            "pullback_put_max": 72.0
+            "pullback_put_max": 72.0,
+            "call_min": 55.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 45.0
         },
         "bounce_limit": 10.0,
         "ma_slope_min": 0.025

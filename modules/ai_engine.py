@@ -1,7 +1,7 @@
 """
-🧠 AI Engine (Consolidated v3.11.57)
+🧠 AI Engine (Consolidated v3.11.58)
 The "Brain" of the system: Orchestrates AI Providers and Smart Trader.
-[v3.11.57] Post-AI Guards: MACD Momentum Exhaustion & Tick Velocity Spike Protection.
+[v3.11.58] Removed Gambler's Fallacy prompts & Fixed AI Council Telegram dependency.
 """
 
 import asyncio
@@ -313,7 +313,7 @@ async def unified_ai_decision_engine(context):
     daily_pnl = metrics.get("daily_pnl", "N/A")
 
     prompt = f"""Role: Act as Chief Investment Officer (CIO) and Senior Risk Manager for a Quantitative Trading Desk.
-Task: Analyze Market Data and Risk Metrics to provide a final Trade Decision.
+Task: Analyze Market Data to provide a final Trade Decision.
 
 Input Context:
 1. MARKET DATA:
@@ -323,22 +323,17 @@ Input Context:
 - Stochastic K: {stoch_k}
 - MACD Histogram: {macd_hist}
 - Volatility (ATR %): {context.get('atr_pct', 'Unknown')}%
+- Volatility Spike: {metrics.get('volatility_spike', False)}
 - Price Action: {context.get('market_summary', 'N/A')}
 
-2. RISK METRICS:
-- Asset Win Rate (last 20): {metrics.get('asset_winrate_20', 'N/A')}
-- Daily P&L: {daily_pnl}
-- Current Loss Streak: {metrics.get('current_loss_streak', 0)}
-- Volatility Spike: {metrics.get('volatility_spike', False)}
-
 Thinking Process:
+Base your APPROVE/VETO decision STRICTLY on Technical Analysis (Price Action, Trend, RSI, Stoch, MACD). Do NOT consider historical win rates or past performance. If the technical setup is strong, APPROVE with high confidence (>= 0.80).
 Step 1 (Technical Audit): Verify if market momentum and indicators align with a CALL or PUT setup.
    - CALL: Trend must be UPTREND, RSI must be in range, Stoch K must not be Overbought (< 80).
    - PUT: Trend must be DOWNTREND, RSI must be in range, Stoch K must not be Oversold (> 20).
 Step 2 (Risk Filtering): Apply institutional risk rules.
-   - If Win Rate < 50% or Loss Streak >= 2: Be extremely selective. Only APPROVE if technical confluence is perfect (Confidence > 0.80).
    - If Volatility Spike is True: VETO any trade unless momentum is exceptionally strong.
-   - If Daily P&L is significantly negative: Tighten entry requirements.
+   - Require strong confirmation from MACD and RSI before deciding.
 
 Output Format: Respond with JSON only in this format:
 {{"decision": "APPROVE" | "VETO", "confidence": <float 0.0-1.0>, "signal": "CALL" | "PUT" | "SKIP", "reason": "Short Thai reasoning"}}"""
@@ -897,12 +892,13 @@ async def analyze_trade_loss(asset, strategy, signal, profit, confidence, market
         # [v3.11.44] Conditional Auto-Fix Trigger: Requires Streak >= 2
         if actionable and fix_suggestion != "N/A":
             if loss_streak >= 2:
-                from .telegram_bridge import _send_command
+                from . import ai_council
                 log_print(f"    🚀 Triggering AI Council for Auto-Fix (Consecutive Losses: {loss_streak})...")
                 payload = json.dumps({
                     "text": f"Fix strategy weakness: {fix_suggestion}. Context: Loss on {asset}, {strategy}."
                 })
-                _send_command("COUNCIL", payload=payload)
+                # Call ai_council directly to avoid telegram_bridge silent failure
+                asyncio.create_task(ai_council.resolve_error("Auto-Fix triggered by consecutive losses", payload))
             else:
                 log_print(f"    ℹ️ AI Council Skip: Loss streak is only {loss_streak}. Will trigger on next consecutive loss.")
             

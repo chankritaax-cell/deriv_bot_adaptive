@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.5.1] - 2026-03-12
+### 🧠 AI Prompt & Reliability Fixes
+- **[BUGFIX] AI Council Trigger**: Fixed a silent failure where the Telegram bridge dependency prevented the AI Council from triggering correctly on consecutive losses. Changed to direct `asyncio.create_task` call.
+- **[PROMPT] Decision Logic**: Removed `Win Rate` and `Daily PNL` data fields from the AI CIO/Analyst prompt to prevent the model from hallucinating "Gambler's Fallacy" logic. The local python core securely handles mathematical performance filtering.
+
+
 ## [v5.5.0] - 2026-03-12
 ### 🎯 Standardized Confidence Thresholds
 - **[CORE] Global Standard**: Relaxed Confidence Thresholds to align with global trading standards.
