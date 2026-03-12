@@ -1,7 +1,7 @@
 """
-🧠 AI Engine (Consolidated v3.11.56)
+🧠 AI Engine (Consolidated v3.11.57)
 The "Brain" of the system: Orchestrates AI Providers and Smart Trader.
-[v3.11.56] Post-AI Guards: MACD Momentum Exhaustion & Tick Velocity Spike Protection.
+[v3.11.57] Post-AI Guards: MACD Momentum Exhaustion & Tick Velocity Spike Protection.
 """
 
 import asyncio
@@ -336,7 +336,7 @@ Step 1 (Technical Audit): Verify if market momentum and indicators align with a 
    - CALL: Trend must be UPTREND, RSI must be in range, Stoch K must not be Overbought (< 80).
    - PUT: Trend must be DOWNTREND, RSI must be in range, Stoch K must not be Oversold (> 20).
 Step 2 (Risk Filtering): Apply institutional risk rules.
-   - If Win Rate < 50% or Loss Streak >= 2: Be extremely selective. Only APPROVE if technical confluence is perfect (Confidence > 0.90).
+   - If Win Rate < 50% or Loss Streak >= 2: Be extremely selective. Only APPROVE if technical confluence is perfect (Confidence > 0.80).
    - If Volatility Spike is True: VETO any trade unless momentum is exceptionally strong.
    - If Daily P&L is significantly negative: Tighten entry requirements.
 
@@ -678,9 +678,9 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             # Sniper Recovery (Dynamic Confidence)
             from .utils import load_martingale_state
             mg_step, _, _ = load_martingale_state()
-            required_conf = safe_config_get("CONFIDENCE_BASE", 0.85)
-            if mg_step == 1: required_conf = safe_config_get("CONFIDENCE_MG_STEP_1", 0.90)
-            elif mg_step >= 2: required_conf = safe_config_get("CONFIDENCE_MG_STEP_2", 0.90)
+            required_conf = safe_config_get("CONFIDENCE_BASE", 0.75)
+            if mg_step == 1: required_conf = safe_config_get("CONFIDENCE_MG_STEP_1", 0.80)
+            elif mg_step >= 2: required_conf = safe_config_get("CONFIDENCE_MG_STEP_2", 0.80)
 
             if confidence < required_conf:
                 log_print(f"   🛑 POST-AI BLOCK (Sniper Guard): {signal} rejected. Conf {confidence:.2f} < {required_conf:.2f}")

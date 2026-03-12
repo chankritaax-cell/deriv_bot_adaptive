@@ -1,13 +1,13 @@
 # 🤖 Deriv AI Bot (Streaming Architecture)
 
-> **v5.1.5 (Adaptive)** | A high-performance, asynchronous trading bot designed specifically for **Deriv.com** (Volatility Indices) using **Python (asyncio)**, **WebSocket Streaming**, and **Adaptive Volatility Profiles**.
+> **v5.5.0 (Adaptive)** | A high-performance, asynchronous trading bot designed specifically for **Deriv.com** (Volatility Indices) using **Python (asyncio)**, **WebSocket Streaming**, and **Adaptive Volatility Profiles**.
 
 ## 🌟 Key Features
 
 *   **⚡ Event-Driven Core:** Transitioned to a real-time WebSocket streaming model for millisecond data synchronization.
-*   🧠 **Hybrid AI Engine (v5.1.5)**: Combines **Google Gemini 2.0** (Analysis), **OpenAI ChatGPT** (Bet Gate), **Claude** (Risk Manager/Council), and **Adaptive Volatility Regimes** for maximum intelligence.
+*   🧠 **Hybrid AI Engine (v5.5.0)**: Combines **Google Gemini 2.0** (Analysis), **OpenAI ChatGPT** (Bet Gate), **Claude** (Risk Manager/Council), and **Adaptive Volatility Regimes** for maximum intelligence.
 *   **📊 V5.0 Adaptive Volatility Regimes**: Sticky Regime State Machine (ATR EMA 20) with 3-candle confirmation to detect `NORMAL`, `HIGH_VOL`, and `LOW_VOL`.
-*   **🎯 Sniper Recovery System (v5.1.4)**: Dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.80, MG1: 0.85, MG2+: 0.90).
+*   **🎯 Sniper Recovery System (v5.5.0)**: Dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.75, MG1: 0.80, MG2+: 0.80).
 *   **🛡️ Stochastic Exhaustion Guard (v5.1.4)**: Prevents trend-chasing into overbought/oversold zones using live Stochastic K/D.
 *   **📡 Stream Auto-Reconnect (v5.1.2)**: 30-second soft-reconnect on API silent drops, bypassing hard watchdog kills.
 *   **🎚️ Dynamic Parameter Overrides**: RSI boundaries and bounce limits automatically adjust based on the current market regime.

@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.4.0"     # [v5.4.0] Full Loop Autonomy: Autonomous AI Council + JSON Profile Edits
+BOT_VERSION = "5.5.0"     # [v5.5.0] Standardized Confidence: Relaxed thresholds (0.75/0.80) for global standards.
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -77,7 +77,7 @@ PROFILES = {
         "MAX_MARTINGALE_STEPS": 1,      # ทบสูงสุด 1 ครั้ง (0.8→1.6 only) จำกัดความเสียหาย
         "MAX_STAKE_AMOUNT": 2,        # [v5.2.6] 0.8 * 2.0 = 1.6 XRP (cap ไม้ทบ)
         "MARTINGALE_MULTIPLIER": 2.0,
-        "AI_CONFIDENCE_THRESHOLD": 0.85, # [v5.2.6] ขึ้นจาก 0.80→0.85 บังคับให้ AI มั่นใจ 85%+ ถึงยิงไม้แรก
+        "AI_CONFIDENCE_THRESHOLD": 0.75, # [v5.5.0] ปรับลดเกณฑ์เป็น 0.75 เพื่อมาตรฐานสากล
     },
 }
 
@@ -137,7 +137,7 @@ USE_AI_ANALYST = True
 USE_AI_RISK_MANAGER = True
 ENABLE_HARD_RULES = True  # [v3.5.3] Toggle hard safety checks (RSI/MACD blocks)
 USE_CHATGPT_BET_GATE = True
-BET_GATE_CONFIDENCE_THRESHOLD = 0.85  # Consolidated threshold for Unified AI Decision Engine
+BET_GATE_CONFIDENCE_THRESHOLD = 0.75  # Consolidated threshold for Unified AI Decision Engine
 # AI Limits
 CHATGPT_MAX_CALLS_PER_DAY = 200
 AI_DAILY_LIMITS = {
@@ -160,9 +160,9 @@ AI_CONF_BET_MIN_MULTIPLIER = 0.7  # [v3.11.27] Allow risk reduction
 # 🎯 Sniper Recovery System (Dynamic Confidence Threshold)
 # ---------------------------------------------------------
 # [v5.2.0] Tuned from data: AI sends 0.85 (77%) and 0.90 (23%) — old 0.90 threshold blocked 77% of Step 2 signals
-CONFIDENCE_BASE = 0.85        # [v5.2.6] ไม้แรก: ขึ้นจาก 0.75→0.85 — Safety First, กรองสัญญาณอ่อน
-CONFIDENCE_MG_STEP_1 = 0.90   # [v5.2.6] ไม้ทบ 1 (1.6 XRP): ขึ้นจาก 0.85→0.90 — ต้องการความแม่นยำสูงสุดก่อนแก้พอร์ต
-CONFIDENCE_MG_STEP_2 = 0.90   # ไม้ทบ 2 (ไม่ใช้ใน MAX_STEPS=1) — คงไว้เผื่อ fallback
+CONFIDENCE_BASE = 0.75        # [v5.5.0] ไม้แรก: ปรับลด 0.85→0.75 — มาตรฐานใหม่เพื่อความคล่องตัว
+CONFIDENCE_MG_STEP_1 = 0.80   # [v5.5.0] ไม้ทบ 1: ปรับลด 0.90→0.80 — Sniper Guard Guard แบบมาตรฐาน
+CONFIDENCE_MG_STEP_2 = 0.80   # [v5.5.0] ไม้ทบ 2: ปรับลด 0.90→0.80
 
 # BOT_VERSION declaration moved to top
 

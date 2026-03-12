@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.5.0] - 2026-03-12
+### 🎯 Standardized Confidence Thresholds
+- **[CORE] Global Standard**: Relaxed Confidence Thresholds to align with global trading standards.
+- **[CORE] Step 0 Threshold**: Adjusted `CONFIDENCE_BASE` from 0.85 to 0.75.
+- **[CORE] Step > 0 Threshold**: Adjusted `CONFIDENCE_MG_STEP_1/2` from 0.90 to 0.80.
+- **[PROMPT] AI Guidance**: Injected 0.80 threshold into Unified AI Analyst prompt for risk-intensive recovery scenarios.
+
+
 ## [v5.4.0] - 2026-03-12
 ### 🏛️ Autonomous AI Council (Full Loop)
 - **[ARCH] Autonomy Enabled**: AI Council can now automatically apply fixes on REAL accounts (`COUNCIL_REAL_ADVISORY_ONLY = False`).

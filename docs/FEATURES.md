@@ -4,7 +4,7 @@
 *   **Multi-Model Support:** Seamlessly switches between **ChatGPT**, **Gemini**, and **Claude**.
 *   **AI Analyst:** Scans the market for the best asset and strategy every 5 minutes.
 
-### 🧠 Hybrid AI Engine (v5.1.5)
+### 🧠 Hybrid AI Engine (v5.5.0)
 The system now uses a **multi-tier AI architecture**:
 1.  **Event-Driven Streaming (v5.1.2)**: Real-time WebSocket subscriptions with 30s auto-reconnect on API silent drops.
 2.  **AI Council (v4.0.0)**: Multi-Vote system querying all 4 AI providers to diagnose and fix errors autonomously.
@@ -46,7 +46,7 @@ Autonomous error resolution system with 3 trigger types:
 *   **Atomic Profile Security (v5.1.0)**: Crash-safe `asset_profiles.json` updates with 5-attempt retry logic, automated backups, and hot-reloading.
 
 ### 🎯 Sniper Recovery & Exhaustion Guards (v5.1.4)
-*   **Sniper Recovery System**: Dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.80, MG1: 0.85, MG2+: 0.90). Higher-stake recovery trades require stronger AI conviction.
+*   **Sniper Recovery System**: Dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.75, MG1: 0.80, MG2+: 0.80). Higher-stake recovery trades require stronger AI conviction.
 *   **Stochastic Exhaustion Guard**: Injects live Stochastic K/D values into the AI Analyst prompt. Rejects CALL if Stoch K > 80 (overbought), rejects PUT if Stoch K < 20 (oversold).
 *   **Tightened RSI Bounds**: Main assets (R_75, 1HZ100V, 1HZ50V) capped at `call_max=65`, `put_min=35` to avoid exhaustion entries.
 
