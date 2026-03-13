@@ -1,7 +1,7 @@
 """
-🏛️ AI Council — Auto-Fixer Module (v3.11.37)
+🏛️ AI Council — Auto-Fixer Module (v3.11.38)
 Specialized for real-time error detection and automated/manual fixing.
-[v3.11.37] Consistent Asset Trust thresholds (8 Trades).
+[v3.11.38] Universal Safety Guard updates & Exhaustion awareness.
 """
 
 import os

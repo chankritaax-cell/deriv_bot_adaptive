@@ -309,10 +309,10 @@ class TechnicalConfirmation:
         if hist_prev < 0 and hist_now > 0:
             if signal == "PUT": return False, "Hard Block: MACD Bullish Cross 🛑"
 
-        # [v5.1.9] MACD Momentum Exhaustion Guard (Prevent late-trend entries)
-        # SKIP for TREND_FOLLOWING: trend-entry doesn't require peak momentum, only direction.
-        # For other strategies (PULLBACK_ENTRY), require significant decay (>= 20%) to reduce noise.
-        if safe_config_get("ENABLE_MACD_MOMENTUM_GUARD", True) and strategy != "TREND_FOLLOWING":
+        # [v5.5.10] MACD Momentum Exhaustion Guard (Prevent late-trend entries)
+        # Applied UNIVERSALLY to all strategies to prevent exhaustion bypass.
+        # Require significant decay (>= 20%) to reduce noise.
+        if safe_config_get("ENABLE_MACD_MOMENTUM_GUARD", True):
             if signal == "CALL" and hist_now <= hist_prev:
                 decay = abs(hist_prev - hist_now) / abs(hist_prev) if hist_prev != 0 else 1.0
                 if decay >= 0.20:  # Only block on significant decay (20%+), not minor oscillation

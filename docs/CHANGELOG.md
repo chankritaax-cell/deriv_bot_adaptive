@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.5.10] - 2026-03-13
+### 🛡️ Universal Safety Guard
+- **[TECH] MACD Momentum Exhaustion**: Removed the bypass for the `TREND_FOLLOWING` strategy. The guard is now applied universally to ALL strategies to prevent late-trend entries that leads to losses.
+- **[STABILITY] Exhaustion Sync**: Ensures that if a signal is blocked by momentum decay in the primary strategy, it cannot bypass the block by falling back to `TREND_FOLLOWING`.
+
+
 
 ## [v5.5.9] - 2026-03-13
 ### 🏛️ AI Council Auto-Fix

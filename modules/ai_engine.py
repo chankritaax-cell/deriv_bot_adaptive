@@ -1,7 +1,7 @@
 """
-🧠 AI Engine (Consolidated v3.11.61)
+🧠 AI Engine (Consolidated v3.11.62)
 The "Brain" of the system: Orchestrates AI Providers and Smart Trader.
-[v3.11.61] Quant Tuning: Adjusted Asset Trust Baseline to 8 trades.
+[v3.11.62] Safety Sync: Universal MACD Exhaustion Guard integration.
 """
 
 import asyncio
