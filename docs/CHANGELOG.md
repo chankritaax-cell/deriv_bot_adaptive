@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+
+## [v5.5.9] - 2026-03-13
+### 🏛️ AI Council Auto-Fix
+- **Tighten RSI CALL bounds for R_75 PULLBACK_ENTRY strategy**
+- **[CONFIG_CHANGE] asset_profiles.json:** Reduce RSI call_max from 60 to 55 for R_75 to filter weaker CALL signals
+- _Analysis: การสูญเสียต่อเนื่องเกิดจาก RSI_CALL_MAX ที่ 60 ยังกรองสัญญาณที่อ่อนแอไม่ได้ ในขณะที่ RSI อยู่ที่ 58.7 (Neutral) ซึ่งใกล้เคียงกับขีดจำกัด ควรลด call_max ลงเหลือ 55 เพื่อกรองสัญญาณ CALL ที่อ่อนแอออกในตลาดที่มี High Volatility_
+- _Files: asset_profiles.json_
+
+## [v5.5.8] - 2026-03-13
+### 🕵️ Asset Selector Relaxation
+- **[TIER_COUNCIL] Trust Baseline**: Further reduced the minimum trade requirement from 15 to **8 trades**. This allows the bot to switch assets much more aggressively when current conditions are unfavorable.
+- **[LOGGING] Awareness**: Updated all scanner log messages to reflect the new `(>8 trades, >50% WR)` criteria.
+
+
+
+
+
+## [v5.5.7] - 2026-03-13
+### 🏛️ AI Council Auto-Fix
+- **Tighten RSI PUT bounds for R_75 PULLBACK_ENTRY strategy**
+- **[CONFIG_CHANGE] asset_profiles.json:** Increase RSI put_min from 42.0 to 45.0 for R_75 to tighten PUT signal conditions
+- _Analysis: การสูญเสียต่อเนื่องเกิดจาก RSI PUT bounds ที่หลวมเกินไป ทำให้ส่งสัญญาณ PUT ในช่วง RSI ที่ไม่เหมาะสม ควรเพิ่ม put_min จาก 42.0 เป็น 45.0 เพื่อให้มั่นใจว่า RSI อยู่ในช่วงที่เหมาะสมกว่าสำหรับการเทรด PUT_
+- _Files: asset_profiles.json_
+
+## [v5.5.6] - 2026-03-13
+### 🏛️ AI Council Auto-Fix
+- **Tighten RSI bounds for R_75 CALL signals to reduce false positives**
+- **[CONFIG_CHANGE] asset_profiles.json:** Reduce RSI call_max from 68 to 60 for R_75 to avoid false CALL signals in high volatility
+- _Analysis: การสูญเสียติดต่อกัน 3 ครั้งใน R_75 TREND_FOLLOWING strategy เกิดจาก RSI_CALL_MAX ที่ 68 ยังสูงเกินไป ทำให้ยิงสัญญาณ CALL ในช่วงที่ RSI อยู่ที่ 63.7 ซึ่งใกล้เคียงกับ overbought zone และตลาดมี high volatility (ATR: 0.1538%) ควรลด call_max ลงเหลือ 60 เพื่อให้สัญญาณมีความแม่นยำมากขึ้น_
+- _Files: asset_profiles.json_
+
+## [v5.5.5] - 2026-03-13
+### 🏛️ AI Council Auto-Fix
+- **Tighten RSI PUT bounds for R_75 PULLBACK_ENTRY strategy**
+- **[CONFIG_CHANGE] asset_profiles.json:** Increase R_75 put_min from 39.0 to 42.0 for stronger PUT signals
+- _Analysis: Bot มี consecutive loss 2 ครั้งด้วย PUT signal บน R_75 ในสภาวะ RSI 39.4 (Neutral) แต่ยังอยู่ในช่วง put_min: 39.0 ทำให้ signal ผ่านได้ แม้ว่าจะไม่ oversold พอ ควรปรับ put_min ขึ้นเป็น 42.0 เพื่อให้ PUT signal แข็งแกร่งกว่าเดิม_
+- _Files: asset_profiles.json_
+
+## [v5.5.4] - 2026-03-12
+### ⚙️ Final Quant Calibration
+- **[TIER_COUNCIL] Trust Baseline**: Standardized the asset trust requirement to 15 trades across the streaming and polling scanner modules.
+- **[ASSET] Pool Stabilization**: Finalized the expanded asset list in `config.py` to ensure high availability during regime shifts.
+- **[CORE] Header Sync**: Unified internal module versions for `ai_engine` and `ai_council` to reflect the latest Quan developer optimizations.
+
+
+## [v5.5.3] - 2026-03-12
+### 🕵️ Asset Selector Optimization
+- **[TIER_COUNCIL] Expanded Pool**: Added `R_100`, `R_50`, and `1HZ75V` to the Council's prioritized asset pool to increase trading frequency.
+- **[TIER_COUNCIL] Trust Threshold**: Lowered the minimum trade count requirement for asset switching from 30 to 15. This allows the bot to pivot to profitable assets faster on lower-volume timeframes.
+- **[FIX] Sleep Mode Fatigue**: Reduced "excessive sleeping" by providing the bot with more valid alternatives when the primary asset is blacklisted.
+
+
 ## [v5.5.2] - 2026-03-12
 ### 🏛️ AI Council Reliability & Context
 - **[BUGFIX] AI Council Context**: Fixed an issue where the AI Council was receiving raw JSON strings instead of actual traceback/context. Now sends structured details (Asset, Strategy, Signal, AI Suggestion).

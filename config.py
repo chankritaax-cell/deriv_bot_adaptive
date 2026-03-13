@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
 # 🏷️ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.5.2"     # [v5.5.2] AI Council Context Fix & Asset Profile Permission Expansion
+BOT_VERSION = "5.5.9"     # [v5.5.8] Asset Selector: Further Relaxed Trust Threshold (8 Trades)
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -120,7 +120,7 @@ ASSET_PRIORITY_TIERS = {
     "TIER_1": _parse_asset_list("ASSET_TIER_1", "R_75,1HZ50V"),
     "TIER_2": _parse_asset_list("ASSET_TIER_2", "1HZ100V"),
     "TIER_3": _parse_asset_list("ASSET_TIER_3", "R_50,1HZ10V"),
-    "TIER_COUNCIL": _parse_asset_list("ASSET_TIER_COUNCIL", "R_75,1HZ50V,1HZ100V")  # [v5.2.6] ตรงกับ .env จริง
+    "TIER_COUNCIL": _parse_asset_list("ASSET_TIER_COUNCIL", "R_75,R_100,R_50,1HZ50V,1HZ100V,1HZ75V")  # [v5.2.6] ตรงกับ .env จริง
 }
 ACTIVE_ASSET = os.getenv("ACTIVE_ASSET", "R_75") # ดึงค่าจาก .env ถ้าไม่มีให้ใช้ R_75 เป็นค่าเริ่มต้น
 
@@ -308,7 +308,7 @@ def load_asset_profiles():
         ASSET_STRATEGY_MAP["DEFAULT"] = {
             "strategy": "TREND_FOLLOWING",
             "allowed_signals": ["CALL", "PUT"],
-            "rsi_bounds": {"call_min": 55.0, "call_max": 65.0, "put_min": 35.0, "put_max": 45.0},
+            "rsi_bounds": {"call_min": 58.0, "call_max": 68.0, "put_min": 39.0, "put_max": 45.0},
             "bounce_limit": 6.0,
             "ma_slope_min": 0.025,
             "min_trades_before_trust": 0

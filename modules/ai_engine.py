@@ -1,7 +1,7 @@
 """
-🧠 AI Engine (Consolidated v3.11.59)
+🧠 AI Engine (Consolidated v3.11.61)
 The "Brain" of the system: Orchestrates AI Providers and Smart Trader.
-[v3.11.59] Enhanced AI Council Context & Fixed Payload Triggering.
+[v3.11.61] Quant Tuning: Adjusted Asset Trust Baseline to 8 trades.
 """
 
 import asyncio

@@ -265,7 +265,7 @@ class AssetSelector:
                     #   Trend Strength (10%): Clarity of current trend
                     #   Trade Volume (10%): More trades = more reliable
 
-                    # Normalize trade volume (30 trades = 0.5, 100+ = 1.0)
+                    # Normalize trade volume (8 trades = 0.5, 40+ = 1.0)
                     vol_score = min(signals / 100.0, 1.0)
 
                     # Use recent_wr if we have enough recent data, otherwise fall back to overall WR

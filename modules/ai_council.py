@@ -1,7 +1,7 @@
 """
-🏛️ AI Council — Auto-Fixer Module (v3.11.35)
+🏛️ AI Council — Auto-Fixer Module (v3.11.37)
 Specialized for real-time error detection and automated/manual fixing.
-[v3.11.35] Expanded edit permissions to asset_profiles.json for RSI tuning.
+[v3.11.37] Consistent Asset Trust thresholds (8 Trades).
 """
 
 import os
