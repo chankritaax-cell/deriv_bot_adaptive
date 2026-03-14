@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+
+## [v5.5.12] - 2026-03-14
+### 🏛️ AI Council Auto-Fix
+- **Tighten RSI PUT bounds for R_75 to reduce false signals in high volatility**
+- **[CONFIG_CHANGE] asset_profiles.json:** Increase put_min from 35.0 to 38.0 for R_75 to require stronger oversold condition
+- _Analysis: การสูญเสียต่อเนื่องเกิดจากสัญญาณ PUT ที่ไม่แม่นยำในช่วงตลาดผันผวนสูง (ATR: 0.1480%) โดย RSI อยู่ที่ 42.3 ซึ่งยังอยู่ในโซน Neutral แต่ bot ยังส่งสัญญาณ PUT ได้ ต้องเพิ่ม put_min เพื่อให้รอ oversold ที่ชัดเจนมากขึ้น_
+- _Files: asset_profiles.json_
+
 ## [v5.5.11] - 2026-03-14
 ### ✳️ Stability & Safety
 - **[FIX] RSI Bounds Restore (R_75)**: Corrected invalid RSI boundaries that were blocking trades (call_min/call_max and put_min/put_max).
