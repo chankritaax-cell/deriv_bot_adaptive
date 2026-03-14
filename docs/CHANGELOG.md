@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+
+## [v5.5.15] - 2026-03-14
+### 🏛️ AI Council Auto-Fix
+- **Further tighten RSI CALL bounds for R_75 to reduce high volatility false signals**
+- **[CONFIG_CHANGE] asset_profiles.json:** Reduce RSI call_max from 60.0 to 57.0 for R_75 to filter out weaker CALL signals in high volatility conditions
+- _Analysis: การสูญเสียต่อเนื่อง 3 ครั้งใน R_75 TREND_FOLLOWING strategy เกิดจาก RSI_CALL_MAX ที่ 60 ยังคงอนุญาตให้เทรดในช่วงที่ตลาดผันผวนสูง (ATR: 0.1416%, RSI: 61.2) ซึ่งเกินกว่าเกณฑ์ปัจจุบัน จำเป็นต้องลด RSI_CALL_MAX ลงอีกเพื่อกรองสัญญาณที่อ่อนแอออก_
+- _Files: asset_profiles.json_
+
+## [v5.5.14] - 2026-03-14
+### 🏛️ AI Council Auto-Fix
+- **Adjust RSI_CALL_MAX for R_75 to Reduce False Positives**
+- **[CONFIG_CHANGE] asset_profiles.json:** Lower RSI_CALL_MAX for R_75 to 60 to reduce false positive signals.
+- _Analysis: The current RSI_CALL_MAX threshold is too high, allowing weak signals to trigger trades, resulting in consecutive losses. Lowering this threshold will help filter out weaker signals._
+- _Files: asset_profiles.json_
+
 ## [v5.5.13] - 2026-03-14
 ### 🏛️ AI Council Auto-Fix
 - **Tighten RSI PUT bounds for R_75 to reduce false signals in high volatility**
