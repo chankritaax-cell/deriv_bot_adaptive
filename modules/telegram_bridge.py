@@ -8,7 +8,6 @@ import time
 import json
 import asyncio
 import logging
-import html
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
@@ -501,7 +500,7 @@ async def notify_summaries(application):
         await asyncio.sleep(30) # Poll summaries every 30s
 
 async def monitor_inactivity(application):
-    """Notify user if no trades executed for 4 hours with AI log summary."""
+    """Trigger AI Council if no trades executed for 4 hours and notify user."""
     global LAST_TRADE_TIME, LAST_INACTIVITY_REPORT
 
     if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
@@ -512,39 +511,17 @@ async def monitor_inactivity(application):
         try:
             now = time.time()
             if (now - LAST_TRADE_TIME) >= 14400 and (now - LAST_INACTIVITY_REPORT) >= 14400:
-                date_str = time.strftime("%Y-%m-%d")
-                log_file = os.path.join(ROOT, "logs", "console", f"console_log_{date_str}.txt")
-                lines = []
-                if os.path.exists(log_file):
-                    with open(log_file, "r", encoding="utf-8") as f:
-                        lines = f.readlines()[-300:]
-
-                logs_text = "".join(lines).strip()
-                if not logs_text:
-                    logs_text = "No recent log lines found."
-
-                prompt = (
-                    "ACT AS: Senior Quantitative Analyst. The trading bot has NOT executed any trades "
-                    "in the last 4 hours. Read the recent log lines below and summarize briefly in THAI "
-                    "why the bot is skipping trades (e.g., Sideways market, RSI blocks, Asset selector failed). "
-                    "Keep it concise, friendly, and actionable.\n\n"
-                    f"LOGS:\n{logs_text}"
+                cmd_text = (
+                    "The bot has been inactive for 4 hours. Analyze the recent market volatility and RSI trends. "
+                    "If the market has stabilized, consider relaxing the RSI bounds in 'asset_profiles.json' to allow more trades. "
+                    "If the market is still dangerous, keep them strict. Your goal is to optimize for a balance between safety "
+                    "and opportunity based on CURRENT market conditions."
                 )
+                _send_command("COUNCIL", payload=cmd_text)
 
-                summary = await asyncio.to_thread(
-                    call_ai_raw_with_failover, prompt, "INACTIVITY_ANALYSIS"
-                )
-                if not summary:
-                    summary = "ไม่พบสาเหตุชัดเจนจาก log ล่าสุด ลองตรวจสอบสถานะตลาดและการเชื่อมต่อ API อีกครั้งครับ"
-
-                safe_summary = html.escape(str(summary))
-                msg = (
-                    "<b>Inactivity AI Analyst Report</b>\n"
-                    f"{safe_summary}"
-                )
                 await application.bot.send_message(
                     chat_id=config.TELEGRAM_CHAT_ID,
-                    text=msg,
+                    text="Inactivity detected (4h). Triggered AI Council dynamic optimization session.",
                     parse_mode="HTML"
                 )
                 LAST_INACTIVITY_REPORT = now

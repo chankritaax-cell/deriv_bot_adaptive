@@ -1,13 +1,13 @@
 ﻿# ðŸ¤– Deriv AI Bot (Streaming Architecture)
 
-> **v5.5.11 (Adaptive)** | A high-performance, asynchronous trading bot designed specifically for **Deriv.com** (Volatility Indices) using **Python (asyncio)**, **WebSocket Streaming**, and **Adaptive Volatility Profiles**.
+> **v5.5.13 (Adaptive)** | A high-performance, asynchronous trading bot designed specifically for **Deriv.com** (Volatility Indices) using **Python (asyncio)**, **WebSocket Streaming**, and **Adaptive Volatility Profiles**.
 
 ## ðŸŒŸ Key Features
 
 *   **âš¡ Event-Driven Core:** Transitioned to a real-time WebSocket streaming model for millisecond data synchronization.
-*   ðŸ§  **Hybrid AI Engine (v5.5.11)**: Combines **Google Gemini 2.0** (Analysis), **OpenAI ChatGPT** (Bet Gate), **Claude** (Risk Manager/Council), and **Adaptive Volatility Regimes** for maximum intelligence.
+*   ðŸ§  **Hybrid AI Engine (v5.5.13)**: Combines **Google Gemini 2.0** (Analysis), **OpenAI ChatGPT** (Bet Gate), **Claude** (Risk Manager/Council), and **Adaptive Volatility Regimes** for maximum intelligence.
 *   **ðŸ“Š V5.0 Adaptive Volatility Regimes**: Sticky Regime State Machine (ATR EMA 20) with 3-candle confirmation to detect `NORMAL`, `HIGH_VOL`, and `LOW_VOL`.
-*   **ðŸŽ¯ Sniper Recovery System (v5.5.11)**: Dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.75, MG1: 0.80, MG2+: 0.80).
+*   **ðŸŽ¯ Sniper Recovery System (v5.5.13)**: Dynamic AI confidence thresholds that scale with Martingale steps (Base: 0.75, MG1: 0.80, MG2+: 0.80).
 *   **ðŸ›¡ï¸ Stochastic Exhaustion Guard (v5.1.4)**: Prevents trend-chasing into overbought/oversold zones using live Stochastic K/D.
 *   **ðŸ“¡ Stream Auto-Reconnect (v5.1.2)**: 30-second soft-reconnect on API silent drops, bypassing hard watchdog kills.
 *   **ðŸŽšï¸ Dynamic Parameter Overrides**: RSI boundaries and bounce limits automatically adjust based on the current market regime.
@@ -120,4 +120,5 @@ Trading Volatility Indices involves significant risk. This bot is a tool, not a 
 
 ---
 *Built with â¤ï¸ by AI Agent*
+
 

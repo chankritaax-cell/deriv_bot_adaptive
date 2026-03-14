@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 
+
+## [v5.5.13] - 2026-03-14
+### 🏛️ AI Council Auto-Fix
+- **Tighten RSI PUT bounds for R_75 to reduce false signals in high volatility**
+- **[CONFIG_CHANGE] asset_profiles.json:** Increase RSI put_min from 38.0 to 42.0 for R_75 to filter out weak PUT signals in high volatility conditions
+- _Analysis: การสูญเสียต่อเนื่องเกิดจาก RSI PUT signals ที่ยังไม่เข้มงวดพอในสภาวะ high volatility (ATR: 0.1489%) โดย RSI ปัจจุบันอยู่ที่ 38.0 ซึ่งตรงกับ put_min boundary ทำให้เกิด false signals_
+- _Files: asset_profiles.json_
+
+## [v5.5.13] - 2026-03-14
+### 🧭 Adaptive Ops
+- **[TELEGRAM] Inactivity Council Trigger**: After 4h inactivity, AI Council runs a dynamic optimization session and reports via Telegram.
+
 ## [v5.5.12] - 2026-03-14
 ### 🏛️ AI Council Auto-Fix
 - **Tighten RSI PUT bounds for R_75 to reduce false signals in high volatility**
@@ -988,4 +1000,5 @@ _Files: ai_council.py, config.py, ai_providers.py, market_engine.py, technical_a
     - `trade_engine`: Real-time trade execution and portfolio tracking.
     - `bot.py`: Main async event loop.
 - **Dashboard:** Includes Flask-based dashboard for monitoring (ported from IQ Bot).
+
 
