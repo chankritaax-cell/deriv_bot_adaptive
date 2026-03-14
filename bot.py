@@ -2,7 +2,7 @@ import os
 import sys
 
 # ============================================================
-# 🚨 V5.0 CRITICAL SAFEGUARD: Prevent Real Account Execution
+ # comment cleaned
 # ============================================================
 DERIV_ACCOUNT_TYPE = os.environ.get("DERIV_ACCOUNT_TYPE", "demo").lower()
 APP_ID = str(os.environ.get("DERIV_APP_ID", ""))
@@ -16,23 +16,23 @@ if APP_ID in _KNOWN_REAL_APP_IDS:
     _abort_reason = f"Real account APP_ID ({APP_ID}) detected"
 
 if _abort_reason:
-    print("\n" + "🛑" * 30)
+    print("\n" + "" * 30)
     print("CRITICAL ALERT: Bot V5.0 is running with a NON-DEMO account profile!")
     print(f"Reason: {_abort_reason}")
     print(f"DERIV_ACCOUNT_TYPE: {DERIV_ACCOUNT_TYPE}")
     print("Set DERIV_ACCOUNT_TYPE=demo in your .env file.")
-    print("🛑" * 30 + "\n")
+    print("" * 30 + "\n")
     sys.exit(1) # [v5.0 BUG-02 FIX]
 
-import shutil  # [v5.0 BUG-13 FIX] 🔥 CRITICAL: Clear Python cache BEFORE importing config
+import shutil # comment cleaned
 # This ensures fresh config values are loaded on every bot restart
 pycache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "__pycache__")
 if os.path.exists(pycache_dir):
     try:
         shutil.rmtree(pycache_dir)
-        print("🗑️  Cleared __pycache__ directory (loading fresh config)")
+        print("  Cleared __pycache__ directory (loading fresh config)")
     except Exception as e:
-        print(f"⚠️  Warning: Could not clear cache: {e}")
+        print(f"  Warning: Could not clear cache: {e}")
 
 
 import asyncio
@@ -56,12 +56,12 @@ from modules import ai_council
 from modules import telegram_bridge as telegram # [v3.9.0] Fix NameError
 from modules.utils import log_print, log_to_file, dashboard_update, dashboard_add_trade, dashboard_add_summary, dashboard_save_candles, dashboard_init_state, dashboard_get_state, get_crypto_thb_rate, ROOT, load_martingale_state, save_martingale_state, reset_martingale_state # [v3.11.28] Add ROOT & state
 from modules.stream_manager import DerivStreamManager # [v4.0.0] New Streaming Manager
-COMMAND_FILE = os.path.join(ROOT, "commands.json") # [v3.11.28] Define COMMAND_FILE using ROOT
+COMMAND_FILE = os.path.join(ROOT, "logs", "commands.json") # [v3.11.28] Define COMMAND_FILE using ROOT
 
 def check_tick_velocity(stream_mgr, current_atr):
     """
     [v4.1.2] Tick Velocity Guard / Micro-Spike Prevention (Stream-Based)
-    Reads directly from stream_manager.latest_ticks deque — zero REST API latency.
+    Reads directly from stream_manager.latest_ticks deque  zero REST API latency.
     Falls back to (False, 0, 0) if stream data is unavailable (e.g. polling mode).
     """
     try:
@@ -77,7 +77,7 @@ def check_tick_velocity(stream_mgr, current_atr):
         
         # Freshness Check: reject if latest tick is stale (>5s old)
         if (time.time() - latest_tick['received_at']) > 5:
-            log_print(f"   ⚠️ Tick Velocity: Stale tick data ({time.time() - latest_tick['received_at']:.1f}s old). Skipping guard.")
+            log_print(f"    Tick Velocity: Stale tick data ({time.time() - latest_tick['received_at']:.1f}s old). Skipping guard.")
             return False, 0.0, 0.0
         
         spike_size = abs(latest_tick['price'] - oldest_tick['price'])
@@ -85,7 +85,7 @@ def check_tick_velocity(stream_mgr, current_atr):
         is_spike = spike_size > limit
         return is_spike, spike_size, limit
     except Exception as e:
-        log_print(f"   ⚠️ Tick Velocity Check Error: {e}")
+        log_print(f"    Tick Velocity Check Error: {e}")
         return False, 0.0, 0.0
 
 async def send_telegram_alert(message):
@@ -100,9 +100,9 @@ async def send_telegram_alert(message):
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         dashboard_add_summary(summary)
-        log_print(f"📡 [Telegram] Alert Queued: {message}")
+        log_print(f" [Telegram] Alert Queued: {message}")
     except Exception as e:
-        log_print(f"⚠️ [Telegram] Alert queue failed: {message} | Error: {e}")
+        log_print(f" [Telegram] Alert queue failed: {message} | Error: {e}")
 
 async def check_global_stop_loss(current_profit):
     """
@@ -112,22 +112,22 @@ async def check_global_stop_loss(current_profit):
     stop_loss_limit = (getattr(config, "INITIAL_CAPITAL", 14.15) * getattr(config, "MAX_DAILY_LOSS_PERCENT", 20.0)) / 100.0
     if current_profit <= -stop_loss_limit:
         log_print("")
-        log_print("🛑" + "="*60)
-        log_print(f"🛑 CRITICAL ALERT: Daily Stop Loss Reached!")
-        log_print(f"🛑 Profit: {current_profit:.2f} <= Limit: -{stop_loss_limit:.2f}")
-        log_print("🛑 Halting all operations to protect capital.")
-        log_print("🛑" + "="*60)
+        log_print("" + "="*60)
+        log_print(f" CRITICAL ALERT: Daily Stop Loss Reached!")
+        log_print(f" Profit: {current_profit:.2f} <= Limit: -{stop_loss_limit:.2f}")
+        log_print(" Halting all operations to protect capital.")
+        log_print("" + "="*60)
         log_print("")
-        await send_telegram_alert(f"🛑 CRITICAL: Daily Stop Loss Reached! Profit: {current_profit:.2f}. Bot Halted.")
+        await send_telegram_alert(f" CRITICAL: Daily Stop Loss Reached! Profit: {current_profit:.2f}. Bot Halted.")
         await asyncio.sleep(2) # Allow Telegram time to log/send
         os._exit(42)
 
 def run_startup_audit():
     """[v3.11.28] System self-check: log paths, versions, and hashes to prevent environment conflicts."""
-    log_print("🔍 [System Audit] Starting self-check...")
-    log_print(f"   🏠 Root Path: {os.path.abspath(ROOT)}")
-    log_print(f"   🐍 Python Exec: {sys.executable}")
-    log_print(f"   📄 Main File: {os.path.abspath(__file__)}")
+    log_print(" [System Audit] Starting self-check...")
+    log_print(f"    Root Path: {os.path.abspath(ROOT)}")
+    log_print(f"    Python Exec: {sys.executable}")
+    log_print(f"    Main File: {os.path.abspath(__file__)}")
     
     # Audit critical modules
     for mod_name in ['config', 'modules.ai_engine', 'modules.market_engine']:
@@ -138,9 +138,9 @@ def run_startup_audit():
                 # Calculate simple hash for version tracking
                 with open(fpath, "rb") as f:
                     file_hash = hashlib.md5(f.read()).hexdigest()[:8]
-                log_print(f"   📦 {mod_name:18} -> {fpath} ({file_hash})")
+                log_print(f"    {mod_name:18} -> {fpath} ({file_hash})")
         except: pass
-    log_print("✅ [System Audit] Completed.")
+    log_print(" [System Audit] Completed.")
 
 async def run_streaming_bot(api, thb_suffix):
     """
@@ -149,64 +149,109 @@ async def run_streaming_bot(api, thb_suffix):
     """
     asset = config.ACTIVE_ASSET
     global last_activity_time
-    log_print(f"📡 Entering STREAMING Mode for {asset}...")
+    log_print(f" Entering STREAMING Mode for {asset}...")
 
     # State Variables
     last_trade_time = time.time() - 3600
     last_trade_result = "UNKNOWN"
     last_notified_cd_candle = None
     last_ai_signal = "None"
-    last_scan_time = 0  # [v4.1.0] Asset Rotation Scanner — Start at 0 to trigger scan immediately on boot
+    last_scan_time = 0  # [v4.1.0] Asset Rotation Scanner
+    paused = False # [v5.5.x] Telegram Command State
     
     # 1. Initial Bulk Fetch (300 candles)
-    log_print(f"   📥 Performing initial fetch of 300 candles for {asset}...")
+    log_print(f"    Performing initial fetch of 300 candles for {asset}...")
     df = await market_engine.get_candles_df(api, asset, 300, 60)
     
     if df is None or df.empty:
-        log_print("   ❌ Startup Error: Failed to fetch initial candles. Exiting.")
+        log_print("    Startup Error: Failed to fetch initial candles. Exiting.")
         return
 
-    log_print(f"   ✅ Synchronized: {len(df)} candles loaded.")
+    log_print(f"    Synchronized: {len(df)} candles loaded.")
 
     # 2. Initialize and Start Stream Manager
     stream_manager = DerivStreamManager(api, asset)
     await stream_manager.start_streams()
 
     # 3. Infinite Consumer Loop
+    _last_data_ts = time.time()
     while True:
         try:
+            # --- [v5.5.x] Check for External Commands (Telegram) ---
+            if os.path.exists(COMMAND_FILE):
+                try:
+                    with open(COMMAND_FILE, 'r', encoding='utf-8') as f:
+                        cmd_data = json.load(f)
+                    cmd = cmd_data.get("command", "").upper()
+                    src = cmd_data.get("source", "UNKNOWN")
+                    
+                    if cmd == "STOP":
+                        paused = True
+                        log_print(f" Received STOP command from {src}. Pausing...")
+                        dashboard_update("status", "Paused (User)")
+                    elif cmd == "START":
+                        paused = False
+                        log_print(f" Received START command from {src}. Resuming...")
+                        dashboard_update("status", "Running")
+                    elif cmd == "COUNCIL":
+                        payload = cmd_data.get("payload", "")
+                        log_print(f" Telegram -> AI Council: {payload[:50]}...")
+                        await ai_council.execute_user_command_async(payload)
+                    elif cmd == "APPROVE":
+                        prop_id = cmd_data.get("payload", "")
+                        log_print(f" Telegram -> Approve: {prop_id}")
+                        res = await ai_council.approve_proposal_async(prop_id)
+                        if res.get("restart_required"):
+                            log_print(" Restart required. Exiting...")
+                            os._exit(1)
+                    elif cmd == "REJECT":
+                        prop_id = cmd_data.get("payload", "")
+                        log_print(f" Telegram -> Reject: {prop_id}")
+                        await ai_council.reject_proposal_async(prop_id)
+                    
+                    if os.path.exists(COMMAND_FILE): os.remove(COMMAND_FILE)
+                except Exception as e:
+                    log_print(f" Command Error: {e}")
+                    try: 
+                        if os.path.exists(COMMAND_FILE): os.remove(COMMAND_FILE)
+                    except: pass
+
+            if paused:
+                sys.stdout.write(f"\r    Bot is PAUSED by User...     ")
+                sys.stdout.flush()
+                await asyncio.sleep(2)
+                continue
             # --- [v4.1.5] Safe Exit on Fatal API Error ---
             if stream_manager.api_failed:
-                log_print(f"   💀 Fatal API Error detected by stream manager. Exiting stream loop to reconnect...")
+                log_print(f"    Fatal API Error detected by stream manager. Exiting stream loop to reconnect...")
                 break # Break to outer loop, which will kill and restart the script
 
-            # Wait for a fully closed candle from the stream (90s timeout for soft-reconnect)
+            # Wait for a fully closed candle from the stream (Short timeout to check commands frequently)
             try:
-                closed_candle = await asyncio.wait_for(stream_manager.candle_queue.get(), timeout=90.0)
+                closed_candle = await asyncio.wait_for(stream_manager.candle_queue.get(), timeout=2.0)
+                _last_data_ts = time.time() # Update data freshness
+                last_activity_time = _last_data_ts
             except asyncio.TimeoutError:
-                closed_candle = None  # No candle — scanner can still fire
-                if stream_manager.api_failed:
-                    log_print(f"   💀 Fatal API Error detected post-timeout. Exiting stream loop to reconnect...")
-                    break
-                else:
-                    # [v5.1.1] Network Resilience: Soft Auto-Reconnect on Silent Drop
-                    log_print(f"   ⚠️ Stream timeout (90s without new candle). Attempting soft reconnect...")
-                    dashboard_update("status", "♻️ Stream Reconnecting...")
-                    try:
-                        await stream_manager.stop()
-                    except Exception as e:
-                        log_print(f"   ⚠️ Error stopping stream manager: {e}")
-                    
-                    # Recreate stream manager to force fresh websocket subscriptions
+                closed_candle = None
+                if stream_manager.api_failed: break
+                
+                # [v5.1.1] Network Resilience: Soft Auto-Reconnect if silent for >90s
+                if (time.time() - _last_data_ts) > 90.0:
+                    log_print(f"    Stream timeout (90s without new candle). Attempting soft reconnect...")
+                    dashboard_update("status", " Stream Reconnecting...")
+                    try: await stream_manager.stop()
+                    except: pass
                     stream_manager = DerivStreamManager(api, asset)
                     await stream_manager.start_streams()
-                    log_print(f"   ✅ Soft reconnect complete. Waiting for fresh data...")
-                    continue
+                    _last_data_ts = time.time()
+                    log_print(f"    Soft reconnect complete.")
+                
+                # No 'continue' here: allow falling through to Scanner logic
 
             # --- [v4.1.0] Asset Rotation Scanner ---
             _sleeping, _sleep_secs = market_engine.is_sleep_mode()
             if _sleeping:
-                log_print(f"   😴 [Sleep Mode] All council assets banned. Sleeping {_sleep_secs/60:.0f}m...")
+                log_print(f"    [Sleep Mode] All council assets banned. Sleeping {_sleep_secs/60:.0f}m...")
                 await asyncio.sleep(min(60, _sleep_secs))
                 continue  # [v5.0 BUG-08 FIX]
             
@@ -226,33 +271,33 @@ async def run_streaming_bot(api, thb_suffix):
                 if is_inactive_trigger or is_normal_trigger or needs_forced_scan:
                     last_scan_time = now_scan
                     reason = "Forced" if needs_forced_scan else f"Inactive: {time_since_trade/60:.0f}m ago"
-                    log_print(f"\n🔍 [AI Scanner] Streaming mode scan ({reason})...")
+                    log_print(f"\n [AI Scanner] Streaming mode scan ({reason})...")
                     try:
                         best = None
                         asset_symbols = []
                         if getattr(config, "ACTIVE_PROFILE", "") == "TIER_COUNCIL":
                             from modules.asset_selector import AssetSelector
-                            log_print("   🔍 [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
+                            log_print("    [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
                             best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=12, min_trades=8)
 
                             if best_selector and wr_selector > 50.0:
                                 best = best_selector
                                 asset_symbols = [best]
-                                log_print(f"   🎯 TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
+                                log_print(f"    TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
                             elif best_selector and best_selector != asset and wr_selector > 35.0:
                                 # [v5.2.4] Fallback: no >50% asset, but different asset with >35% WR exists
                                 # Prefer switching to break "stuck-on-banned-asset" cycle
                                 best = best_selector
                                 asset_symbols = [best]
-                                log_print(f"   ⚠️ No >50% WR asset. Fallback → best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
+                                log_print(f"    No >50% WR asset. Fallback  best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                             else:
-                                log_print("   ⚠️ No TIER_COUNCIL asset met criteria (>8 trades, >50% WR).")
+                                log_print("    No TIER_COUNCIL asset met criteria (>8 trades, >50% WR).")
                         else:
                             assets = await market_engine.scan_open_assets(api, smart_trader_instance=_SMART_TRADER)
                             # Exclude current asset if inactive
                             if is_inactive_trigger:
                                 assets = [a for a in assets if a[0] != asset]
-                                log_print(f"   🚫 Excluding {asset} due to inactivity.")
+                                log_print(f"    Excluding {asset} due to inactivity.")
     
                             summaries = {}
                             for sym, payout in assets[:8]:
@@ -265,7 +310,7 @@ async def run_streaming_bot(api, thb_suffix):
 
                         if best and best in asset_symbols and best != asset:
                             old_asset = asset
-                            log_print(f"   🔄 Switching Active Asset: {old_asset} -> {best}")
+                            log_print(f"    Switching Active Asset: {old_asset} -> {best}")
 
                             # 1. Stop current streams safely
                             await stream_manager.stop()
@@ -276,10 +321,10 @@ async def run_streaming_bot(api, thb_suffix):
                             dashboard_update("current_asset", market_engine.get_asset_name(best))
 
                             # 3. Re-fetch candles for new asset
-                            log_print(f"   📥 Fetching 300 candles for {asset}...")
+                            log_print(f"    Fetching 300 candles for {asset}...")
                             df = await market_engine.get_candles_df(api, asset, 300, 60)
                             if df is None or df.empty:
-                                log_print(f"   ❌ Failed to fetch candles for {asset}. Reverting to {old_asset}.")
+                                log_print(f"    Failed to fetch candles for {asset}. Reverting to {old_asset}.")
                                 asset = old_asset
                                 config.ACTIVE_ASSET = old_asset
                                 df = await market_engine.get_candles_df(api, asset, 300, 60)
@@ -287,38 +332,38 @@ async def run_streaming_bot(api, thb_suffix):
                             # 4. Start new streams
                             stream_manager = DerivStreamManager(api, asset)
                             await stream_manager.start_streams()
-                            log_print(f"   ✅ Now streaming: {asset}")
+                            log_print(f"    Now streaming: {asset}")
 
                             # 5. Reset state
                             last_notified_cd_candle = None
                             last_ai_signal = "None"
                             continue  # Restart loop with new asset
                         elif best == asset:
-                            log_print(f"   ✅ Current asset {asset} is still the best choice.")
+                            log_print(f"    Current asset {asset} is still the best choice.")
                         else:
                             if needs_forced_scan:
                                 # [v5.2.4] Smart sleep: sleep until earliest ban expires (not fixed 10m)
                                 _s_sleeping, _s_remaining = market_engine.is_sleep_mode()
                                 _s_secs = max(30, min(int(_s_remaining), 600)) if _s_remaining > 0 else 600
                                 _s_mins = _s_secs / 60
-                                log_print(f"   💤 Fallback Guard: {asset} is banned and no valid alternative in TIER_COUNCIL found. Sleeping {_s_mins:.1f}m (until earliest ban expires)...")
+                                log_print(f"    Fallback Guard: {asset} is banned and no valid alternative in TIER_COUNCIL found. Sleeping {_s_mins:.1f}m (until earliest ban expires)...")
                                 dashboard_update("status", f"Sleeping ({_s_mins:.1f}m Fallback)")
                                 # Sleep in 10s chunks for Watchdog heartbeat
                                 for _ in range(max(1, _s_secs // 10)):
                                     last_activity_time = time.time()
                                     await asyncio.sleep(10)
                             else:
-                                log_print(f"   ℹ️ No better asset found. Staying on {asset}.")
+                                log_print(f"    No better asset found. Staying on {asset}.")
                     except Exception as e:
-                        log_print(f"   ⚠️ Scanner Error: {e}")
+                        log_print(f"    Scanner Error: {e}")
 
             # If no candle arrived (timeout), skip trading logic
-            # [v4.1.4] Do NOT reset last_activity_time here — dead streams must trigger watchdog
+ # [v4.1.4] cleaned
             if closed_candle is None:
                 continue
                 
             if market_engine.is_blacklisted(asset):
-                log_print(f"   🚫 {asset} is BLACKLISTED. Skipping candle update and waiting for scanner to switch...")
+                log_print(f"    {asset} is BLACKLISTED. Skipping candle update and waiting for scanner to switch...")
                 continue
 
             # 4. Update DataFrame (Rolling Window of 300)
@@ -350,12 +395,12 @@ async def run_streaming_bot(api, thb_suffix):
             if elapsed_mins < required_minutes:
                 if last_notified_cd_candle != current_epoch:
                     rem = int(required_minutes - elapsed_mins)
-                    log_print(f"   ⏳ Cooldown Active: {rem}m remaining (Last Trade: {last_trade_result})")
+                    log_print(f"    Cooldown Active: {rem}m remaining (Last Trade: {last_trade_result})")
                     last_notified_cd_candle = current_epoch
                 continue
 
             # --- 6. Pre-AI Analysis ---
-            log_print(f"\n🔎 Analyzing {asset} (Closed Candle: {current_epoch} - {human_time})...")
+            log_print(f"\n Analyzing {asset} (Closed Candle: {current_epoch} - {human_time})...")
             market_summary = market_engine.get_market_summary_from_df(df)
             
             # 7. AI Analysis & Guards (Internal to analyze_and_decide)
@@ -364,7 +409,7 @@ async def run_streaming_bot(api, thb_suffix):
             if not decision:
                 # --- [v5.1.2] Sideways Guard: Force asset rescan after N consecutive SIDEWAYS candles ---
                 if ai_engine.get_sideways_rescan_needed(asset):
-                    log_print(f"   🔄 [Sideways Guard] {asset} stuck in SIDEWAYS for {ai_engine.SIDEWAYS_RESCAN_THRESHOLD}+ candles. Banning for 30m & forcing rescan.")
+                    log_print(f"    [Sideways Guard] {asset} stuck in SIDEWAYS for {ai_engine.SIDEWAYS_RESCAN_THRESHOLD}+ candles. Banning for 30m & forcing rescan.")
                     ai_engine.reset_sideways_counter(asset)
                     market_engine.blacklist_asset(asset, duration_secs=1800, reason="Sideways Exhaustion")
                     last_scan_time = 0  # Force immediate scanner trigger on next loop iteration
@@ -376,7 +421,7 @@ async def run_streaming_bot(api, thb_suffix):
             
             if direction not in ["CALL", "PUT"]:
                 reason_str = ", ".join(map(str, details.get('reasons', ['Skip signal'])))
-                log_print(f"   ℹ️ AI Decision: {direction} ({strategy_name}) | Reason: {reason_str}")
+                log_print(f"    AI Decision: {direction} ({strategy_name}) | Reason: {reason_str}")
                 dashboard_update("status", f"Skip ({direction})")
                 last_ai_signal = direction
                 continue
@@ -392,7 +437,7 @@ async def run_streaming_bot(api, thb_suffix):
                     
                     # Freshness Check: If the latest tick is older than 5 seconds, the stream might be dead
                     if (time.time() - latest_tick['received_at']) > 5:
-                        log_print(f"   ⚠️ STREAM VETO: Trade rejected. Tick data is STALE (Last tick {time.time() - latest_tick['received_at']:.1f}s ago).")
+                        log_print(f"    STREAM VETO: Trade rejected. Tick data is STALE (Last tick {time.time() - latest_tick['received_at']:.1f}s ago).")
                         dashboard_update("status", "Skip (Stale Feed)")
                         continue
 
@@ -400,7 +445,7 @@ async def run_streaming_bot(api, thb_suffix):
                     limit = current_atr * getattr(config, "MAX_TICK_VELOCITY_ATR_PCT", 0.5)
                     
                     if spike_size > limit:
-                        log_print(f"   🛑 STREAM VETO: Trade rejected. Extreme Velocity (Spike: {spike_size:.4f} > Limit: {limit:.4f})")
+                        log_print(f"    STREAM VETO: Trade rejected. Extreme Velocity (Spike: {spike_size:.4f} > Limit: {limit:.4f})")
                         dashboard_update("status", "Skip (Spike Veto)")
                         continue
 
@@ -423,12 +468,12 @@ async def run_streaming_bot(api, thb_suffix):
             # Stake Cap
             max_stake = getattr(config, "MAX_STAKE_AMOUNT", 0.0)
             if max_stake > 0 and amount > max_stake:
-                log_print(f"   ⚠️ Risk Guard: Stake ${amount:.2f} exceeds Max ${max_stake}. Capping.")
+                log_print(f"    Risk Guard: Stake ${amount:.2f} exceeds Max ${max_stake}. Capping.")
                 amount = max_stake
 
             reason_str = ", ".join(map(str, details.get('reasons', [])))
-            log_print(f"   ⚡ Signal: {direction} ({strategy_name}) | Strict MG x{final_multiplier:.2f}")
-            log_print(f"   📝 Stake: ${amount:.2f} | Reasoning: {reason_str}")
+            log_print(f"    Signal: {direction} ({strategy_name}) | Strict MG x{final_multiplier:.2f}")
+            log_print(f"    Stake: ${amount:.2f} | Reasoning: {reason_str}")
             
             # Sync Dashboard BEFORE execution
             dashboard_update("martingale_level", min(mg_step, getattr(config, "MAX_MARTINGALE_STEPS", 0)))
@@ -443,7 +488,7 @@ async def run_streaming_bot(api, thb_suffix):
             if trade_exec_data:
                 contract_id = trade_exec_data.get("contract_id")
                 last_trade_time = time.time()
-                log_print(f"   ⏳ Waiting 65s for trade execution... ({contract_id})")
+                log_print(f"    Waiting 65s for trade execution... ({contract_id})")
                 
                 # Heartbeat Loop: Update last_activity_time every second to prevent watchdog kill
                 for _ in range(65):
@@ -460,7 +505,7 @@ async def run_streaming_bot(api, thb_suffix):
                     result, profit, entry_spot, exit_spot = await trade_engine.check_trade_status(api, contract_id)
                     if result != "OPEN":
                         break
-                    log_print(f"   ⏳ Trade still OPEN. Waiting 5s for broker settlement...")
+                    log_print(f"    Trade still OPEN. Waiting 5s for broker settlement...")
                     for _ in range(5):
                         last_activity_time = time.time()
                         await asyncio.sleep(1)
@@ -468,7 +513,7 @@ async def run_streaming_bot(api, thb_suffix):
                 last_trade_result = result
                 
                 # Log result
-                log_print(f"   🏁 Trade Finished: {result} | Profit: ${profit:.2f} (Entry: {entry_spot}, Exit: {exit_spot})")
+                log_print(f"    Trade Finished: {result} | Profit: ${profit:.2f} (Entry: {entry_spot}, Exit: {exit_spot})")
                 
                 if result != "UNKNOWN":
                     # Record for AI intelligence
@@ -493,6 +538,7 @@ async def run_streaming_bot(api, thb_suffix):
                         "profit": profit,
                         "entry_spot": entry_spot,
                         "exit_spot": exit_spot,
+                        "analysis": ", ".join(map(str, details.get('reasons', []))),
                         "timestamp": time.time()
                     }
                     dashboard_add_trade(trade_info)
@@ -503,7 +549,6 @@ async def run_streaming_bot(api, thb_suffix):
                         dashboard_update("win_streak", ds.get("win_streak", 0) + 1)
                         dashboard_update("loss_streak", 0)
                         reset_martingale_state() # [v4.1.0] Reset MG Memory
-                        telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
                     elif result == "LOSS":
                         dashboard_update("total_losses", ds.get("total_losses", 0) + 1)
                         dashboard_update("loss_streak", ds.get("loss_streak", 0) + 1)
@@ -512,26 +557,25 @@ async def run_streaming_bot(api, thb_suffix):
                         # --- [v4.1.0] Persistent Martingale Memory ---
                         next_mg_step = mg_step + 1
                         if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
-                            log_print(f"   🛑 Reached Max Martingale Steps ({getattr(config, 'MAX_MARTINGALE_STEPS', 0)}). Resetting stake.")
+                            log_print(f"    Reached Max Martingale Steps ({getattr(config, 'MAX_MARTINGALE_STEPS', 0)}). Resetting stake.")
                             reset_martingale_state()
                         else:
                             save_martingale_state(next_mg_step)
-                            log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
+                            log_print(f"    Saved Martingale State: Step {next_mg_step} carried to next trade.")
                             
-                        # --- [v5.2.4] Cut and Run Logic — Gate: only at MG Step >= 1 ---
-                        # Step 0 (1.0 XRP) loss = normal variance → let MG handle it
-                        # Step 1+ (2.0+ XRP) loss = 2 consecutive losses → cut and switch asset
+ # [v5.2.4] cleaned
+ # comment cleaned
+ # comment cleaned
                         if mg_step >= 1:
-                            log_print(f"   ✂️ CUT AND RUN: Loss at MG Step {mg_step} (stake={getattr(config,'AMOUNT',1)*getattr(config,'MARTINGALE_MULTIPLIER',2)**mg_step:.1f}). Banning {asset} for 1 hour.")
+                            log_print(f"    CUT AND RUN: Loss at MG Step {mg_step} (stake={getattr(config,'AMOUNT',1)*getattr(config,'MARTINGALE_MULTIPLIER',2)**mg_step:.1f}). Banning {asset} for 1 hour.")
                             market_engine.blacklist_asset(asset)
                             last_scan_time = 0 # Force immediate scan to switch assets
                         else:
-                            log_print(f"   ℹ️ [Cut and Run] Step 0 loss — normal variance, letting MG handle. No ban.")
+                            log_print(f"    [Cut and Run] Step 0 loss  normal variance, letting MG handle. No ban.")
                     elif result == "DRAW":
-                        log_print(f"   🔘 DRAW: No changes to streak or martingale.")
-                        telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
-                    else: # OPEN or UNKNOWN — Broker delayed settlement
-                        log_print(f"   ⏳ UNRESOLVED TRADE ({result}): Entering definitive wait loop for contract {contract_id}...")
+                        log_print(f"    DRAW: No changes to streak or martingale.")
+                    else: # comment cleaned
+                        log_print(f"    UNRESOLVED TRADE ({result}): Entering definitive wait loop for contract {contract_id}...")
                         _definitive_retries = 0
                         _max_definitive_retries = 36  # [v5.1.6] 36 x 5s = 180s max wait
                         while _definitive_retries < _max_definitive_retries:
@@ -542,10 +586,10 @@ async def run_streaming_bot(api, thb_suffix):
                             try:
                                 result, profit, entry_spot, exit_spot = await trade_engine.check_trade_status(api, contract_id)
                             except Exception as e_def:
-                                log_print(f"   ⚠️ [Definitive Wait] API error: {e_def}. Retrying ({_definitive_retries}/{_max_definitive_retries})...")
+                                log_print(f"    [Definitive Wait] API error: {e_def}. Retrying ({_definitive_retries}/{_max_definitive_retries})...")
                                 continue
                             if result in ["WIN", "LOSS", "DRAW"]:
-                                log_print(f"   ✅ Definitive result received: {result} | Profit: ${profit:.2f}")
+                                log_print(f"    Definitive result received: {result} | Profit: ${profit:.2f}")
                                 last_trade_result = result
 
                                 # Re-record with correct result
@@ -578,40 +622,40 @@ async def run_streaming_bot(api, thb_suffix):
                                     dashboard_update("win_streak", 0)
                                     next_mg_step = mg_step + 1
                                     if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
-                                        log_print(f"   🛑 Reached Max Martingale Steps. Resetting stake.")
+                                        log_print(f"    Reached Max Martingale Steps. Resetting stake.")
                                         reset_martingale_state()
                                     else:
                                         save_martingale_state(next_mg_step)
-                                        log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
+                                        log_print(f"    Saved Martingale State: Step {next_mg_step} carried to next trade.")
                                     # [v5.2.4] Cut and Run Gate: only at MG Step >= 1
                                     if mg_step >= 1:
-                                        log_print(f"   ✂️ CUT AND RUN: Loss at MG Step {mg_step}. Banning {asset} for 1 hour.")
+                                        log_print(f"    CUT AND RUN: Loss at MG Step {mg_step}. Banning {asset} for 1 hour.")
                                         market_engine.blacklist_asset(asset)
                                         last_scan_time = 0
                                     else:
-                                        log_print(f"   ℹ️ [Cut and Run] Step 0 loss — no ban.")
+                                        log_print(f"    [Cut and Run] Step 0 loss  no ban.")
                                 else:  # DRAW
                                     telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
                                 break  # Exit the definitive wait loop
                             else:
-                                log_print(f"   ⏳ Still {result}. Retrying in 5s... ({_definitive_retries}/{_max_definitive_retries}) (contract: {contract_id})")
+                                log_print(f"    Still {result}. Retrying in 5s... ({_definitive_retries}/{_max_definitive_retries}) (contract: {contract_id})")
                         else:
-                            # [v5.1.6] Exhausted retries — treat as LOSS to preserve MG state
-                            log_print(f"   ❌ [Definitive Wait] Exhausted {_max_definitive_retries} retries for contract {contract_id}. Treating as LOSS for MG safety.")
+ # [v5.1.6] cleaned
+                            log_print(f"    [Definitive Wait] Exhausted {_max_definitive_retries} retries for contract {contract_id}. Treating as LOSS for MG safety.")
                             last_trade_result = "LOSS"
                             next_mg_step = mg_step + 1
                             if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
                                 reset_martingale_state()
                             else:
                                 save_martingale_state(next_mg_step)
-                                log_print(f"   💾 Saved Martingale State: Step {next_mg_step} (unresolved fallback).")
+                                log_print(f"    Saved Martingale State: Step {next_mg_step} (unresolved fallback).")
                     # AI Loss Analysis
                     if result == "LOSS":
                         ds = dashboard_get_state()  # [v5.1.6] Refresh ds after definitive wait loop
                         current_streak = ds.get("loss_streak", 0) + 1
                         if getattr(config, "USE_AI_ANALYST", True):
                             try:
-                                log_print("   📉 Analyzing Loss with AI...")
+                                log_print("    Analyzing Loss with AI...")
                                 mkt_context = market_engine.get_market_summary_from_df(df)
                                 await ai_engine.analyze_trade_loss(
                                     asset=asset, strategy=strategy_name, signal=direction,
@@ -622,7 +666,7 @@ async def run_streaming_bot(api, thb_suffix):
                             except: pass
             
         except Exception as e:
-            log_print(f"   ❌ Streaming Loop Error: {e}")
+            log_print(f"    Streaming Loop Error: {e}")
             import traceback
             log_print(traceback.format_exc())
             await asyncio.sleep(2)
@@ -681,11 +725,10 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
         except Exception:
             pass
         last_reconnect_ts = time.time()
-        log_print("🔌 [Market] Reconnected to Deriv API.")
+        log_print(" [Market] Reconnected to Deriv API.")
 
     # Telegram Bridge State
     paused = False
-    COMMAND_FILE = os.path.join("logs", "commands.json")
 
     while True:
         last_activity_time = time.time()
@@ -702,38 +745,38 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                 
                 if cmd == "STOP":
                     paused = True
-                    log_print(f"🛑 Received STOP command from {src}. Pausing...")
+                    log_print(f" Received STOP command from {src}. Pausing...")
                     dashboard_update("status", "Paused (User)")
                 elif cmd == "START":
                     paused = False
-                    log_print(f"🚀 Received START command from {src}. Resuming...")
+                    log_print(f" Received START command from {src}. Resuming...")
                     dashboard_update("status", "Running")
                 elif cmd == "COUNCIL":
                     # [v3.7.4] User requested action via AI Council
                     payload = cmd_data.get("payload", "")
-                    log_print(f"🏛️ Telegram -> AI Council: {payload[:50]}...")
+                    log_print(f" Telegram -> AI Council: {payload[:50]}...")
                     await ai_council.execute_user_command_async(payload)
                 elif cmd == "APPROVE":
                     # [v3.7.4] User approved a proposal via Telegram
                     prop_id = cmd_data.get("payload", "")
-                    log_print(f"🏛️ Telegram -> Approve: {prop_id}")
+                    log_print(f" Telegram -> Approve: {prop_id}")
                     res = await ai_council.approve_proposal_async(prop_id)
                     if res.get("restart_required"):
-                        log_print("🔄 Restart required to apply AI Council changes. Exiting...")
+                        log_print(" Restart required to apply AI Council changes. Exiting...")
                         os._exit(1)
                 elif cmd == "REJECT":
                     # [v3.7.4] User rejected a proposal via Telegram
                     prop_id = cmd_data.get("payload", "")
-                    log_print(f"🏛️ Telegram -> Reject: {prop_id}")
+                    log_print(f" Telegram -> Reject: {prop_id}")
                     await ai_council.reject_proposal_async(prop_id)
                 
                 # Delete file after processing
                 os.remove(COMMAND_FILE)
             except Exception as e:
-                log_print(f"⚠️ Command Read Error: {e}")
+                log_print(f" Command Read Error: {e}")
 
         if paused:
-            sys.stdout.write(f"\r   💤 Bot is PAUSED by User...     ")
+            sys.stdout.write(f"\r    Bot is PAUSED by User...     ")
             sys.stdout.flush()
             await asyncio.sleep(2)
             continue
@@ -743,7 +786,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
         if now_ts < network_retry_until:
             remaining = int(network_retry_until - now_ts)
             if now_ts >= backoff_log_next_ts:
-                log_print(f"⏳ [Market] Network unstable. Retrying in {remaining}s...")
+                log_print(f" [Market] Network unstable. Retrying in {remaining}s...")
                 backoff_log_next_ts = now_ts + min(30, max(5, remaining))
                 dashboard_update("status", f"Network backoff ({remaining}s)")
             await asyncio.sleep(min(10, max(1, remaining)))
@@ -752,7 +795,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
         # --- AI ASSET SCANNER (Periodic Rotation) ---
         _sleeping, _sleep_secs = market_engine.is_sleep_mode()
         if _sleeping:
-            log_print(f"   😴 [Sleep Mode] All council assets banned. Sleeping {_sleep_secs/60:.0f}m...")
+            log_print(f"    [Sleep Mode] All council assets banned. Sleeping {_sleep_secs/60:.0f}m...")
             await asyncio.sleep(min(60, _sleep_secs))
             continue  # [v5.0 BUG-08 FIX]
             
@@ -769,17 +812,17 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
             
             if (now - last_scan_time > current_interval) or needs_forced_scan:
                 if excluded_asset and not needs_forced_scan:
-                    log_print(f"\n   ⏳ Inactivity detected ({time_since_trade/60:.0f}m). Auto-Scan initiating...")
+                    log_print(f"\n    Inactivity detected ({time_since_trade/60:.0f}m). Auto-Scan initiating...")
                     for i in range(5, 0, -1):
-                        sys.stdout.write(f"\r   ⏱️ Scanning in {i}s...      ")
+                        sys.stdout.write(f"\r    Scanning in {i}s...      ")
                         sys.stdout.flush()
                         await asyncio.sleep(1)
                     print("") # Newline
 
                 reason = "Forced" if needs_forced_scan else f"Interval: {current_interval/60:.0f}m, Last Trade: {time_since_trade/60:.0f}m ago"
-                log_print(f"\n🔍 [AI Scanner] Starting scan ({reason})...")
+                log_print(f"\n [AI Scanner] Starting scan ({reason})...")
                 if excluded_asset and not needs_forced_scan:
-                     log_print(f"   🚫 Temporarily excluding {excluded_asset} due to inactivity.")
+                     log_print(f"    Temporarily excluding {excluded_asset} due to inactivity.")
 
                 last_scan_time = now
                 
@@ -788,21 +831,21 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                     asset_symbols = []
                     if getattr(config, "ACTIVE_PROFILE", "") == "TIER_COUNCIL":
                         from modules.asset_selector import AssetSelector
-                        log_print("   🔍 [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
+                        log_print("    [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
                         best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=12, min_trades=8)
 
                         if best_selector and wr_selector > 50.0:
                             best = best_selector
                             asset_symbols = [best]
-                            log_print(f"   🎯 TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
+                            log_print(f"    TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
                         elif best_selector and best_selector != config.ACTIVE_ASSET and wr_selector > 35.0:
                             # [v5.2.4] Fallback: no >50% asset, but different asset with >35% WR exists
                             # Prefer switching to break "stuck-on-banned-asset" cycle
                             best = best_selector
                             asset_symbols = [best]
-                            log_print(f"   ⚠️ No >50% WR asset. Fallback → best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
+                            log_print(f"    No >50% WR asset. Fallback  best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                         else:
-                            log_print("   ⚠️ No TIER_COUNCIL asset met criteria (>8 trades, >50% WR).")
+                            log_print("    No TIER_COUNCIL asset met criteria (>8 trades, >50% WR).")
                     else:
                         assets = await market_engine.scan_open_assets(api, smart_trader_instance=_SMART_TRADER)
                         if excluded_asset:
@@ -820,29 +863,29 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                     if best and best in asset_symbols:
                         best_name = market_engine.get_asset_name(best)
                         if best != config.ACTIVE_ASSET:
-                            log_print(f"   🔄 Switching Active Asset: {config.ACTIVE_ASSET} -> {best}")
+                            log_print(f"    Switching Active Asset: {config.ACTIVE_ASSET} -> {best}")
                             config.ACTIVE_ASSET = best
                             dashboard_update("current_asset", best_name)
                             last_candle_time = 0 # Reset new candle check
                         else:
-                            log_print(f"   ✅ Current Asset {best} is still the best choice.")
+                            log_print(f"    Current Asset {best} is still the best choice.")
                     else:
                         if needs_forced_scan:
                             # [v5.2.4] Smart sleep: sleep until earliest ban expires
                             _s_sleeping, _s_remaining = market_engine.is_sleep_mode()
                             _s_secs = max(30, min(int(_s_remaining), 600)) if _s_remaining > 0 else 600
                             _s_mins = _s_secs / 60
-                            log_print(f"   💤 Fallback Guard: {config.ACTIVE_ASSET} is banned and no valid alternative found. Sleeping {_s_mins:.1f}m (until earliest ban expires)...")
+                            log_print(f"    Fallback Guard: {config.ACTIVE_ASSET} is banned and no valid alternative found. Sleeping {_s_mins:.1f}m (until earliest ban expires)...")
                             dashboard_update("status", f"Sleeping ({_s_mins:.1f}m Fallback)")
                             # Sleep in 10s chunks for Watchdog heartbeat
                             for _ in range(max(1, _s_secs // 10)):
                                 last_activity_time = time.time()
                                 await asyncio.sleep(10)
                         else:
-                            log_print(f"   ℹ️ No better asset found. Staying on {config.ACTIVE_ASSET}.")
+                            log_print(f"    No better asset found. Staying on {config.ACTIVE_ASSET}.")
                             
                 except Exception as e:
-                    log_print(f"   ⚠️ Scanner Error: {e}")
+                    log_print(f"    Scanner Error: {e}")
         
         asset = config.ACTIVE_ASSET
 
@@ -852,7 +895,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
             now_cb = time.time()
             if now_cb >= circuit_breaker_last_log.get(asset, 0):
                 remaining_mins = int(remaining_secs / 60)
-                log_print(f"   ⏳ [Circuit Breaker] {asset} is PAUSED for another {remaining_mins}m")
+                log_print(f"    [Circuit Breaker] {asset} is PAUSED for another {remaining_mins}m")
                 circuit_breaker_last_log[asset] = now_cb + 300  # Log again in 5 minutes
             await asyncio.sleep(2)
             continue
@@ -871,20 +914,20 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
 
                 if network_failures >= 2 and (time.time() - last_reconnect_ts) > 10:
                     try:
-                        log_print("   🔄 [Market] Attempting API reconnect...")
+                        log_print("    [Market] Attempting API reconnect...")
                         await _reconnect_deriv_api()
                         market_engine.clear_last_error()
                         network_failures = 0
                         network_retry_until = 0.0
                         dashboard_update("status", "Running")
                     except Exception as e:
-                        log_print(f"   ⚠️ [Market] Reconnect failed: {e}")
+                        log_print(f"    [Market] Reconnect failed: {e}")
                 await asyncio.sleep(1)
                 continue
 
             if market_engine.is_blacklisted(asset):
-                log_print(f"   🚫 Active asset {asset} is BLACKLISTED due to errors.")
-                log_print("   🔄 Forcing immediate scanner run to find new asset...")
+                log_print(f"    Active asset {asset} is BLACKLISTED due to errors.")
+                log_print("    Forcing immediate scanner run to find new asset...")
                 last_scan_time = 0
                 await asyncio.sleep(10)
                 continue
@@ -906,7 +949,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                 else:
                     current_candle_time = int(df.index[-1])
             except (ValueError, TypeError, IndexError) as e:
-                log_print(f"   ⚠️ Candle Sync Error: {e}")
+                log_print(f"    Candle Sync Error: {e}")
                 await asyncio.sleep(1)
                 continue
             
@@ -925,7 +968,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                     if elapsed_mins < required_minutes:
                         if last_notified_cd_candle != current_candle_time:
                             rem = int(required_minutes - elapsed_mins)
-                            log_print(f"   ⏳ Cooldown Active: {rem}m remaining (Last Trade: {last_trade_result})")
+                            log_print(f"    Cooldown Active: {rem}m remaining (Last Trade: {last_trade_result})")
                             last_notified_cd_candle = current_candle_time
                         continue
 
@@ -934,12 +977,12 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                     if is_first_run:
                         last_candle_time = current_candle_time
                         is_first_run = False
-                        log_print(f"   ⏳ Startup: Synchronizing with market... Waiting for next candle {current_candle_time} ({human_time})")
+                        log_print(f"    Startup: Synchronizing with market... Waiting for next candle {current_candle_time} ({human_time})")
                         continue
 
                     last_candle_time = current_candle_time
                     asset_name = market_engine.get_asset_name(asset)
-                    log_print(f"\n🔎 Analyzing {asset_name} ({asset}) (New Candle: {current_candle_time} - {human_time})...")
+                    log_print(f"\n Analyzing {asset_name} ({asset}) (New Candle: {current_candle_time} - {human_time})...")
                     current_price = df['close'].iloc[-1]
                     log_print(f"   Price: {current_price}")
                     
@@ -948,7 +991,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
 
                     # --- [v5.1.2] Sideways Guard: Force asset rescan after N consecutive SIDEWAYS candles ---
                     if not decision and ai_engine.get_sideways_rescan_needed(asset):
-                        log_print(f"   🔄 [Sideways Guard] {asset} stuck in SIDEWAYS for {ai_engine.SIDEWAYS_RESCAN_THRESHOLD}+ candles. Banning for 30m & forcing rescan.")
+                        log_print(f"    [Sideways Guard] {asset} stuck in SIDEWAYS for {ai_engine.SIDEWAYS_RESCAN_THRESHOLD}+ candles. Banning for 30m & forcing rescan.")
                         ai_engine.reset_sideways_counter(asset)
                         market_engine.blacklist_asset(asset, duration_secs=1800, reason="Sideways Exhaustion")
                         last_scan_time = 0  # Force immediate scanner trigger on next loop iteration
@@ -970,24 +1013,24 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                         amount = max(config.AMOUNT * final_multiplier, getattr(config, "MIN_STAKE_AMOUNT", 1.0))
                         max_stake = getattr(config, "MAX_STAKE_AMOUNT", 0.0)
                         if max_stake > 0 and amount > max_stake:
-                            log_print(f"   ⚠️ Risk Guard: Stake ${amount:.2f} exceeds Max ${max_stake}. Capping.")
+                            log_print(f"    Risk Guard: Stake ${amount:.2f} exceeds Max ${max_stake}. Capping.")
                             amount = max_stake
                         
                         details = decision.get("details", {})
                         snapshot = details.get("snapshot", {})
-                        log_print(f"   📊 [Snapshot] RSI: {snapshot.get('rsi', 0.0):.2f} | MA_Slope: {snapshot.get('slope', 0.0):.4f}% | ATR: {snapshot.get('atr_pct', 0.0):.4f}% | MACD_Hist: {snapshot.get('macd_hist', 0.0):.4f}")
+                        log_print(f"    [Snapshot] RSI: {snapshot.get('rsi', 0.0):.2f} | MA_Slope: {snapshot.get('slope', 0.0):.4f}% | ATR: {snapshot.get('atr_pct', 0.0):.4f}% | MACD_Hist: {snapshot.get('macd_hist', 0.0):.4f}")
                         
                         strategy_name = decision.get("strategy", "UNKNOWN")
                         
                         if direction not in ["CALL", "PUT"]:
                             reason_str = ", ".join(map(str, details.get('reasons', ['Skip signal'])))
-                            log_print(f"   ℹ️ AI Decision: {direction} ({strategy_name}) | Reason: {reason_str}")
+                            log_print(f"    AI Decision: {direction} ({strategy_name}) | Reason: {reason_str}")
                             dashboard_update("status", f"Skip ({direction})")
                             continue
 
                         reason_str = ", ".join(map(str, details.get('reasons', [])))
-                        log_print(f"   ⚡ Signal: {direction} ({strategy_name}) | Strict MG x{final_multiplier:.2f}")
-                        log_print(f"   📝 Stake: ${amount:.2f} | Reasoning: {reason_str}")
+                        log_print(f"    Signal: {direction} ({strategy_name}) | Strict MG x{final_multiplier:.2f}")
+                        log_print(f"    Stake: ${amount:.2f} | Reasoning: {reason_str}")
                         
                         dashboard_update("martingale_level", min(mg_step, getattr(config, "MAX_MARTINGALE_STEPS", 0)))
                         dashboard_update("current_strategy", strategy_name)
@@ -1000,7 +1043,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                             if current_atr > 0:
                                 is_spike, spike_size, limit = check_tick_velocity(None, current_atr)
                                 if is_spike:
-                                    log_print(f"   🛑 POST-AI BLOCK: Trade rejected. Extreme Tick Velocity detected (Spike: {spike_size:.4f} > Limit: {limit:.4f})")
+                                    log_print(f"    POST-AI BLOCK: Trade rejected. Extreme Tick Velocity detected (Spike: {spike_size:.4f} > Limit: {limit:.4f})")
                                     dashboard_update("status", "Skip (Spike)")
                                     continue
 
@@ -1013,12 +1056,12 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                             gate_lat = details.get("gate_latency", 0.0)
                             exec_lat = trade_exec_data.get("api_latency", 0.0)
                             
-                            log_print(f"   ⏱️ [Latency] AI Analyst: {analyst_lat:.2f}s | Bet Gate: {gate_lat:.2f}s | API Exec: {exec_lat:.1f}s")
+                            log_print(f"    [Latency] AI Analyst: {analyst_lat:.2f}s | Bet Gate: {gate_lat:.2f}s | API Exec: {exec_lat:.1f}s")
                             
                             last_trade_time = time.time()
                             no_trade_council_triggered = False
                             
-                            log_print("   ⏳ Waiting for trade result...")
+                            log_print("    Waiting for trade result...")
                             result = "UNKNOWN"
                             profit = 0.0
                             entry_spot = 0.0
@@ -1039,8 +1082,8 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                             slippage = entry_spot - market_price_pre if entry_spot > 0 and market_price_pre > 0 else 0.0
                             price_diff = exit_spot - entry_spot if entry_spot > 0 and exit_spot > 0 else 0.0
                             
-                            log_print(f"   📉 [Trade] Entry Spot: {entry_spot} | Mkt Price: {market_price_pre} (Slippage: {slippage:.2f})")
-                            log_print(f"   🏆 Result: {result} (${profit}) | Exit: {exit_spot} (Diff: {price_diff:.2f})")
+                            log_print(f"    [Trade] Entry Spot: {entry_spot} | Mkt Price: {market_price_pre} (Slippage: {slippage:.2f})")
+                            log_print(f"    Result: {result} (${profit}) | Exit: {exit_spot} (Diff: {price_diff:.2f})")
                             
                             last_trade_result = result
                             
@@ -1084,19 +1127,19 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                     # --- [v4.1.0] Persistent Martingale Memory ---
                                     next_mg_step = mg_step + 1
                                     if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
-                                        log_print(f"   🛑 Reached Max Martingale Steps ({getattr(config, 'MAX_MARTINGALE_STEPS', 0)}). Resetting stake.")
+                                        log_print(f"    Reached Max Martingale Steps ({getattr(config, 'MAX_MARTINGALE_STEPS', 0)}). Resetting stake.")
                                         reset_martingale_state()
                                     else:
                                         save_martingale_state(next_mg_step)
-                                        log_print(f"   💾 Saved Martingale State: Step {next_mg_step} carried to next trade.")
+                                        log_print(f"    Saved Martingale State: Step {next_mg_step} carried to next trade.")
                                         
-                                    # --- [v5.2.4] Cut and Run Logic — Gate: only at MG Step >= 1 ---
+ # [v5.2.4] cleaned
                                     if mg_step >= 1:
-                                        log_print(f"   ✂️ CUT AND RUN: Loss at MG Step {mg_step}. Banning {asset} for 1 hour.")
+                                        log_print(f"    CUT AND RUN: Loss at MG Step {mg_step}. Banning {asset} for 1 hour.")
                                         market_engine.blacklist_asset(asset)
                                         last_scan_time = 0 # Force immediate scan to switch assets
                                     else:
-                                        log_print(f"   ℹ️ [Cut and Run] Step 0 loss — no ban.")
+                                        log_print(f"    [Cut and Run] Step 0 loss  no ban.")
                                     
                                     current_loss_streak = ds.get("loss_streak", 0)
                                     loss_limit = getattr(config, "MAX_CONSECUTIVE_LOSS_LIMIT", 3)
@@ -1109,18 +1152,18 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                         # Second consecutive loss: check if within 1-hour window
                                         time_since_first_loss = time.time() - asset_first_loss_time.get(asset, 0)
                                         if time_since_first_loss <= 3600:
-                                            # 🛑 CIRCUIT BREAKER TRIGGERED
+ # comment cleaned
                                             asset_pause_until[asset] = time.time() + 3600
                                             resume_time = datetime.datetime.fromtimestamp(asset_pause_until[asset]).strftime("%H:%M:%S")
                                             log_print("")
-                                            log_print("🛑" + "="*60)
-                                            log_print(f"🛑 CIRCUIT BREAKER TRIGGERED!")
-                                            log_print(f"🛑 2 Losses within 1hr on {asset}. Pausing for 2 hours.")
-                                            log_print(f"🛑 Resume Time: {resume_time}")
-                                            log_print("🛑" + "="*60)
+                                            log_print("" + "="*60)
+                                            log_print(f" CIRCUIT BREAKER TRIGGERED!")
+                                            log_print(f" 2 Losses within 1hr on {asset}. Pausing for 2 hours.")
+                                            log_print(f" Resume Time: {resume_time}")
+                                            log_print("" + "="*60)
                                             log_print("")
                                             # Using create_task to prevent blocking the event loop on network issues
-                                            asyncio.create_task(send_telegram_alert(f"🛑 CIRCUIT BREAKER: {asset} paused for 2 hours (2 losses within 1hr). Resume at {resume_time}."))
+                                            asyncio.create_task(send_telegram_alert(f" CIRCUIT BREAKER: {asset} paused for 2 hours (2 losses within 1hr). Resume at {resume_time}."))
                                             dashboard_update("loss_streak", 0)
                                             dashboard_update("status", f"Circuit Breaker ({asset})")
                                             asset_first_loss_time.pop(asset, None)  # Reset the window
@@ -1129,7 +1172,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                             asset_first_loss_time[asset] = time.time()
                                     
                                     if getattr(config, "USE_AI_ANALYST", True) and current_loss_streak < loss_limit:
-                                        log_print("   📉 Analyzing Loss with AI...")
+                                        log_print("    Analyzing Loss with AI...")
                                         try:
                                             market_context = await market_engine.get_market_summary_for_ai(api, asset)
                                             analysis_details = decision.get("details", {}).copy()
@@ -1142,12 +1185,12 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                             if analysis_result:
                                                 trade_rec["analysis"] = analysis_result.get("analysis")
                                         except Exception as e:
-                                            log_print(f"⚠️ Analysis failed: {e}")
+                                            log_print(f" Analysis failed: {e}")
 
                                     dashboard_add_trade(trade_rec)
                                     
                                     if current_loss_streak >= loss_limit:
-                                        log_print(f"🏛️ [AI Council] Consecutive Loss Limit Reached ({current_loss_streak}/{loss_limit})")
+                                        log_print(f" [AI Council] Consecutive Loss Limit Reached ({current_loss_streak}/{loss_limit})")
                                         msg = f"Consecutive Losses Detected: The bot has lost {current_loss_streak} trades in a row."
                                         res_council = await ai_council.resolve_error(msg, f"Market Alert: {asset} showing consistent losses.")
                                         
@@ -1155,7 +1198,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                              paused = True
                                              dashboard_update("status", "Paused (Council Review)")
                                         elif res_council == "ADVICE_GIVEN":
-                                             await send_telegram_alert(f"📉 Consecutive Loss Advisory: Bot reached limit on {asset}.")
+                                             await send_telegram_alert(f" Consecutive Loss Advisory: Bot reached limit on {asset}.")
                                              dashboard_update("loss_streak", 0)
                                              last_trade_time = time.time()
                                         elif res_council == "RESTART_REQUIRED":
@@ -1167,12 +1210,12 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                 dashboard_update("win_rate", f"{wr*100:.1f}%")
                                 dashboard_update("intelligence", intel)
             except Exception as e:
-                log_print(f"⚠️ Candle logic error: {e}")
+                log_print(f" Candle logic error: {e}")
 
         if time.time() - last_summary_time > 3600:
             last_summary_time = time.time()
             ds = dashboard_get_state()
-            log_print(f"\n📊 [Hourly Summary] Win: {ds.get('total_wins', 0)} | Loss: {ds.get('total_losses', 0)} | PNL: ${ds.get('profit', 0.0):.2f}")
+            log_print(f"\n [Hourly Summary] Win: {ds.get('total_wins', 0)} | Loss: {ds.get('total_losses', 0)} | PNL: ${ds.get('profit', 0.0):.2f}")
 
         now_local = datetime.datetime.now()
         today_str = now_local.strftime("%Y-%m-%d")
@@ -1183,12 +1226,12 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
 
         time_until_scan = (min(last_scan_time + getattr(config, "ASSET_SCAN_INTERVAL_MINS", 60) * 60, last_trade_time + getattr(config, "ASSET_SCAN_INTERVAL_NO_TRADE_MINS", 10) * 60)) - time.time()
         
-        icons = ["◐", "◓", "◑", "◒"]
+        icons = ["", "", "", ""]
         icon = icons[int(time.time() * 2) % len(icons)]
-        status_text = f"📡 [{config.ACTIVE_ASSET}] {config.ACTIVE_PROFILE}"
+        status_text = f" [{config.ACTIVE_ASSET}] {config.ACTIVE_PROFILE}"
         
         if df is None:
-            status_text += " | ⚠️ Reconnecting..."
+            status_text += " |  Reconnecting..."
         else:
             try:
                 current_price = df['close'].iloc[-1]
@@ -1196,9 +1239,9 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
             except: pass
             if time_until_scan > 0:
                 mins, secs = int(time_until_scan // 60), int(time_until_scan % 60)
-                status_text += f" | ⏳ {mins}m {secs}s..."
+                status_text += f" |  {mins}m {secs}s..."
             else:
-                status_text += " | 🔎 Scanning..."
+                status_text += " |  Scanning..."
 
         sys.stdout.write(f"\r   {status_text} {icon}   ")
         sys.stdout.flush()
@@ -1207,20 +1250,20 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
 async def main():
     # [v3.11.52] Prefetch THB Rate for Banner
     thb_rate = get_crypto_thb_rate(config.CURRENCY) if getattr(config, "ENABLE_THB_CONVERSION", True) else 0.0
-    thb_suffix = lambda val: f" (฿{val * thb_rate:,.2f})" if thb_rate > 0 else ""
+    thb_suffix = lambda val: f" ({val * thb_rate:,.2f})" if thb_rate > 0 else ""
 
     # --- Startup Banner ---
     print("\n" + "="*50)
-    log_print(f"🔥 DERIV AI TRADING BOT (V{config.BOT_VERSION})")
+    log_print(f" DERIV AI TRADING BOT (V{config.BOT_VERSION})")
     print("="*50)
-    log_print(f"   👤 Account: {config.DERIV_ACCOUNT_TYPE.upper()} (App ID: {config.DERIV_APP_ID})")
-    log_print(f"   📉 Asset: {config.ACTIVE_ASSET}")
-    log_print(f"   🧠 AI Provider: {config.AI_PROVIDER} (Routing: {config.ENABLE_AI_TASK_ROUTING})")
-    log_print(f"   ⚙️  Profile: {config.ACTIVE_PROFILE}")
-    log_print(f"   💰 Stake: {config.AMOUNT} {config.CURRENCY}{thb_suffix(config.AMOUNT)} (Stop Loss: {config.MAX_DAILY_LOSS_PERCENT}%)")
+    log_print(f"    Account: {config.DERIV_ACCOUNT_TYPE.upper()} (App ID: {config.DERIV_APP_ID})")
+    log_print(f"    Asset: {config.ACTIVE_ASSET}")
+    log_print(f"    AI Provider: {config.AI_PROVIDER} (Routing: {config.ENABLE_AI_TASK_ROUTING})")
+    log_print(f"     Profile: {config.ACTIVE_PROFILE}")
+    log_print(f"    Stake: {config.AMOUNT} {config.CURRENCY}{thb_suffix(config.AMOUNT)} (Stop Loss: {config.MAX_DAILY_LOSS_PERCENT}%)")
     if getattr(config, "INITIAL_CAPITAL", 0) > 0:
-        log_print(f"   🏦 Capital: {config.INITIAL_CAPITAL} {config.CURRENCY}{thb_suffix(config.INITIAL_CAPITAL)} (Profit Tracking Base)")
-    log_print(f"   🏷️  Status: v{config.BOT_VERSION} (AI Council Auto-Fixer)")
+        log_print(f"    Capital: {config.INITIAL_CAPITAL} {config.CURRENCY}{thb_suffix(config.INITIAL_CAPITAL)} (Profit Tracking Base)")
+    log_print(f"     Status: v{config.BOT_VERSION} (AI Council Auto-Fixer)")
     print("="*50 + "\n")
     
     api = DerivAPI(app_id=config.DERIV_APP_ID)
@@ -1233,34 +1276,34 @@ async def main():
         ai_engine.run_logic_self_audit()
 
         # 1. Authorize with enhanced error handling
-        log_print("🔐 Attempting API authorization...")
+        log_print(" Attempting API authorization...")
         
         # Validate token format first
         if not config.DERIV_API_TOKEN or len(config.DERIV_API_TOKEN) < 10:
-            log_print("❌ Invalid API token format. Please check your DERIV_API_TOKEN in .env")
+            log_print(" Invalid API token format. Please check your DERIV_API_TOKEN in .env")
             return
             
         authorize = await api.authorize(config.DERIV_API_TOKEN)
         if "error" in authorize:
-            log_print(f"❌ Authorization Failed: {authorize['error']['message']}")
+            log_print(f" Authorization Failed: {authorize['error']['message']}")
             if authorize['error']['code'] == 'InvalidToken':
-                log_print("   ⚠️ Please check your DERIV_API_TOKEN in .env")
-                log_print("   ℹ️ The bot cannot proceed without a valid token.")
+                log_print("    Please check your DERIV_API_TOKEN in .env")
+                log_print("    The bot cannot proceed without a valid token.")
                 return
             return
             
-        log_print(f"✅ Authorized. Balance: {authorize['authorize']['balance']} {config.CURRENCY}{thb_suffix(float(authorize['authorize']['balance']))}")
+        log_print(f" Authorized. Balance: {authorize['authorize']['balance']} {config.CURRENCY}{thb_suffix(float(authorize['authorize']['balance']))}")
     except Exception as e:
         if "ResponseError" in str(type(e)):
-            log_print(f"❌ API Response Error: {str(e)}")
-            log_print("   💡 Possible causes:")
-            log_print("   • Invalid or expired API token")
-            log_print("   • Network connectivity issues")
-            log_print("   • Deriv server maintenance")
-            log_print("   • Rate limiting or API quota exceeded")
-            log_print("   ℹ️ Please verify your token and try again later")
+            log_print(f" API Response Error: {str(e)}")
+            log_print("    Possible causes:")
+            log_print("    Invalid or expired API token")
+            log_print("    Network connectivity issues")
+            log_print("    Deriv server maintenance")
+            log_print("    Rate limiting or API quota exceeded")
+            log_print("    Please verify your token and try again later")
         else:
-            log_print(f"❌ Unexpected error during authorization: {str(e)}")
+            log_print(f" Unexpected error during authorization: {str(e)}")
         return
     
     try:
@@ -1268,10 +1311,10 @@ async def main():
         is_restored = dashboard_init_state(balance)
         if is_restored:
             restored_profit = dashboard_get_state()['profit']
-            log_print(f"♻️  Session RESTORED (Profit: {restored_profit:.4f} {config.CURRENCY}{thb_suffix(restored_profit)})")
+            log_print(f"  Session RESTORED (Profit: {restored_profit:.4f} {config.CURRENCY}{thb_suffix(restored_profit)})")
             await check_global_stop_loss(restored_profit)
         else:
-            log_print(f"🆕  New Session Started")
+            log_print(f"  New Session Started")
         dashboard_update("status", "Running")
         dashboard_update("ai_provider", config.AI_PROVIDER)
         dashboard_update("account_type", config.DERIV_ACCOUNT_TYPE) # [v3.7.7]
@@ -1293,18 +1336,18 @@ async def main():
         return # Exit main after bot completion
 
     except Exception as e:
-        log_print(f"❌ Critical error in main loop: {e}")
+        log_print(f" Critical error in main loop: {e}")
         import traceback
         traceback_print = traceback.format_exc()
         log_to_file(traceback_print)
         
         # Trigger AI Council if enabled
         if getattr(config, "ENABLE_AI_COUNCIL", True):
-            log_print("🏛️ AI Council: Diagnosing critical error...")
+            log_print(" AI Council: Diagnosing critical error...")
             try:
                 await ai_council.resolve_error(str(e), traceback_print)
             except Exception as council_err:
-                log_print(f"   ⚠️ AI Council failed: {council_err}")
+                log_print(f"    AI Council failed: {council_err}")
         
         await asyncio.sleep(5)
 last_activity_time = 0
@@ -1312,11 +1355,11 @@ last_activity_time = 0
 async def watchdog_task():
     """[v4.1.4] Monitors the main loop. If stuck for >240s, kills the process."""
     global last_activity_time
-    log_print("   🐕 Watchdog started (timeout: 240s).")
+    log_print("    Watchdog started (timeout: 240s).")
     while True:
         await asyncio.sleep(10)
         if time.time() - last_activity_time > 240:
-            msg = "💀 Watchdog: Main loop FROZEN for 240s. No real data received. Killing process to trigger auto-restart."
+            msg = " Watchdog: Main loop FROZEN for 240s. No real data received. Killing process to trigger auto-restart."
             log_print(msg)
             log_to_file(msg)
             # Force Kill Process (Auto-restart via run.bat loop)
@@ -1326,4 +1369,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        log_print("🛑 Bot Stopped by User")
+        log_print(" Bot Stopped by User")

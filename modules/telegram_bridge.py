@@ -1,6 +1,14 @@
-﻿"""
-ðŸ“± Telegram Bridge (v3.7.9)
-Bridging the gap between you and your Deriv Bot.
+"""
+Telegram Bridge (v3.12.4)
+[v3.12.4] Bug Fixes & New Commands:
+- Fix: _send_trade_alert had orphaned `entry` NameError — crashed every WIN/LOSS notification
+- Fix: _send_council_alert was completely missing — notify_council crashed on every council event
+- Fix: /status always showed WR "0%" — now calculates from total_wins/total_losses
+- Fix: _send_command_async now uses atomic write (tmp + os.replace)
+- New: /reset command — unban all assets + reset MG state to step 0
+- Improve: /status now shows MG step, loss/win streak, regime, strategy
+- Improve: /sumlog reads last 10000 chars (was 5000)
+- Improve: /help shows full command list with descriptions
 """
 
 import os
@@ -9,12 +17,15 @@ import json
 import asyncio
 import logging
 import html
+import shutil
 from datetime import datetime
+import psutil
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
+
 import config
-from .ai_providers import call_ai_raw_with_failover # [v3.7.2] For /sumlog summary
-from .utils import get_crypto_thb_rate # [v3.11.52] Real-time conversion
+from .ai_providers import call_ai_raw_with_failover
+from .utils import get_crypto_thb_rate
 
 # Setup Logging
 logging.basicConfig(
@@ -22,7 +33,8 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-import psutil # [v3.11.33] To check if PID is still alive
+# [v5.5.x] Global lock for atomic/thread-safe checkpointing
+checkpoint_lock = asyncio.Lock()
 
 # [v3.11.25] Align with ROOT_DIR
 ROOT = getattr(config, "ROOT_DIR", os.getcwd())
@@ -32,340 +44,6 @@ COMMAND_FILE = os.path.join(ROOT, "logs", "commands.json")
 PENDING_FILE = os.path.join(ROOT, "logs", "council", "pending_proposals.json")
 BRIDGE_CHECKPOINT_FILE = os.path.join(ROOT, "logs", "bridge_checkpoint.json")
 
-def _html_escape(text):
-    safe = html.escape("" if text is None else str(text))
-    # Defensive escapes for Telegram HTML parse stability
-    safe = safe.replace("_", "&#95;").replace("*", "&#42;")
-    return safe
-
-def _load_bridge_checkpoint():
-    try:
-        if os.path.exists(BRIDGE_CHECKPOINT_FILE):
-            with open(BRIDGE_CHECKPOINT_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    return data
-    except Exception:
-        pass
-    return {"last_pos": 0, "last_ts": 0.0}
-
-def _save_bridge_checkpoint(last_pos=None, last_ts=None):
-    try:
-        os.makedirs(os.path.dirname(BRIDGE_CHECKPOINT_FILE), exist_ok=True)
-        data = _load_bridge_checkpoint()
-        if last_pos is not None:
-            data["last_pos"] = int(last_pos)
-        if last_ts is not None:
-            data["last_ts"] = float(last_ts)
-        with open(BRIDGE_CHECKPOINT_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-
-def _acquire_bridge_lock():
-    """Ensures only one instance of the bridge is running (PID lock)."""
-    try:
-        os.makedirs(os.path.dirname(BRIDGE_LOCK_FILE), exist_ok=True)
-        if os.path.exists(BRIDGE_LOCK_FILE):
-            with open(BRIDGE_LOCK_FILE, "r") as f:
-                try:
-                    old_pid = int(f.read().strip())
-                    if psutil.pid_exists(old_pid):
-                        try:
-                            proc = psutil.Process(old_pid)
-                            name = (proc.name() or "").lower()
-                            cmdline = " ".join(proc.cmdline()).lower()
-                            is_python = ("python" in name) or ("python" in cmdline)
-                            is_bridge = "telegram_bridge" in cmdline
-                            if is_python and is_bridge:
-                                print(f"âŒ Error: Telegram Bridge already running (PID {old_pid}). Exiting.")
-                                return False
-                        except Exception:
-                            # If we can't inspect the process, be conservative and avoid double-run
-                            print(f"âŒ Error: Telegram Bridge already running (PID {old_pid}). Exiting.")
-                            return False
-                except:
-                    pass
-        
-        # Write current PID
-        with open(BRIDGE_LOCK_FILE, "w") as f:
-            f.write(str(os.getpid()))
-        return True
-    except Exception as e:
-        print(f"âš ï¸ Lock warning: {e}")
-        return True # Fallback to continue if we can't write lock
-
-def _release_bridge_lock():
-    """Cleans up the lock file on exit."""
-    try:
-        if os.path.exists(BRIDGE_LOCK_FILE):
-            os.remove(BRIDGE_LOCK_FILE)
-    except: pass
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/start command: Resume bot."""
-    await update.message.reply_text("ðŸš€ Sending START command to bot...")
-    _send_command("START")
-
-async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/stop command: Pause bot."""
-    await update.message.reply_text("ðŸ›‘ Sending STOP command to bot...")
-    _send_command("STOP")
-
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/status command: Show bot status."""
-    try:
-        if not os.path.exists(DASHBOARD_STATE_FILE):
-            await update.message.reply_text("âš ï¸ Dashboard state file not found. Is the bot running?")
-            return
-
-        with open(DASHBOARD_STATE_FILE, 'r', encoding='utf-8') as f:
-            state = json.load(f)
-
-        profit = state.get("profit", 0.0)
-        balance = state.get("balance", 0.0)
-        win_rate = state.get("win_rate", "0%")
-        asset = state.get("current_asset", "Unknown")
-        intel = state.get("intelligence", {}).get("level_name", "Unknown")
-        acc_type = state.get("account_type", "demo").upper()
-        
-        icon = "ðŸ’°" if acc_type == "REAL" else "ðŸ§ª"
-        
-        # [v3.11.52] Currency Formatting (XRP to THB)
-        currency = getattr(config, "CURRENCY", "XRP")
-        if getattr(config, "ENABLE_THB_CONVERSION", True):
-            thb_rate = await asyncio.to_thread(get_crypto_thb_rate, currency)
-        else:
-            thb_rate = 0.0
-        
-        balance_thb_str = f" (à¸¿{(balance * thb_rate):,.2f})" if thb_rate > 0 else ""
-        profit_thb_str = f" (à¸¿{(profit * thb_rate):,.2f})" if thb_rate > 0 else ""
-
-        msg = (
-            f"ðŸ¤– **Deriv Bot Status** ({icon} `{acc_type}`)\n"
-            f"Target: `{asset}`\n"
-            f"Balance: `{balance:.4f} {currency}`{balance_thb_str}\n"
-            f"Profit Today: `{profit:+.4f} {currency}`{profit_thb_str} ({'âœ…' if profit >= 0 else 'âŒ'})\n"
-            f"Win Rate: `{win_rate}`\n"
-            f"Brain: {intel}\n"
-            f"Last Update: {time.ctime(state.get('updated_at', 0))}"
-        )
-        await update.message.reply_markdown(msg)
-
-    except Exception as e:
-        await update.message.reply_text(f"âŒ Error reading status: {e}")
-
-async def logcon(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/logcon command: Show last 30 lines of console log."""
-    try:
-        date_str = time.strftime("%Y-%m-%d")
-        log_file = os.path.join(ROOT, "logs", "console", f"console_log_{date_str}.txt")
-        
-        if not os.path.exists(log_file):
-            await update.message.reply_text("âš ï¸ Console log not found for today.")
-            return
-
-        with open(log_file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            last_lines = lines[-30:] # Last 30 lines
-        
-        msg = "".join(last_lines)
-        # Split message if too long for Telegram (4096 chars)
-        if len(msg) > 4000:
-            msg = "..." + msg[-4000:]
-            
-        await update.message.reply_text(f"ðŸ“‘ **Console Logs (Last 30 lines):**\n```\n{msg}\n```", parse_mode='Markdown')
-    except Exception as e:
-        await update.message.reply_text(f"âŒ Error reading logs: {e}")
-
-async def sumlog(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/sumlog command: Summarize latest console logs using AI."""
-    await update.message.reply_text("ðŸ” Reading and summarizing latest logs... Please wait.")
-    
-    try:
-        log_content = _get_latest_run_log()
-        if not log_content:
-            await update.message.reply_text("âš ï¸ No recent logs found for the current run.")
-            return
-            
-        # [v3.7.2] Define Prompt for AI Summary
-        prompt = f"""
-        Extract key events from the following Deriv Trading Bot console logs.
-        Focus on:
-        1. Startup status (Login, Balance, etc.)
-        2. Signal detections and AI Confidence scores.
-        3. Trade results (Profit/Loss).
-        4. Any errors, warnings, or AI Council interventions.
-
-        LOGS:
-        {log_content}
-
-        Summarize in Thai language using bullet points and emojis. Keep it concise.
-        """
-        
-        summary = call_ai_raw_with_failover(prompt, task_name="LOG_SUMMARY")
-        
-        if not summary:
-            await update.message.reply_text("âŒ Failed to generate log summary using AI.")
-            return
-
-        await update.message.reply_markdown(f"ðŸ“‹ **à¸ªà¸£à¸¸à¸›à¸à¸²à¸£à¸—à¸³à¸‡à¸²à¸™à¸¥à¹ˆà¸²à¸ªà¸¸à¸” (Log Summary)**\n\n{summary}")
-
-    except Exception as e:
-        await update.message.reply_text(f"âŒ Error during /sumlog: {e}")
-
-async def council_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/council command: Send instruction to AI Council."""
-    if not context.args:
-        await update.message.reply_text("ðŸ›ï¸ Please provide a command, e.g., `/council change stake to 1.0`", parse_mode='Markdown')
-        return
-    
-    cmd_text = " ".join(context.args)
-    
-    # [v3.7.9] Direct AI Provider Targeting (e.g., /council @gemini analyze)
-    target_provider = None
-    if cmd_text.startswith("@"):
-        parts = cmd_text.split(" ", 1)
-        potential_target = parts[0][1:] # Remove @
-        if potential_target:
-            target_provider = potential_target
-            cmd_text = parts[1] if len(parts) > 1 else ""
-    
-    if target_provider:
-        payload = json.dumps({"text": cmd_text, "target": target_provider})
-        await update.message.reply_text(f"ðŸ›ï¸ Forwarding to **{target_provider}**: `{cmd_text}`", parse_mode='Markdown')
-        _send_command("COUNCIL", payload=payload)
-    else:
-        await update.message.reply_text(f"ðŸ›ï¸ Forwarding to AI Council: `{cmd_text}`", parse_mode='Markdown')
-        _send_command("COUNCIL", payload=cmd_text)
-
-async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/logs command: List log files in logs/console for download."""
-    try:
-        log_dir = os.path.join(ROOT, "logs", "console")
-        if not os.path.isdir(log_dir):
-            await update.message.reply_text("âš ï¸ Log directory not found.")
-            return
-
-        files = sorted(
-            [f for f in os.listdir(log_dir) if f.endswith(".txt")],
-            reverse=True  # newest first
-        )
-
-        if not files:
-            await update.message.reply_text("âš ï¸ No log files found.")
-            return
-
-        # Build inline keyboard (1 button per row, max 10 files)
-        keyboard = []
-        for f in files[:10]:
-            size_bytes = os.path.getsize(os.path.join(log_dir, f))
-            if size_bytes >= 1024 * 1024:
-                size_str = f"{size_bytes / (1024*1024):.1f}MB"
-            else:
-                size_str = f"{size_bytes / 1024:.0f}KB"
-            keyboard.append([InlineKeyboardButton(f"ðŸ“„ {f} ({size_str})", callback_data=f"DL|{f}")])
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("ðŸ“‚ **à¹€à¸¥à¸·à¸­à¸à¹„à¸Ÿà¸¥à¹Œ log à¸—à¸µà¹ˆà¸•à¹‰à¸­à¸‡à¸à¸²à¸£ download:**", reply_markup=reply_markup, parse_mode='Markdown')
-
-    except Exception as e:
-        await update.message.reply_text(f"âŒ Error listing logs: {e}")
-
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle approval/rejection/download button clicks."""
-    query = update.callback_query
-    await query.answer()
-    
-    data = query.data # format: "APPROVE|prop_id" or "REJECT|prop_id" or "DL|filename"
-    if "|" not in data: return
-    
-    action, prop_id = data.split("|", 1)
-    
-    if action == "DL":
-        # --- Download log file ---
-        filename = prop_id
-        # Security: prevent path traversal
-        if ".." in filename or "/" in filename or "\\" in filename:
-            await query.edit_message_text(text="âŒ Invalid filename.")
-            return
-        file_path = os.path.join(ROOT, "logs", "console", filename)
-        if not os.path.isfile(file_path):
-            await query.edit_message_text(text=f"âš ï¸ File not found: `{filename}`", parse_mode='Markdown')
-            return
-        try:
-            await query.edit_message_text(text=f"ðŸ“¤ Sending `{filename}`...", parse_mode='Markdown')
-            with open(file_path, 'rb') as f:
-                await query.message.reply_document(document=f, filename=filename)
-        except Exception as e:
-            await query.message.reply_text(f"âŒ Failed to send file: {e}")
-        return
-    elif action == "APPROVE":
-        _send_command("APPROVE", payload=prop_id)
-        await query.edit_message_text(text=f"âœ… **Approved Proposal:** `{prop_id}`\nProcessing...", parse_mode='Markdown')
-    elif action == "REJECT":
-        _send_command("REJECT", payload=prop_id)
-        await query.edit_message_text(text=f"âŒ **Rejected Proposal:** `{prop_id}`", parse_mode='Markdown')
-
-def _get_latest_run_log():
-    """Finds current day console log and extracts the latest run session."""
-    try:
-        date_str = time.strftime("%Y-%m-%d")
-        log_file = os.path.join("logs", "console", f"console_log_{date_str}.txt")
-        
-        if not os.path.exists(log_file):
-            return None
-
-        with open(log_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        # Find the last "Startup Banner" occurrence
-        # The banner in bot.py contains "ðŸ”¥ DERIV AI TRADING BOT"
-        marker = "ðŸ”¥ DERIV AI TRADING BOT"
-        sessions = content.split(marker)
-        
-        if len(sessions) < 2:
-            return content[-2000:] # Fallback to last 2000 chars if no marker found
-
-        latest_run = sessions[-1]
-        
-        # [v3.7.3] Include tail of previous session if current session is short OR to see restart reason
-        prev_context = ""
-        if len(sessions) >= 2:
-            prev_context = f"\n--- [CONTEXT FROM PREVIOUS RUN (Restart Reason?)] ---\n...{sessions[-2][-2000:]}\n\n"
-            
-        full_session = prev_context + marker + latest_run
-        return full_session[-6000:] # Increased limit for better context awareness
-        
-    except Exception as e:
-        logging.error(f"Error in _get_latest_run_log: {e}")
-        return None
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = (
-        "ðŸ› ï¸ **Telegram Commander**\n"
-        "/start - Resume trading\n"
-        "/stop - Pause trading\n"
-        "/status - Check bot health\n"
-        "/sumlog - Summarize recent logs (AI)\n"
-        "/logcon - See raw console logs\n"
-        "/logs - Download log files\n"
-        "/council <cmd> - Command AI Council\n"
-        "/help - Show this menu"
-    )
-    await update.message.reply_markdown(msg)
-
-def _send_command(cmd, payload=None):
-    """Writes command to shared file."""
-    try:
-        data = {"command": cmd, "timestamp": time.time(), "source": "TELEGRAM"}
-        if payload:
-            data["payload"] = payload
-        with open(COMMAND_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f)
-    except Exception as e:
-        logging.error(f"Failed to write command: {e}")
-
 TRADE_LOG = os.path.join(ROOT, "logs", "trades", "trade_history.jsonl")
 SUMMARY_LOG = os.path.join(ROOT, "logs", "dashboard", "summary_history.jsonl")
 COUNCIL_LOG = os.path.join(ROOT, "logs", "council", "history.json")
@@ -374,531 +52,435 @@ COUNCIL_LOG = os.path.join(ROOT, "logs", "council", "history.json")
 LAST_TRADE_TIME = time.time()
 LAST_INACTIVITY_REPORT = 0
 
-async def monitor_pending(application):
-    """Background task to monitor pending proposals and alert user with buttons."""
-    if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
-        return
+def _html_escape(text):
+    safe = html.escape("" if text is None else str(text))
+    return safe.replace("_", "&#95;").replace("*", "&#42;")
 
-    last_known_pending = set()
-    # Sync to current pending to avoid spamming old history on restart
-    if os.path.exists(PENDING_FILE):
+async def _load_json_async(file_path):
+    def _read():
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return None
+    try: return await asyncio.to_thread(_read)
+    except: return None
+
+def _load_bridge_checkpoint():
+    """Synchronous helper for loading checkpoint data."""
+    if os.path.exists(BRIDGE_CHECKPOINT_FILE):
         try:
-            with open(PENDING_FILE, 'r', encoding='utf-8') as f:
-                last_known_pending = set(json.load(f).keys())
+            with open(BRIDGE_CHECKPOINT_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict): return data
         except: pass
+    return {"last_pos": 0, "last_ts": 0.0, "last_summary_count": 0}
 
-    logging.info(f"ðŸ›ï¸ Pending monitor loop started (Initial: {len(last_known_pending)})")
+async def _save_bridge_checkpoint(last_pos=None, last_ts=None, last_summary_count=None):
+    async with checkpoint_lock:
+        def _write():
+            os.makedirs(os.path.dirname(BRIDGE_CHECKPOINT_FILE), exist_ok=True)
+            data = _load_bridge_checkpoint()
+            if last_pos is not None: data["last_pos"] = int(last_pos)
+            if last_ts is not None: data["last_ts"] = float(last_ts)
+            if last_summary_count is not None: data["last_summary_count"] = int(last_summary_count)
+            tmp_file = BRIDGE_CHECKPOINT_FILE + ".tmp"
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_file, BRIDGE_CHECKPOINT_FILE)
+        try: await asyncio.to_thread(_write)
+        except Exception as e: logging.error(f"Checkpoint save error: {e}")
 
+async def _send_command_async(cmd, payload=None):
+    # [v5.6.3] Fix: use atomic write (tmp + os.replace) to prevent partial JSON reads
+    def _write():
+        data = {"command": cmd, "timestamp": time.time(), "source": "TELEGRAM"}
+        if payload: data["payload"] = payload
+        os.makedirs(os.path.dirname(COMMAND_FILE), exist_ok=True)
+        tmp = COMMAND_FILE + ".tmp"
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, COMMAND_FILE)
+    try: await asyncio.to_thread(_write)
+    except Exception as e: logging.error(f"Command write error: {e}")
+
+def _acquire_bridge_lock():
+    try:
+        os.makedirs(os.path.dirname(BRIDGE_LOCK_FILE), exist_ok=True)
+        if os.path.exists(BRIDGE_LOCK_FILE):
+            with open(BRIDGE_LOCK_FILE, "r") as f:
+                try:
+                    old_pid = int(f.read().strip())
+                    if psutil.pid_exists(old_pid):
+                        proc = psutil.Process(old_pid)
+                        if "telegram_bridge" in " ".join(proc.cmdline()).lower():
+                            print(f" Error: Telegram Bridge already running (PID {old_pid}).")
+                            return False
+                except: pass
+        with open(BRIDGE_LOCK_FILE, "w") as f: f.write(str(os.getpid()))
+        return True
+    except: return True
+
+def _release_bridge_lock():
+    try:
+        if os.path.exists(BRIDGE_LOCK_FILE): os.remove(BRIDGE_LOCK_FILE)
+    except: pass
+
+# --- HANDLERS ---
+
+async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_html(" Sending <b>START</b> command...")
+    await _send_command_async("START")
+
+async def stop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_html(" Sending <b>STOP</b> command...")
+    await _send_command_async("STOP")
+
+async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    state = await _load_json_async(DASHBOARD_STATE_FILE)
+    if not state:
+        await update.message.reply_html("⚠️ Bot state currently unavailable.")
+        return
+    profit   = state.get("profit", 0.0)
+    balance  = state.get("balance", 0.0)
+    currency = getattr(config, "CURRENCY", "XRP")
+    thb_rate = await asyncio.to_thread(get_crypto_thb_rate, currency) if getattr(config, "ENABLE_THB_CONVERSION", True) else 0.0
+    def to_thb(v): return f" (฿{v*thb_rate:,.2f})" if thb_rate > 0 else ""
+
+    # [v5.6.3] Fix: calculate WR from actual wins/losses (dashboard_state has no 'win_rate' key)
+    w  = state.get("total_wins", 0)
+    l  = state.get("total_losses", 0)
+    wr = f"{w/(w+l)*100:.1f}% (W:{w}/L:{l})" if (w + l) > 0 else "N/A"
+
+    # [v5.6.3] Add MG step, streaks, regime for actionable status
+    mg_step      = state.get("martingale_level", 0)
+    loss_streak  = state.get("loss_streak", 0)
+    win_streak   = state.get("win_streak", 0)
+    regime       = state.get("market_regime", state.get("ai_regime", "UNKNOWN"))
+    strategy     = state.get("current_strategy", "-")
+    bot_status   = state.get("status", "-")
+    mg_icon      = "🟢" if mg_step == 0 else ("🟡" if mg_step == 1 else "🔴")
+    streak_line  = f"🔥 Win: {win_streak}" if win_streak > 0 else f"❄️ Loss: {loss_streak}" if loss_streak > 0 else "➖ Streak: 0"
+
+    msg = (
+        f"📊 <b>Bot Status</b> ({state.get('account_type','demo').upper()})\n"
+        f"🔹 Status: <code>{_html_escape(bot_status)}</code>\n"
+        f"🎯 Asset: <code>{state.get('current_asset','-')}</code>  Strategy: <code>{strategy}</code>\n"
+        f"📉 Regime: <code>{regime}</code>\n"
+        f"─────────────────\n"
+        f"💰 Balance: <code>{balance:.4f} {currency}</code>{to_thb(balance)}\n"
+        f"📈 Profit: <code>{profit:+.4f} {currency}</code>{to_thb(profit)}\n"
+        f"🏆 Win Rate: <code>{wr}</code>\n"
+        f"─────────────────\n"
+        f"{mg_icon} MG Step: <code>{mg_step}</code>  {streak_line}\n"
+        f"🕐 Updated: {time.strftime('%H:%M:%S', time.localtime(state.get('updated_at', 0)))}"
+    )
+    await update.message.reply_html(msg)
+
+async def tune_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    asset = " ".join(context.args).strip()
+    if not asset:
+        state = await _load_json_async(DASHBOARD_STATE_FILE)
+        asset = state.get("current_asset", "") if state else ""
+    if not asset:
+        await update.message.reply_html(" Usage: /tune [asset]")
+        return
+    await update.message.reply_html(f" Analysis request sent for <b>{asset}</b>...")
+    await _send_command_async("COUNCIL", payload=f"Analyze and optimize config for {asset} based on current chart.")
+
+async def reset_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[v5.6.3] New command: /reset — unban all assets + reset MG state to step 0."""
+    def _do_reset():
+        results = []
+        # 1. Clear asset blacklist
+        failed_path = os.path.join(ROOT, "logs", "market", "failed_assets.json")
+        try:
+            os.makedirs(os.path.dirname(failed_path), exist_ok=True)
+            tmp = failed_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({}, f)
+                f.flush(); os.fsync(f.fileno())
+            os.replace(tmp, failed_path)
+            results.append("✅ Asset blacklist cleared")
+        except Exception as e:
+            results.append(f"❌ Blacklist clear failed: {e}")
+        # 2. Reset Martingale state
+        trade_state_path = os.path.join(ROOT, "logs", "dashboard", "trade_state.json")
+        try:
+            os.makedirs(os.path.dirname(trade_state_path), exist_ok=True)
+            state_data = {"mg_step": 0, "account_type": "real", "last_loss_timestamp": 0.0}
+            tmp = trade_state_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(state_data, f)
+                f.flush(); os.fsync(f.fileno())
+            os.replace(tmp, trade_state_path)
+            results.append("✅ MG state reset to Step 0")
+        except Exception as e:
+            results.append(f"❌ MG reset failed: {e}")
+        return results
+    await update.message.reply_html("🔄 Resetting bot state...")
+    results = await asyncio.to_thread(_do_reset)
+    msg = "🔧 <b>Reset Complete</b>\n" + "\n".join(results)
+    await update.message.reply_html(msg)
+
+async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = (
+        "🤖 <b>Bot Commander</b>\n\n"
+        "/status — แสดงสถานะ balance, WR, MG step\n"
+        "/reset  — unban assets + reset MG step 0\n"
+        "/tune   — ให้ AI Council วิเคราะห์ config\n"
+        "/sumlog — สรุป log วันนี้ด้วย AI\n"
+        "/logcon — แสดง 30 บรรทัดสุดท้ายของ log\n"
+        "/logs   — ดาวน์โหลด log file\n"
+        "/start  — ส่งคำสั่ง START bot\n"
+        "/stop   — ส่งคำสั่ง STOP bot\n"
+        "/help   — แสดงเมนูนี้"
+    )
+    await update.message.reply_html(msg)
+
+async def sumlog_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_html("🧠 Generating AI Summary...")
+    def _read():
+        date_str = time.strftime("%Y-%m-%d")
+        path = os.path.join(ROOT, "logs", "console", f"console_log_{date_str}.txt")
+        if not os.path.exists(path): return None
+        # [v5.6.3] Increased from 5000 → 10000 chars: busy days need more context
+        with open(path, 'r', encoding='utf-8') as f: return f.read()[-10000:]
+    log = await asyncio.to_thread(_read)
+    if not log:
+        await update.message.reply_html("⚠️ No logs found.")
+        return
+    summary = await asyncio.to_thread(call_ai_raw_with_failover, f"Summarize in Thai:\n{log}", "LOG_SUMMARY")
+    await update.message.reply_html(f"📋 <b>Summary</b>\n\n{_html_escape(summary)}")
+
+async def logcon_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def _read():
+        date_str = time.strftime("%Y-%m-%d")
+        path = os.path.join(ROOT, "logs", "console", f"console_log_{date_str}.txt")
+        if not os.path.exists(path): return "No logs found."
+        with open(path, 'r', encoding='utf-8') as f: return "".join(f.readlines()[-30:])
+    msg = await asyncio.to_thread(_read)
+    await update.message.reply_html(f" <b>Recent Logs</b>\n<pre>{html.escape(msg[-3800:])}</pre>")
+
+async def logs_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    log_dir = os.path.join(ROOT, "logs", "console")
+    files = sorted([f for f in os.listdir(log_dir) if f.endswith(".txt")], reverse=True)[:10]
+    keyboard = [[InlineKeyboardButton(f" {f}", callback_data=f"DL|{f}")] for f in files]
+    await update.message.reply_html(" Choose log:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if "|" not in query.data: return
+    action, prop_id = query.data.split("|", 1)
+    if action == "DL":
+        path = os.path.join(ROOT, "logs", "console", prop_id)
+        if os.path.isfile(path) and ".." not in prop_id:
+            with open(path, 'rb') as f: await query.message.reply_document(document=f, filename=prop_id)
+    elif action == "APPROVE":
+        await _send_command_async("APPROVE", payload=prop_id)
+        await query.edit_message_text(text=f" Approved: <code>{prop_id}</code>", parse_mode='HTML')
+    elif action == "REJECT":
+        await _send_command_async("REJECT", payload=prop_id)
+        await query.edit_message_text(text=f" Rejected: <code>{prop_id}</code>", parse_mode='HTML')
+
+# --- TASKS ---
+
+async def monitor_pending(application):
+    last_ids = set()
     while True:
         try:
-            if os.path.exists(PENDING_FILE):
-                with open(PENDING_FILE, 'r', encoding='utf-8') as f:
-                    pending = json.load(f)
-                
-                current_ids = set(pending.keys())
-                new_ids = current_ids - last_known_pending
-                
-                for pid in new_ids:
-                    prop_data = pending[pid]
-                    proposal = prop_data.get("proposal", {})
-                    title = proposal.get("title", "No Title")
-                    expl = proposal.get("explanation", "No explanation")
-                    
-                    keyboard = [
-                        [
-                            InlineKeyboardButton("âœ… Approve", callback_data=f"APPROVE|{pid}"),
-                            InlineKeyboardButton("âŒ Reject", callback_data=f"REJECT|{pid}")
-                        ]
-                    ]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    msg = (
-                        f"ðŸ›ï¸ **AI Council: NEW PROPOSAL PENDING**\n"
-                        f"ðŸ†” **ID:** `{pid}`\n"
-                        f"ðŸ“ **Title:** `{title}`\n\n"
-                        f"ðŸ’¡ **Explanation:** {expl}\n\n"
-                        f"âš ï¸ *Review carefully before approving.*"
-                    )
-                    
-                    await application.bot.send_message(
-                        chat_id=config.TELEGRAM_CHAT_ID,
-                        text=msg,
-                        reply_markup=reply_markup,
-                        parse_mode='Markdown'
-                    )
-                
-                last_known_pending = current_ids
-            else:
-                last_known_pending = set()
-        except Exception as e:
-            logging.error(f"Error in monitor_pending: {e}")
-            
+            pending = await _load_json_async(PENDING_FILE)
+            if pending:
+                new_ids = set(pending.keys()) - last_ids
+                for pid in list(new_ids)[:3]:
+                    prop = pending[pid].get("proposal", {})
+                    msg = f" <b>NEW PROPOSAL</b>\nID: <code>{pid}</code>\nTitle: <code>{_html_escape(prop.get('title'))}</code>"
+                    kb = [[InlineKeyboardButton(" Approve", callback_data=f"APPROVE|{pid}"), InlineKeyboardButton(" Reject", callback_data=f"REJECT|{pid}")]]
+                    await application.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode='HTML')
+                    await asyncio.sleep(1)
+                last_ids = set(pending.keys())
+        except: pass
         await asyncio.sleep(15)
 
 async def notify_trades(application):
-    """Background task to monitor trade log and notify user."""
     global LAST_TRADE_TIME
-    if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
-        logging.info("ðŸ“¢ Trade notifications disabled or Chat ID missing.")
-        return
-
-    checkpoint = _load_bridge_checkpoint()
-    last_pos = int(checkpoint.get("last_pos", 0) or 0)
-    if last_pos < 0:
-        last_pos = 0
-    # If starting fresh, sync to end to avoid spamming old history
-    if last_pos == 0 and os.path.exists(TRADE_LOG):
-        try:
-            with open(TRADE_LOG, "rb") as f:
-                f.seek(0, os.SEEK_END)
-                last_pos = f.tell()
-            _save_bridge_checkpoint(last_pos=last_pos)
-        except Exception:
-            last_pos = 0
-    
-    logging.info(f"ðŸ”” Trade notification loop started. Monitoring {TRADE_LOG} (Initial pos: {last_pos})")
-    
+    ckpt = await asyncio.to_thread(_load_bridge_checkpoint)
+    last_pos = int(ckpt.get("last_pos", 0))
+    if last_pos == 0 and os.path.exists(TRADE_LOG): 
+        last_pos = os.path.getsize(TRADE_LOG)
+        await _save_bridge_checkpoint(last_pos=last_pos)
     while True:
         try:
             if os.path.exists(TRADE_LOG):
-                try:
-                    file_size = os.path.getsize(TRADE_LOG)
-                except Exception:
-                    file_size = last_pos
-
-                if file_size < last_pos:
-                    # Log rotated or truncated
-                    last_pos = 0
-                    _save_bridge_checkpoint(last_pos=last_pos)
-
-                if file_size > last_pos:
-                    # Small delay to allow bot.py to finish writing/augmenting the line
-                    await asyncio.sleep(3)
-
-                    with open(TRADE_LOG, "rb") as f:
-                        f.seek(last_pos)
-                        data = f.read()
-
+                sz = os.path.getsize(TRADE_LOG)
+                if sz < last_pos: last_pos = 0
+                if sz > last_pos:
+                    def _read():
+                        with open(TRADE_LOG, "rb") as f:
+                            f.seek(last_pos)
+                            return f.read()
+                    data = await asyncio.to_thread(_read)
                     if data:
-                        lines = data.split(b"\n")
-                        processed_bytes = 0
-                        processed_any = False
-
-                        # If the last chunk is incomplete (no trailing newline), keep for next round
-                        if data[-1:] != b"\n":
-                            lines = lines[:-1]
-
-                        for line in lines:
-                            if not line:
-                                processed_bytes += 1  # newline
-                                continue
+                        lines = [l for l in data.split(b"\n") if l][:-1 if data[-1:] != b"\n" else None]
+                        for line in lines[:5]:
                             try:
-                                trade = json.loads(line.decode("utf-8"))
-                                await _send_trade_alert(application, trade)
-                                processed_any = True
-                                processed_bytes += len(line) + 1
-                            except Exception as e:
-                                logging.error(f"Error parsing trade line: {e}")
-                                # Skip bad line and continue to avoid getting stuck
-                                processed_bytes += len(line) + 1
-                                continue
-
-                        if processed_bytes > 0:
-                            last_pos += processed_bytes
-                            _save_bridge_checkpoint(last_pos=last_pos)
-                        if processed_any:
-                            LAST_TRADE_TIME = time.time()
-        except Exception as e:
-            logging.error(f"Error in notify_trades: {e}")
-            
-        await asyncio.sleep(5) # Poll every 5s
+                                await _send_trade_alert(application, json.loads(line.decode("utf-8")))
+                                LAST_TRADE_TIME = time.time()
+                                await asyncio.sleep(1.5)
+                            except: pass
+                        last_pos += len(data)
+                        await _save_bridge_checkpoint(last_pos=last_pos)
+        except: pass
+        await asyncio.sleep(5)
 
 async def notify_council(application):
-    """Background task to monitor AI Council history and notify user."""
-    if not getattr(config, "ENABLE_AI_COUNCIL_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
-        logging.info("ðŸ“¢ AI Council notifications disabled or Chat ID missing.")
-        return
-
-    if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
-        return
-
-    checkpoint = _load_bridge_checkpoint()
-    last_ts = float(checkpoint.get("last_ts", 0.0) or 0.0)
-    if last_ts < 0:
-        last_ts = 0.0
-    # Initialize to the latest entry to avoid missing events at startup
-    if last_ts <= 0.0:
-        try:
-            if os.path.exists(COUNCIL_LOG):
-                with open(COUNCIL_LOG, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    history = data.get("history", []) if isinstance(data, dict) else data
-                    if isinstance(history, list) and history:
-                        def _ts(entry):
-                            ts_raw = entry.get("timestamp", 0)
-                            if isinstance(ts_raw, str):
-                                try:
-                                    return datetime.fromisoformat(ts_raw.replace('Z', '+00:00')).timestamp()
-                                except:
-                                    return 0.0
-                            try:
-                                return float(ts_raw)
-                            except:
-                                return 0.0
-                        last_ts = max(_ts(e) for e in history)
-                        _save_bridge_checkpoint(last_ts=last_ts)
-        except Exception:
-            last_ts = 0.0
-    logging.info(f"ðŸ›ï¸ Council notification loop started.")
-    
+    ckpt = await asyncio.to_thread(_load_bridge_checkpoint)
+    last_ts = float(ckpt.get("last_ts", 0.0))
+    last_sz = 0
     while True:
         try:
             if os.path.exists(COUNCIL_LOG):
-                with open(COUNCIL_LOG, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    # [v3.11.55] Fix: Handle both dict/list formats
+                sz = os.path.getsize(COUNCIL_LOG)
+                if sz != last_sz:
+                    data = await _load_json_async(COUNCIL_LOG)
                     history = data.get("history", []) if isinstance(data, dict) else data
-                    if not isinstance(history, list): history = []
-                    
                     updated = False
-                    for entry in history:
-                        ts_raw = entry.get("timestamp", 0)
-                        
-                        # [v3.11.55] Robust Timestamp Parsing (ISO or Float)
-                        if isinstance(ts_raw, str):
-                            try:
-                                ts = datetime.fromisoformat(ts_raw.replace('Z', '+00:00')).timestamp()
-                            except:
-                                ts = 0
-                        else:
-                            ts = float(ts_raw)
-
+                    for e in history:
+                        ts_raw = e.get("timestamp", 0)
+                        ts = datetime.fromisoformat(ts_raw.replace('Z', '+00:00')).timestamp() if isinstance(ts_raw, str) else float(ts_raw)
                         if ts > last_ts:
-                            await _send_council_alert(application, entry)
+                            await _send_council_alert(application, e)
                             last_ts = ts
                             updated = True
-                    if updated:
-                        _save_bridge_checkpoint(last_ts=last_ts)
-        except Exception as e:
-            logging.error(f"Error in notify_council: {e}")
-            
+                            await asyncio.sleep(2)
+                    if updated: await _save_bridge_checkpoint(last_ts=last_ts)
+                    last_sz = sz
+        except: pass
         await asyncio.sleep(10)
 
 async def notify_summaries(application):
-    """[v3.11.46] Background task to monitor summary log and notify user."""
-    if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
-        return
-
-    last_count = 0
-    if os.path.exists(SUMMARY_LOG):
-        with open(SUMMARY_LOG, 'r', encoding='utf-8') as f:
-            last_count = sum(1 for _ in f)
-    
-    logging.info(f"ðŸ“Š Summary notification loop started. Monitoring {SUMMARY_LOG} (Initial count: {last_count})")
-    
+    ckpt = await asyncio.to_thread(_load_bridge_checkpoint)
+    last_count = int(ckpt.get("last_summary_count", 0))
     while True:
         try:
             if os.path.exists(SUMMARY_LOG):
-                with open(SUMMARY_LOG, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    if len(lines) > last_count:
-                        new_summaries = lines[last_count:]
-                        for line in new_summaries:
-                            try:
-                                summary = json.loads(line)
-                                await _send_summary_alert(application, summary)
-                            except Exception as e:
-                                logging.error(f"Error parsing summary line: {e}")
-                        last_count = len(lines)
-        except Exception as e:
-            logging.error(f"Error in notify_summaries: {e}")
-            
-        await asyncio.sleep(30) # Poll summaries every 30s
+                def _read():
+                    with open(SUMMARY_LOG, 'r', encoding='utf-8') as f: return f.readlines()
+                lines = await asyncio.to_thread(_read)
+                if len(lines) > last_count:
+                    for line in lines[last_count:]:
+                        try: await _send_summary_alert(application, json.loads(line))
+                        except: pass
+                    last_count = len(lines)
+                    await _save_bridge_checkpoint(last_summary_count=last_count)
+        except: pass
+        await asyncio.sleep(30)
 
 async def monitor_inactivity(application):
-    """Trigger AI Council if no trades executed past a regime-based threshold and notify user."""
     global LAST_TRADE_TIME, LAST_INACTIVITY_REPORT
-
-    if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
-        logging.info("Inactivity monitor disabled or Chat ID missing.")
-        return
-
     while True:
         try:
             now = time.time()
-            # Read current regime from dashboard state (best-effort, safe under frequent writes)
-            regime = "UNKNOWN"
-            bot_status = ""
-            try:
-                if os.path.exists(DASHBOARD_STATE_FILE):
-                    with open(DASHBOARD_STATE_FILE, "r", encoding="utf-8") as f:
-                        state = json.load(f)
-                    regime = str(state.get("ai_regime", state.get("regime", state.get("market_regime", "UNKNOWN")))).upper()
-                    bot_status = str(state.get("status", "")).upper()
-            except Exception:
-                regime = "UNKNOWN"
-                bot_status = ""
-
-            # If bot is stopped, reset inactivity timer and skip optimization
-            if bot_status == "STOPPED":
-                LAST_TRADE_TIME = now
-                await asyncio.sleep(60)
-                continue
-
-            # Dynamic inactivity threshold based on regime
-            if regime == "NORMAL":
-                inactivity_threshold = 7200
-            elif regime == "HIGH_VOL":
-                inactivity_threshold = 14400
-            elif regime == "CHOPPY":
-                inactivity_threshold = 21600
-            else:
-                inactivity_threshold = 14400
-
-            if (now - LAST_TRADE_TIME) >= inactivity_threshold and (now - LAST_INACTIVITY_REPORT) >= inactivity_threshold:
-                hours = int(inactivity_threshold // 3600)
-                cmd_text = (
-                    f"The bot has been inactive for {hours} hours under {regime} conditions. "
-                    "Perform a Deep Simulation Scan. If volatility has decreased and trends are becoming predictable, "
-                    "relax the RSI bounds in 'asset_profiles.json'. If the market remains unstable, maintain current "
-                    "strictness to protect capital."
-                )
-                _send_command("COUNCIL", payload=cmd_text)
-
-                await application.bot.send_message(
-                    chat_id=config.TELEGRAM_CHAT_ID,
-                    text=(
-                        f"ðŸ“‰ Current Regime: {regime}\n"
-                        f"â³ Threshold Applied: {hours}h based on market risk\n"
-                        "ðŸ›ï¸ Action: AI Council session triggered for Dynamic Optimization."
-                    ),
-                    parse_mode="HTML"
-                )
+            state = await _load_json_async(DASHBOARD_STATE_FILE)
+            regime = str(state.get("market_regime", "NORMAL")).upper() if state else "NORMAL"
+            threshold = 7200 if regime == "NORMAL" else 14400
+            if (now - LAST_TRADE_TIME) >= threshold and (now - LAST_INACTIVITY_REPORT) >= threshold:
                 LAST_INACTIVITY_REPORT = now
-        except Exception as e:
-            logging.error(f"Error in monitor_inactivity: {e}")
-
+                await _send_command_async("COUNCIL", payload=f"Bot inactive {threshold//3600}h under {regime}.")
+                await application.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=f" Inactive {threshold//3600}h ({regime}). Optimization triggered.", parse_mode='HTML')
+        except: pass
         await asyncio.sleep(60)
 
-async def _send_summary_alert(application, summary):
-    """[v3.11.46] Formats and sends the periodic summary report."""
-    try:
-        chat_id = config.TELEGRAM_CHAT_ID
-        stype = summary.get("type", "REPORT")
-
-        # [v3.11.57] Handle generic system alerts
-        if stype == "SYSTEM_ALERT":
-            msg = _html_escape(summary.get("message", "Empty Alert"))
-            await application.bot.send_message(chat_id=chat_id, text=f"ðŸ›ï¸ **AI Council Alert**\n\n{msg}", parse_mode='HTML')
-            return
-
-        wins = summary.get("wins", 0)
-        losses = summary.get("losses", 0)
-        profit = summary.get("profit", 0.0)
-        balance = summary.get("balance", 0.0)
-        wr = summary.get("win_rate", "0%")
-        
-        icon = "ðŸ“ˆ" if profit >= 0 else "ðŸ“‰"
-        title = "ðŸ“Š **Daily Performance Report**" if stype == "DAILY_REPORT" else "ðŸ“Š **Periodic Summary**"
-        
-        # [v3.11.52] Currency Formatting
-        currency = getattr(config, "CURRENCY", "XRP")
-        if getattr(config, "ENABLE_THB_CONVERSION", True):
-            thb_rate = await asyncio.to_thread(get_crypto_thb_rate, currency)
-        else:
-            thb_rate = 0.0
-        
-        profit_thb_str = f" (à¸¿{(profit * thb_rate):,.2f})" if thb_rate > 0 else ""
-        balance_thb_str = f" (à¸¿{(balance * thb_rate):,.2f})" if thb_rate > 0 else ""
-
-        msg = (
-            f"{title}\n"
-            f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
-            f"ðŸ’° Result: `{icon} {profit:+.4f} {currency}`{profit_thb_str}\n"
-            f"ðŸ¦ Balance: `{balance:.4f} {currency}`{balance_thb_str}\n"
-            f"âœ… Wins: `{wins}`\n"
-            f"âŒ Losses: `{losses}`\n"
-            f"ðŸŽ¯ Win Rate: `{wr}`\n"
-            f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”"
-        )
-        await application.bot.send_message(chat_id=chat_id, text=msg, parse_mode='HTML')
-    except Exception as e:
-        logging.error(f"Failed to send summary alert: {e}")
-
-async def _send_council_alert(application, fix_entry):
-    """Formats and sends the AI Council intervention result."""
-    fix_type = _html_escape(fix_entry.get("type", "UNKNOWN"))
-    ctx = fix_entry.get("context", {})
-    error_msg = _html_escape(ctx.get("error", "No error details"))
-    
-    prop = fix_entry.get("proposal", {})
-    title = _html_escape(prop.get("title", "Untitled Fix"))
-    explanation = _html_escape(prop.get("explanation", ""))
-    
-    res = fix_entry.get("result", {})
-    success = res.get("success", False)
-    res_msg = _html_escape(res.get("message", ""))
-    
-    if fix_type == "CONSULTATION":
-        icon = "ðŸ’¡ **AI Council: Advisory/Advice**"
-        msg = (
-            f"{icon}\n"
-            f"â“ **Question:** `{error_msg}`\n"
-            f"ðŸ§  **Analysis:** {_html_escape(prop.get('analysis', 'No analysis'))}\n\n"
-            f"ðŸ“ **Advice:** {explanation}\n"
-        )
-    else:
-        icon = "ðŸ›ï¸ **AI Council: System Fix Completed**"
-        status_emoji = "âœ…" if success else "âŒ"
-        
-        msg = (
-            f"{icon}\n"
-            f"ðŸ› ï¸ **Type:** `{fix_type}`\n"
-            f"ðŸ†˜ **Issue:** `{error_msg}`\n"
-            f"ðŸ“ **Title:** `{title}`\n"
-            f"{status_emoji} **Result:** {res_msg}\n\n"
-            f"*Note: {explanation}*"
-        )
-    
-    try:
-        await application.bot.send_message(
-            chat_id=config.TELEGRAM_CHAT_ID,
-            text=msg,
-            parse_mode='HTML'
-        )
-    except Exception as e:
-        logging.error(f"Failed to send Council Telegram alert: {e}")
-
 async def _send_trade_alert(application, trade):
-    """
-    [v3.9.0] Formats and sends the trade result message.
-    Includes AI Actionable Insights if present in trade record.
-    """
-    result = trade.get("result", "UNKNOWN")
+    res = trade.get("result", "UNKNOWN")
+    icon = "✅ <b>WIN</b>" if res == "WIN" else "❌ <b>LOSS</b>" if res == "LOSS" else "ℹ️ <b>DRAW</b>"
     
-    if result == "WIN":
-        icon = "âœ… WIN"
-    elif result == "LOSS":
-        icon = "âŒ LOSS"
-    elif result == "DRAW":
-        icon = "ðŸ”˜ DRAW"
-    else:
-        icon = f"â³ {result}"
-    asset = _html_escape(trade.get("asset", "Unknown"))
-    strategy = _html_escape(trade.get("strategy", "Unknown"))
-    trade_profit = trade.get("profit", 0.0)
+    # Load current state for context
+    state = await _load_json_async(DASHBOARD_STATE_FILE) or {}
+    balance = state.get("balance", 0.0)
+    today_profit = state.get("profit", 0.0)
+    w = state.get("total_wins", 0)
+    l = state.get("total_losses", 0)
     
-    # [v3.9.0] Extract AI Analysis from trade record (enriched by bot.py)
-    analysis = trade.get("analysis")
-    actionable = trade.get("actionable", False)
-    fix_suggestion = _html_escape(trade.get("fix_suggestion", "N/A"))
+    # Calculate accurate Win Rate on the fly
+    total_trades = w + l
+    wr = f"{(w / total_trades * 100):.1f}%" if total_trades > 0 else "0%"
     
-    # Get stats from dashboard state file (Robust method)
-    total_wins = 0
-    total_losses = 0
-    win_rate = "0%"
-    balance = 0.0
-    profit_today = 0.0
-    
-    if os.path.exists(DASHBOARD_STATE_FILE):
-        try:
-            with open(DASHBOARD_STATE_FILE, 'r', encoding='utf-8') as f:
-                state = json.load(f)
-                total_wins = state.get("total_wins", 0)
-                total_losses = state.get("total_losses", 0)
-                win_rate = state.get("win_rate", "0%")
-                balance = state.get("balance", 0.0)
-                profit_today = state.get("profit", 0.0)
-        except Exception as e:
-            logging.error(f"Error reading dashboard state: {e}")
-
-    # [v3.11.52] Currency Formatting
     currency = getattr(config, "CURRENCY", "XRP")
-    if getattr(config, "ENABLE_THB_CONVERSION", True):
-        thb_rate = await asyncio.to_thread(get_crypto_thb_rate, currency)
-    else:
-        thb_rate = 0.0
+    thb_rate = get_crypto_thb_rate(currency)
     
-    trade_thb_str = f" (à¸¿{(trade_profit * thb_rate):,.2f})" if thb_rate > 0 else ""
-    profit_today_thb_str = f" (à¸¿{(profit_today * thb_rate):,.2f})" if thb_rate > 0 else ""
+    def to_thb(val): return f" (฿{val*thb_rate:,.2f})" if thb_rate > 0 else ""
 
     msg = (
-        f"**{icon}**\n"
-        f"ðŸ“Š **Asset:** `{asset}`\n"
-        f"ðŸŽ¯ **Strategy:** `{strategy}`\n"
-        f"ðŸ’° **Profit/Loss:** `{trade_profit:+.4f} {currency}`{trade_thb_str}\n"
-        f"ðŸ¦ **Balance:** `{balance:.4f} {currency}`\n"
-        f"ðŸ“ˆ **Today:** `{profit_today:+.4f} {currency}`{profit_today_thb_str} | {win_rate} (W:{total_wins}/L:{total_losses})"
+        f"{icon}\n"
+        f"📊 <b>Asset:</b> <code>{trade.get('asset')}</code>\n"
+        f"🎯 <b>Strategy:</b> <code>{trade.get('strategy', 'N/A')}</code>\n"
+        f"💰 <b>Profit/Loss:</b> <code>{trade.get('profit', 0):+.4f} {currency}</code>{to_thb(trade.get('profit', 0))}\n"
+        f"🏦 <b>Balance:</b> <code>{balance:.4f} {currency}</code>\n"
+        f"📈 <b>Today:</b> <code>{today_profit:+.4f} {currency}</code>{to_thb(today_profit)} | {wr} (W:{w}/L:{l})\n"
+        f"🧠 <b>AI:</b> <i>{_html_escape(trade.get('analysis'))}</i>"
     )
     
-    if analysis:
-        # Actionable insight icon
-        action_icon = "ðŸ”§ Fixable" if actionable else "ðŸ¤· Unavoidable"
-        
-        msg += f"\n\nðŸ§  **AI Post-Mortem:**\n"
-        msg += f"> {_html_escape(analysis)}\n"
-        msg += f"**Status:** {action_icon}\n"
-        
-        if actionable:
-            if fix_suggestion != "N/A":
-                msg += f"\nðŸš€ **Auto-Fix Triggered:** AI Council is reviewing `{fix_suggestion}`..."
-            else:
-                msg += f"\nðŸ’¡ **Suggestion:** {fix_suggestion}"
-                
-    try:
-        chat_id = getattr(config, "TELEGRAM_CHAT_ID", None)
-        if chat_id:
-            await application.bot.send_message(
-                chat_id=chat_id,
-                text=msg,
-                parse_mode='HTML'
-            )
-    except Exception as e:
-        logging.error(f"Failed to send Telegram alert: {e}")
+    await application.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=msg, parse_mode='HTML')
 
-# [v3.9.0] Sync Wrapper for Bot
-def send_trade_notification(trade, balance, profit_today, analysis=None, actionable=False, fix_suggestion="N/A"):
-    # Since bot.py and bridge are separate processes mostly, this function is a placeholder
-    # if bot.py imports telegram_bridge as a library.
-    # However, if they share the same process, we need to schedule the async task.
-    # But for now, bot.py relies on writing to TRADE_LOG.
-    # We should update the trade record in TRADE_LOG to include analysis.
-    pass
+async def _send_council_alert(application, entry):
+    """[v5.6.3] Fixed: was missing entirely — notify_council was crashing on every council event."""
+    try:
+        e_type  = str(entry.get("type", "UPDATE"))
+        title   = _html_escape(entry.get("title", entry.get("error_type", "AI Council Update")))
+        result  = entry.get("result", {}) or {}
+        applied = result.get("applied", False)
+        message = _html_escape(result.get("message", ""))
+        icon    = "✅" if applied else "💡"
+        type_label = {
+            "CONSECUTIVE_LOSS": "🔴 Consecutive Loss",
+            "NO_TRADE_TIMEOUT": "⏳ No Trade Timeout",
+            "CODE_ERROR":       "🐛 Code Error",
+        }.get(e_type, f"ℹ️ {e_type}")
+        msg = (
+            f"🏛️ <b>AI Council</b> {icon}\n"
+            f"Type: <code>{type_label}</code>\n"
+            f"Title: <i>{title}</i>\n"
+        )
+        if message:
+            msg += f"Result: {message[:300]}\n"
+        if applied:
+            files = result.get("files_changed", [])
+            if files:
+                msg += f"📝 Changed: <code>{', '.join(files)}</code>"
+        await application.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=msg, parse_mode='HTML')
+    except Exception as e:
+        logging.error(f"_send_council_alert error: {e}")
+
+async def _send_summary_alert(application, summary):
+    msg = f" <b>Summary</b>\nProfit: <code>{summary.get('profit', 0):+.4f}</code>\nWR: <code>{summary.get('win_rate')}</code>"
+    await application.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=msg, parse_mode='HTML')
 
 async def post_init(application):
-    """Starts the background notification tasks."""
+    asyncio.create_task(monitor_pending(application))
     asyncio.create_task(notify_trades(application))
     asyncio.create_task(notify_council(application))
-    asyncio.create_task(notify_summaries(application)) # [v3.11.46]
-    asyncio.create_task(monitor_pending(application))
+    asyncio.create_task(notify_summaries(application))
     asyncio.create_task(monitor_inactivity(application))
 
 if __name__ == '__main__':
-    if not config.TELEGRAM_BOT_TOKEN:
-        print("âŒ Error: TELEGRAM_BOT_TOKEN not found in config/env. Bridge disabled.")
-        exit(100)
-
-    # [v3.11.33] Singleton Lock Check
-    if not _acquire_bridge_lock():
-        exit(1)
-
+    if not config.TELEGRAM_BOT_TOKEN: exit(100)
+    if not _acquire_bridge_lock(): exit(1)
     try:
-        print(f"ðŸ“± Telegram Bridge Started (v{config.BOT_VERSION})...")
-        application = ApplicationBuilder().token(config.TELEGRAM_BOT_TOKEN).post_init(post_init).build()
-        
-        application.add_handler(CommandHandler('start', start))
-        application.add_handler(CommandHandler('stop', stop))
-        application.add_handler(CommandHandler('status', status))
-        application.add_handler(CommandHandler('sumlog', sumlog))
-        application.add_handler(CommandHandler('logcon', logcon))
-        application.add_handler(CommandHandler('logs', logs_command))
-        application.add_handler(CommandHandler('council', council_command))
-        application.add_handler(CommandHandler('help', help_command))
-        
-        # Callback Handlers for buttons
-        application.add_handler(CallbackQueryHandler(button_callback))
-        
-        application.run_polling()
-    finally:
-        _release_bridge_lock()
-
+        app = ApplicationBuilder().token(config.TELEGRAM_BOT_TOKEN).post_init(post_init).build()
+        app.add_handler(CommandHandler('start', start_handler))
+        app.add_handler(CommandHandler('stop', stop_handler))
+        app.add_handler(CommandHandler('status', status_handler))
+        app.add_handler(CommandHandler('sumlog', sumlog_handler))
+        app.add_handler(CommandHandler('logcon', logcon_handler))
+        app.add_handler(CommandHandler('logs', logs_command_handler))
+        app.add_handler(CommandHandler('tune', tune_handler))
+        app.add_handler(CommandHandler('reset', reset_handler))
+        app.add_handler(CommandHandler('help', help_handler))
+        app.add_handler(CallbackQueryHandler(button_callback))
+        app.run_polling()
+    finally: _release_bridge_lock()

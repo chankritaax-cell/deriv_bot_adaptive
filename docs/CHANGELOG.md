@@ -1,10 +1,86 @@
-﻿# ðŸ“œ Changelog (Deriv Bot)
+# 📔 Changelog (Deriv Bot)
 
 All notable changes to this project will be documented in this file.
 
 
 
+## [v5.6.4] - 2026-03-15
+### 🔧 Telegram Bridge Bug Fixes & Improvements (`modules/telegram_bridge.py` → v3.12.4)
 
+- **[FIX] `_send_trade_alert` NameError crash**: Orphaned `entry.get('type')` code inside trade alert function caused every WIN/LOSS Telegram notification to throw `NameError` silently. Removed orphaned lines.
+- **[FIX] `_send_council_alert` missing entirely**: `notify_council` called `_send_council_alert()` which was never defined — crashed on every AI Council event. Added proper implementation with type labels, applied/not-applied icon, and file change list.
+- **[FIX] `/status` always showed Win Rate "0%"**: Used `state.get('win_rate')` but `dashboard_state.json` has no `win_rate` key. Now calculated from `total_wins / (total_wins + total_losses)`.
+- **[FIX] `_send_command_async` non-atomic write**: Direct `open(..., 'w')` risked partial JSON reads by bot. Now uses tmp file + `os.replace()` atomic pattern.
+- **[NEW] `/reset` command**: Clears `failed_assets.json` (unban all assets) and resets `trade_state.json` (MG step → 0) directly from Telegram. No manual file editing needed.
+- **[IMPROVE] `/status`**: Now shows MG Step (🟢🟡🔴), win/loss streak, market regime, strategy, and time updated.
+- **[IMPROVE] `/sumlog`**: Reads last 10,000 chars of log (was 5,000). Sufficient for full busy-day context.
+- **[IMPROVE] `/help`**: Full command list with Thai descriptions.
+
+## [v5.6.3] - 2026-03-15
+### 🔧 Manual Stability Fixes (Human Override)
+
+- **[FIX] MACD Exhaustion threshold raised: 20% → 28%** (`modules/technical_analysis.py`)
+  - _Root cause: 20% was blocking ~6+ valid trades/day with mild momentum decay (20-27%). MACD naturally decays during consolidation before trend continues. Raising to 28% allows moderate-decay signals through while still blocking severe exhaustion._
+
+- **[FIX] AI Council emergency trigger raised: loss_streak >= 2 → >= 5** (`modules/ai_engine.py`)
+  - _Root cause: Firing AI Council on 2 consecutive losses is normal market noise, not a strategy failure. Each emergency session was permanently narrowing RSI windows (call_max: 65→62→58→57...), creating a vicious cycle of fewer trades → worse WR data → more emergency sessions → even narrower windows → deadlock._
+
+- **[FIX] R_75 RSI CALL window restored: call_max 62.0 → 65.0** (`asset_profiles.json`)
+  - _AI Council (v5.6.2) overwrote manual fix call_max 65→62. Restored to intended value. Range 55-65 is optimal for R_75 NORMAL regime._
+
+- **[FIX] CONFIDENCE_MG_STEP_1: 0.80 → 0.85** (`config.py`)
+  - _Running config (hash 987fece0) had 0.90, blocking all AI conf=0.85 signals at MG Step 1. Set to 0.85 exactly: check is `<` not `<=` so 0.85 < 0.85 = False = PASS._
+
+- **[FIX] REGIME_STRATEGY_HIGH_VOL: TREND_FOLLOWING → PULLBACK_ENTRY** (`.env`)
+  - _HIGH_VOL regime should use anti-whipsaw PULLBACK_ENTRY strategy, not TREND_FOLLOWING which causes late momentum entries._
+
+- **[FIX] R_75 RSI bounds corrected** (`asset_profiles.json`)
+  - `pullback_call_min`: 25.0 → 28.0
+  - `pullback_put_max`: 75.0 → 72.0
+  - `call_min`: 52.0 → 55.0, `call_max`: 58.0 → 65.0
+  - `put_min`: 28.0 → 35.0, `put_max`: 48.0 → 45.0
+
+- **[FIX] utils.py auto-repair corrupted trade_state.json** (`modules/utils.py`)
+  - _Added `save_martingale_state(0)` in except block of `load_martingale_state()` to auto-reset empty/corrupted state file instead of logging 59 errors per session._
+
+- **[FIX] Stale asset blacklist cleared** (`logs/market/failed_assets.json`)
+  - _R_75, 1HZ10V, 1HZ75V had expired bans (>1hr old) persisted in file. Cleared to allow all assets to trade._
+
+## [v5.6.2] - 2026-03-14
+ # comment cleaned
+- **Tighten RSI CALL bounds for R_75 to reduce false signals in high volatility**
+- **[CONFIG_CHANGE] asset_profiles.json:** Reduce RSI call_max from 65 to 62 for R_75 to filter weak CALL signals in high volatility
+- _Analysis: บอทมีการขาดทุนติดต่อกัน 3 ครั้งใน R_75 ด้วยกลยุทธ์ TREND_FOLLOWING สัญญาณ CALL ในสภาวะตลาดที่มี RSI=56.5 และ ATR สูง (0.1453%) ซึ่งแสดงถึงความผันผวนสูง ควรลด call_max จาก 65 เหลือ 62 เพื่อกรองสัญญาณที่อ่อนแอออก_
+- _Files: asset_profiles.json_
+
+## [v5.6.1] - 2026-03-14
+ # comment cleaned
+- **Tighten RSI CALL bounds for R_75 to reduce false signals in high volatility**
+- **[CONFIG_CHANGE] asset_profiles.json:** Reduce RSI call_max from 72.0 to 58.0 for R_75 to filter out weak CALL signals in high volatility conditions
+- _Analysis: การสูญเสียต่อเนื่องเกิดจากการเข้า CALL signal ในช่วงที่ RSI สูง (64.1) และความผันผวนสูง (ATR: 0.1460%) ทำให้ได้สัญญาณที่อ่อนแอ จากประวัติการแก้ไขก่อนหน้าแสดงว่าการลด RSI_CALL_MAX ยังไม่เพียงพอ ต้องปรับให้เข้มงวดมากขึ้น_
+- _Files: asset_profiles.json_
+
+## [v5.6.0] - 2026-03-14
+### 🚀 Major Update: Unified AI Council & Premium Bridge
+- **Unified Decision Engine:** Integrated Gemini 2.0 Flash into `ai_engine.py` for sub-2s analysis.
+- **AI Council Unlocked:** Allowed AI to propose code/config updates directly for user approval via `/tune`.
+- **Premium Telegram Alerts:** Completely redesigned WIN/LOSS notifications with THB conversion, session stats, and AI reasoning.
+- **Robustness Fixes:** Increased Claude timeout (60s) and token limits (4096) to prevent JSON parsing errors.
+- **Bug Fixes:** Resolved `AttributeError` in `bot.py` by switching to a log-watcher notification system.
+- **ASCII Cleanup:** Removed garbled/non-standard characters from project source files.
+
+
+
+
+
+
+## [v5.5.16] - 2026-03-14
+### ðŸ“± Telegram Bridge Stability & Optimization
+- **Atomic Checkpoint Saving:** Implemented atomic write operations (using `.tmp` and `os.replace`) for checkpoint files to prevent corruption during crashes or power cuts.
+- **Polling Optimization:** Added file size checks in `notify_council` and `notify_summaries` to avoid unnecessary JSON parsing when log files haven't changed.
+- **Persistent State:** `notify_summaries` now uses the bridge checkpoint file to track the last processed line, ensuring no duplicate alerts after a restart.
+- **Race Condition Guard:** Fixed a potential race condition in `monitor_inactivity` by updating the inactivity report timestamp before sending the command.
+- **Disk I/O Reduction:** Centralized checkpoint saving to occur once per cycle instead of per trade/event.
 
 ## [v5.5.15] - 2026-03-14
 ### 🏛️ AI Council Auto-Fix

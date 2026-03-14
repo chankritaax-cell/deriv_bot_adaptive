@@ -311,15 +311,16 @@ class TechnicalConfirmation:
 
         # [v5.5.10] MACD Momentum Exhaustion Guard (Prevent late-trend entries)
         # Applied UNIVERSALLY to all strategies to prevent exhaustion bypass.
-        # Require significant decay (>= 20%) to reduce noise.
+        # [v5.6.2] Raised threshold 20%→28%: 20% was too aggressive, blocking valid trades
+        # with mild/moderate decay (20-27%) that are still within healthy momentum range.
         if safe_config_get("ENABLE_MACD_MOMENTUM_GUARD", True):
             if signal == "CALL" and hist_now <= hist_prev:
                 decay = abs(hist_prev - hist_now) / abs(hist_prev) if hist_prev != 0 else 1.0
-                if decay >= 0.20:  # Only block on significant decay (20%+), not minor oscillation
+                if decay >= 0.28:  # Only block on significant decay (28%+), not minor oscillation
                     return False, f"Hard Block: CALL rejected. MACD Exhaustion ({hist_now:.4f}, decay {decay:.0%}) 🛑"
             if signal == "PUT" and hist_now >= hist_prev:
                 decay = abs(hist_now - hist_prev) / abs(hist_prev) if hist_prev != 0 else 1.0
-                if decay >= 0.20:
+                if decay >= 0.28:
                     return False, f"Hard Block: PUT rejected. MACD Exhaustion ({hist_now:.4f}, decay {decay:.0%}) 🛑"
         # 2. RSI Block
         rsi = TechnicalConfirmation.get_rsi(df)

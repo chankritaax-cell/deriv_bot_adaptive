@@ -1,5 +1,5 @@
 """
-🏛️ AI Council — Auto-Fixer Module (v3.11.38)
+ AI Council  Auto-Fixer Module (v3.11.38)
 Specialized for real-time error detection and automated/manual fixing.
 [v3.11.38] Universal Safety Guard updates & Exhaustion awareness.
 """
@@ -167,7 +167,7 @@ def _get_trading_stats():
             "session_duration_mins": (time.time() - float(state.get("bot_start_ts", time.time()) or time.time())) / 60
         }
     except Exception as e:
-        log_print(f"⚠️ [AI Council] Could not get trading stats: {e}")
+        log_print(f" [AI Council] Could not get trading stats: {e}")
         return {}
 
 # ============================================================
@@ -188,7 +188,7 @@ def _build_project_map():
     for label, dpath in target_dirs.items():
         if not os.path.exists(dpath): continue
         
-        project_files.append(f"\n📂 {label.upper()}/")
+        project_files.append(f"\n {label.upper()}/")
         for fname in sorted(os.listdir(dpath)):
             fpath = os.path.join(dpath, fname)
             if not os.path.isfile(fpath) or not fname.endswith(".py"):
@@ -215,13 +215,13 @@ def _build_project_map():
             except: pass
             
             rel_path = fname if label == "." else f"{label}/{fname}"
-            project_files.append(f"  - {rel_path} — {desc}")
+            project_files.append(f"  - {rel_path}  {desc}")
             
     # [v5.4.0] Include asset_profiles.json for targeted configuration edits
     profile_path = os.path.join(ROOT, "asset_profiles.json")
     if os.path.exists(profile_path):
-        project_files.append(f"\n📂 DATA/")
-        project_files.append(f"  - asset_profiles.json — Asset-specific strategy parameters")
+        project_files.append(f"\n DATA/")
+        project_files.append(f"  - asset_profiles.json  Asset-specific strategy parameters")
             
     return "\n".join(project_files)
 
@@ -434,7 +434,7 @@ def _validate_proposal(proposal):
             # [v3.9.3] Fuzzy Match Support
             found_snip = _locate_snippet(content, change["search_snippet"])
             if not found_snip:
-                log_print(f"🏛️ [AI Council] ❌ Validation Failed. Could not find snippet in {fname}:")
+                log_print(f" [AI Council]  Validation Failed. Could not find snippet in {fname}:")
                 log_print(f"   Searching for:\n{change['search_snippet'][:200]}...")
                 return False, f"search_snippet not found in {fname}. The text must match the source code (allowing for whitespace differences)."
             
@@ -472,7 +472,7 @@ def _validate_proposal(proposal):
                         # Check if this line modifies an RSI threshold
                         rsi_keys = ["RSI_CALL_MAX", "RSI_CALL_MIN", "RSI_PUT_MIN", "RSI_PUT_MAX", "RSI_OVERBOUGHT", "RSI_OVERSOLD"]
                         if any(key in change["search_snippet"] for key in rsi_keys):
-                            return False, f"Change #{i}: RSI threshold modification is FORBIDDEN on REAL accounts for safety. Please adjust manually in config.py if needed. 🛡️"
+                            return False, f"Change #{i}: Direct RSI modification in config.py is blocked on REAL accounts. Use asset_profiles.json instead."
                 except: pass
 
         # [v5.5.x] Anti-Stupidity Check: Prevent AI from setting impossible RSI boundaries
@@ -486,12 +486,12 @@ def _validate_proposal(proposal):
                 
                 if c_min_match and c_max_match:
                     if float(c_min_match.group(1)) >= float(c_max_match.group(1)):
-                        log_print("🏛️ [AI Council] ❌ Validation Failed: call_min >= call_max. This breaks trading logic.")
+                        log_print(" [AI Council]  Validation Failed: call_min >= call_max. This breaks trading logic.")
                         return False, "Hard Block: AI attempted to set call_min >= call_max."
                 
                 if p_min_match and p_max_match:
                     if float(p_min_match.group(1)) >= float(p_max_match.group(1)):
-                        log_print("🏛️ [AI Council] ❌ Validation Failed: put_min >= put_max. This breaks trading logic.")
+                        log_print(" [AI Council]  Validation Failed: put_min >= put_max. This breaks trading logic.")
                         return False, "Hard Block: AI attempted to set put_min >= put_max."
             except Exception as e:
                 pass # Fail open if regex fails
@@ -519,7 +519,7 @@ async def resolve_error(error_msg, tb_text):
     if not getattr(config, "ENABLE_AI_COUNCIL", False):
         return None
 
-    log_print(f"🏛️ [AI Council] Emergency Session! Error: {error_msg[:100]}...")
+    log_print(f" [AI Council] Emergency Session! Error: {error_msg[:100]}...")
     
     # [v3.11.13] Cooldown Guard
     cooldown_mins = getattr(config, "COUNCIL_COOLDOWN_MINS", 30)
@@ -537,7 +537,7 @@ async def resolve_error(error_msg, tb_text):
                     
                     diff = (now - ts).total_seconds() / 60
                     if diff < cooldown_mins:
-                        log_print(f"🏛️ [AI Council] 🛑 Cooldown Active: Last fix was {diff:.1f} mins ago (limit: {cooldown_mins}m). Skipping.")
+                        log_print(f" [AI Council]  Cooldown Active: Last fix was {diff:.1f} mins ago (limit: {cooldown_mins}m). Skipping.")
                         return None
                 except: continue
     
@@ -564,22 +564,22 @@ async def resolve_error(error_msg, tb_text):
         "active_profile": config.ACTIVE_PROFILE
     }
     
-    # 🔥 NEW: Add historical context
+ # comment cleaned
     context["history"] = _get_relevant_history(error_type, error_msg)
     
-    # 🔥 NEW: Add trading performance data
+ # comment cleaned
     context["trading_stats"] = _get_trading_stats()
 
     # 2. Run Council Huddle (with full project context)
     proposal = await _run_council_huddle(context)
     if not proposal:
-        log_print("🏛️ [AI Council] Failed to reach consensus or no fix possible.")
+        log_print(" [AI Council] Failed to reach consensus or no fix possible.")
         return None
 
     # 3. Validate Proposal BEFORE attempting to apply
     is_valid, val_msg = _validate_proposal(proposal)
     if not is_valid:
-        log_print(f"🏛️ [AI Council] ❌ Proposal rejected by validation: {val_msg}")
+        log_print(f" [AI Council]  Proposal rejected by validation: {val_msg}")
         record = {
             "id": f"VAL-{int(time.time())}",
             "type": "VALIDATION_REJECTED",
@@ -595,7 +595,7 @@ async def resolve_error(error_msg, tb_text):
 
     # 4. Decision Path
     if config.DERIV_ACCOUNT_TYPE == "demo" and getattr(config, "COUNCIL_AUTO_FIX_PRACTICE", True):
-        log_print("🏛️ [AI Council] ACCOUNT=PRACTICE: Attempting Auto-Fix...")
+        log_print(" [AI Council] ACCOUNT=PRACTICE: Attempting Auto-Fix...")
         result = _apply_proposal(proposal)
         
         record = {
@@ -611,13 +611,13 @@ async def resolve_error(error_msg, tb_text):
         _save_history(history)
         
         if result["success"]:
-            log_print(f"🏛️ [AI Council] ✅ Auto-Fix APPLIED: {result['message']}")
+            log_print(f" [AI Council]  Auto-Fix APPLIED: {result['message']}")
             return "RESTART_REQUIRED"
         else:
-            log_print(f"🏛️ [AI Council] ❌ Auto-Fix FAILED: {result['message']}")
+            log_print(f" [AI Council]  Auto-Fix FAILED: {result['message']}")
             return None
     elif config.DERIV_ACCOUNT_TYPE == "real" and not getattr(config, "COUNCIL_REAL_ADVISORY_ONLY", True):
-        log_print("🏛️ [AI Council] ACCOUNT=REAL (Autonomy ON): Attempting Auto-Fix...")
+        log_print(" [AI Council] ACCOUNT=REAL (Autonomy ON): Attempting Auto-Fix...")
         result = _apply_proposal(proposal)
         
         record = {
@@ -633,29 +633,29 @@ async def resolve_error(error_msg, tb_text):
         _save_history(history)
         
         if result["success"]:
-            log_print(f"🏛️ [AI Council] ✅ REAL Auto-Fix APPLIED: {result['message']}")
+            log_print(f" [AI Council]  REAL Auto-Fix APPLIED: {result['message']}")
             return "RESTART_REQUIRED"
         else:
-            log_print(f"🏛️ [AI Council] ❌ REAL Auto-Fix FAILED: {result['message']}")
+            log_print(f" [AI Council]  REAL Auto-Fix FAILED: {result['message']}")
             return None
     else:
         if getattr(config, "COUNCIL_REAL_ADVISORY_ONLY", True):
-            log_print("🏛️ [AI Council] REAL Account (Advisory Mode): Suggestion follows:")
+            log_print(" [AI Council] REAL Account (Advisory Mode): Suggestion follows:")
             title = proposal.get("title", "No Title")
             analysis = proposal.get("analysis", "No analysis provided.")
-            log_print(f"   📌 {title}")
-            log_print(f"   📝 {analysis}")
+            log_print(f"    {title}")
+            log_print(f"    {analysis}")
             
             # Print specific changes if available
             changes = proposal.get("changes", [])
             for i, c in enumerate(changes, 1):
                 file = c.get("file", "Unknown")
-                log_print(f"   🔧 Change {i} [{file}]: {c.get('replace_snippet', '')[:50]}...")
+                log_print(f"    Change {i} [{file}]: {c.get('replace_snippet', '')[:50]}...")
 
-            log_print("🏛️ [AI Council] REAL Account (Advisory Mode): Bot will not pause. Suggestion logged.")
+            log_print(" [AI Council] REAL Account (Advisory Mode): Bot will not pause. Suggestion logged.")
             return "ADVICE_GIVEN"
         else:
-            log_print("🏛️ [AI Council] ACCOUNT=REAL: Saving proposal for User Approval...")
+            log_print(" [AI Council] ACCOUNT=REAL: Saving proposal for User Approval...")
             prop_id = f"REQ-{int(time.time())}"
             pending = _get_pending()
             pending[prop_id] = {
@@ -680,7 +680,7 @@ def _build_council_prompt(context):
             with open(rules_path, "r", encoding="utf-8") as f:
                 ai_rules_content = f.read()
     except Exception:
-        ai_rules_content = "(Rules file not found — use best judgment)"
+        ai_rules_content = "(Rules file not found  use best judgment)"
     
     # [v3.7.1] Load PROJECT_MAP.md for architectural context
     project_overview = ""
@@ -709,7 +709,7 @@ def _build_council_prompt(context):
         
         # [v3.7.5] Council Sandbox Instruction
         source_sections.append(
-            "⚠️ **STRATEGIC COMMAND: Council Sandbox (v3.7.5)**\n"
+            " **STRATEGIC COMMAND: Council Sandbox (v3.7.5)**\n"
             "If you are tweaking trading parameters (AMOUNT, CONFIDENCE, etc.) to fix a streak of losses or no trades:\n"
             "1. ONLY modify values within the `TIER_COUNCIL` dictionary in `config.py`.\n"
             "2. Ensure `ACTIVE_PROFILE` is set to `'TIER_COUNCIL'`.\n"
@@ -752,27 +752,27 @@ def _build_council_prompt(context):
     
     source_context = "\n\n".join(source_sections) if source_sections else "(No source code available)"
     
-    # 🔥 Build Historical Context Section
+ # comment cleaned
     history_section = ""
     history_data = context.get("history", [])
     if history_data:
-        history_lines = ["═══════════════════════════════════════════"]
-        history_lines.append("📜 PREVIOUS FIXES (Learn from past decisions):")
-        history_lines.append("═══════════════════════════════════════════")
+        history_lines = [""]
+        history_lines.append(" PREVIOUS FIXES (Learn from past decisions):")
+        history_lines.append("")
         for i, fix in enumerate(history_data, 1):
-            success_icon = "✅" if fix.get("success") else "❌"
+            success_icon = "" if fix.get("success") else ""
             history_lines.append(f"\n{i}. [{fix.get('error_type')}] {fix.get('fix_title')}")
             history_lines.append(f"   Time: {fix.get('timestamp', '')[:16]}")
             history_lines.append(f"   Error: {fix.get('error', 'N/A')[:100]}")
             history_lines.append(f"   Files Changed: {', '.join(fix.get('files_changed', []))}")
             history_lines.append(f"   {success_icon} Outcome: {fix.get('outcome', 'N/A')}")
-        history_lines.append("\n⚠️ OSCILLATION PROTECTION (v5.4.0):")
+        history_lines.append("\n OSCILLATION PROTECTION (v5.4.0):")
         history_lines.append("If a similar fix failed before OR was applied recently, do NOT revert to the previous state.")
         history_lines.append("Analyze why the previous tweak wasn't enough and propose a more significant or different change.")
         history_lines.append("Avoid 'solving' a problem by reverting to a state that caused the problem in the first place.")
         history_section = "\n".join(history_lines) + "\n\n"
     
-    # 🔥 Build Trading Stats Section
+ # comment cleaned
     stats_section = ""
     stats = context.get("trading_stats", {})
     if stats:
@@ -783,9 +783,9 @@ def _build_council_prompt(context):
         profit = float(stats.get("profit", 0.0) or 0.0)
         streak = int(stats.get("current_streak", 0) or 0)
         
-        stats_lines = ["═══════════════════════════════════════════"]
-        stats_lines.append("📊 TRADING PERFORMANCE (Current Session):")
-        stats_lines.append("═══════════════════════════════════════════")
+        stats_lines = [""]
+        stats_lines.append(" TRADING PERFORMANCE (Current Session):")
+        stats_lines.append("")
         stats_lines.append(f"Total Trades: {total} | Wins: {wins} | Losses: {losses}")
         stats_lines.append(f"Win Rate: {win_rate:.1f}% | Profit: ${profit:.2f}")
         stats_lines.append(f"Current Streak: {streak} | Last Signal: {stats.get('last_signal', 'None')}")
@@ -796,10 +796,10 @@ def _build_council_prompt(context):
         
         # Add context hints
         if error_type == "CONSECUTIVE_LOSS":
-            stats_lines.append(f"\n⚠️ Context: Bot has lost {abs(streak)} consecutive trades!")
+            stats_lines.append(f"\n Context: Bot has lost {abs(streak)} consecutive trades!")
             stats_lines.append(f"   This suggests current strategy/config is not working.")
         elif error_type == "NO_TRADE_TIMEOUT":
-            stats_lines.append(f"\n⚠️ Context: Bot has been idle for too long (last: {stats.get('last_signal')}).")
+            stats_lines.append(f"\n Context: Bot has been idle for too long (last: {stats.get('last_signal')}).")
             stats_lines.append(f"   Config may be too restrictive (high thresholds, strict filters).")
         
         stats_section = "\n".join(stats_lines) + "\n\n"
@@ -807,28 +807,28 @@ def _build_council_prompt(context):
     if error_type == "CONSECUTIVE_LOSS":
         change_rules = """CHANGE RESTRICTIONS (Consecutive Loss):
 - You may change values in config.py (thresholds, amounts, flags) OR asset_profiles.json (RSI bounds, strategy parameters).
-- For RSI tuning: Edit the asset's rsi_bounds in asset_profiles.json (keys: call_min, call_max, put_min, put_max). This is a JSON file — preserve valid JSON syntax.
+- For RSI tuning: Edit the asset's rsi_bounds in asset_profiles.json (keys: call_min, call_max, put_min, put_max). This is a JSON file  preserve valid JSON syntax.
 - Do NOT modify logic in .py files for trading losses.
 - Prefer safe changes: tighten RSI bounds, lower confidence thresholds, enable guards, switch strategies.
 - NEVER increase risk (higher amounts, disabled guards, wider RSI windows, etc.)."""
     elif error_type == "NO_TRADE_TIMEOUT":
-        change_rules = """CHANGE RESTRICTIONS (No Trade Timeout — bot has been idle too long):
+        change_rules = """CHANGE RESTRICTIONS (No Trade Timeout  bot has been idle too long):
 - You may ONLY change values in config.py.
 - The bot has not executed any trade for a long time despite asset scanning.
 - Likely causes: AI_CONFIDENCE_THRESHOLD too high, TREND_FILTER blocking all signals, wrong ACTIVE_PROFILE.
 - Preferred fixes (pick the most appropriate):
-  * Lower AI_CONFIDENCE_THRESHOLD (e.g., 0.70 → 0.60)
+  * Lower AI_CONFIDENCE_THRESHOLD (e.g., 0.70  0.60)
   * Set USE_OLLAMA_TREND_FILTER = False (temporarily disable the filter)
   * Switch ACTIVE_PROFILE to a less restrictive tier
   * Adjust SAFETY_MIN_CONFIDENCE or SAFETY_BLOCK_THRESHOLD
 - NEVER increase stake amount or disable critical safety guards.
-- Keep changes conservative — the goal is to resume trading, not to increase risk."""
+- Keep changes conservative  the goal is to resume trading, not to increase risk."""
     elif error_type == "USER_COMMAND":
         change_rules = """CHANGE RESTRICTIONS (User Command):
 - If the user asks for ANALYSIS, INSIGHT, or a QUESTION (e.g. "What is the trend?"):
   * DO NOT CHANGE ANY CODE.
   * Return "changes": [] and put your answer in the "analysis" field.
-  * **IMPORTANT: Write the analysis/explanation in THAI (ภาษาไทย).**
+  * **IMPORTANT: Write the analysis/explanation in THAI ().**
   * This is called "Consultation Mode".
 - If the user explicitly asks to MODIFY code (e.g. "Change X to Y"):
   * You may modify any .py file listed in PROJECT FILES.
@@ -842,12 +842,12 @@ def _build_council_prompt(context):
 - The 'file' field MUST be just the filename (e.g., "bot.py"), NOT a path.
 - search_snippet MUST be an EXACT copy-paste from the source code shown above (including spaces/indentation).
 - replace_snippet must fix the bug without changing unrelated logic.
-- Keep changes minimal — fix only the root cause."""
+- Keep changes minimal  fix only the root cause."""
 
     # [v3.5.1] Adapt task description for user commands vs errors
     if error_type == "USER_COMMAND":
         task_line = f"Execute the following user command on the Deriv Trading Bot codebase."
-        error_section = f"""═══════════════════════════════════════════
+        error_section = f"""
 USER COMMAND:
 {context['error']}
 
@@ -855,10 +855,10 @@ CONTEXT:
 - Account: {context['account_type']}
 - Asset: {context['active_asset']}
 - Profile: {context['active_profile']}
-═══════════════════════════════════════════"""
+"""
     else:
         task_line = f"Diagnose and fix an error in the Deriv Trading Bot."
-        error_section = f"""═══════════════════════════════════════════
+        error_section = f"""
 ERROR MESSAGE:
 {context['error']}
 
@@ -869,11 +869,11 @@ CONTEXT:
 - Account: {context['account_type']}
 - Asset: {context['active_asset']}
 - Profile: {context['active_profile']}
-═══════════════════════════════════════════"""
+"""
 
     return f"""ACT AS: Senior Python Developer specializing in async trading bots.
 TASK: {task_line}
-LANGUAGE: THAI (ภาษาไทย) for "analysis" and "explanation" fields. Keep technical terms/code in English.
+LANGUAGE: THAI () for "analysis" and "explanation" fields. Keep technical terms/code in English.
 
 ARCHITECTURE: Modular (since v3.6.0). 
 - Root: Entry points and config.
@@ -892,18 +892,18 @@ RECENT CONSOLE LOGS (Last 50 lines):
 PROJECT FILES (these are the ONLY files that exist):
 {project_map}
 
-═══════════════════════════════════════════
+
 SOURCE CODE (from files involved in the error):
 
 {source_context}
 
-═══════════════════════════════════════════
+
 
 {change_rules}
 
-═══════════════════════════════════════════
-📏 DEVELOPMENT STANDARDS (You MUST follow these rules):
-═══════════════════════════════════════════
+
+ DEVELOPMENT STANDARDS (You MUST follow these rules):
+
 {ai_rules_content}
 
 CRITICAL RULES:
@@ -1047,7 +1047,7 @@ async def _run_council_huddle(context):
     # [v3.7.9] Direct Targeting (High Priority)
     target_provider = context.get("target_provider")
     if target_provider:
-        log_print(f"🏛️ [AI Council] 🎯 Direct Target Requested: {target_provider}")
+        log_print(f" [AI Council]  Direct Target Requested: {target_provider}")
         # Validate if provider exists/available
         norm_target = target_provider.lower().strip()
         chain = [norm_target] # Force single-item chain
@@ -1066,12 +1066,12 @@ async def _run_council_huddle(context):
     
     if not use_multi_vote:
         # Single-provider failover mode (original behavior)
-        log_print("🏛️ [AI Council] Single-provider mode...")
+        log_print(" [AI Council] Single-provider mode...")
         return _query_single_provider_chain(prompt, chain)
     
-    # ═══════════════════════════════════════════
+ # comment cleaned
     # MULTI-VOTE MODE: Query all available providers
-    # ═══════════════════════════════════════════
+ # comment cleaned
     candidate_proposals = []
     error_text = str(context.get("error", "")).lower()
     
@@ -1079,9 +1079,9 @@ async def _run_council_huddle(context):
     if "no_trade_timeout" in error_text:
         # Check Config
         if not getattr(config, "ENABLE_AUTO_BACKTEST", True):
-             log_print("🏛️ [AI Council] 🛑 NO_TRADE_TIMEOUT Detected but ENABLE_AUTO_BACKTEST is False. Skipping scan.")
+             log_print(" [AI Council]  NO_TRADE_TIMEOUT Detected but ENABLE_AUTO_BACKTEST is False. Skipping scan.")
         else:
-            log_print("🏛️ [AI Council] 🛑 NO_TRADE_TIMEOUT Detected. Initiating Asset Scan...")
+            log_print(" [AI Council]  NO_TRADE_TIMEOUT Detected. Initiating Asset Scan...")
             try:
                 # Create a temporary API instance for scanning
                 api = DerivAPI(app_id=config.DERIV_APP_ID)
@@ -1093,7 +1093,7 @@ async def _run_council_huddle(context):
                 if best_asset:
                     current_asset = config.ACTIVE_ASSET
                     if best_asset != current_asset and best_wr > 55.0:
-                        log_print(f"🏛️ [AI Council] 🚀 Found better asset: {best_asset} (WR {best_wr:.1f}%) > {current_asset}")
+                        log_print(f" [AI Council]  Found better asset: {best_asset} (WR {best_wr:.1f}%) > {current_asset}")
                         
                         # Create SYSTEM PROPOSAL
                         sys_proposal = {
@@ -1111,15 +1111,15 @@ async def _run_council_huddle(context):
                             ]
                         }
                         # Return immediately as the "Winner"
-                        log_print(f"🏛️ [AI Council] 🗳️ System Auto-Proposal: Switch to {best_asset}")
+                        log_print(f" [AI Council]  System Auto-Proposal: Switch to {best_asset}")
                         return sys_proposal
                     else:
-                        log_print(f"🏛️ [AI Council] ⚠️ Best asset {best_asset} ({best_wr:.1f}%) not significantly better or same. Proceeding to Council Vote.")
+                        log_print(f" [AI Council]  Best asset {best_asset} ({best_wr:.1f}%) not significantly better or same. Proceeding to Council Vote.")
                 else:
-                     log_print("🏛️ [AI Council] ⚠️ Asset Scan failed or no valid assets found.")
+                     log_print(" [AI Council]  Asset Scan failed or no valid assets found.")
                      
             except Exception as e:
-                log_print(f"🏛️ [AI Council] ⚠️ Asset Scan Error: {e}")
+                log_print(f" [AI Council]  Asset Scan Error: {e}")
 
     # [v3.9.5] Analysis Guard: Detect analysis requests and force Consultation Mode
     is_analysis_request = False
@@ -1131,9 +1131,9 @@ async def _run_council_huddle(context):
         "analyze", "analysis", "trend", "forecast", "predict", "outlook", "perspective", 
         "consultation", "why", "what", "how", "chart", 
         # Thai (Correct)
-        "วิเคราะห์", "แนวโน้ม", "กราฟ", "ทำไม", "อย่างไร", "โอกาส", "คาดการณ์",
+        "", "", "", "", "", "", "",
         # Thai (Common Typos/Informal)
-        "วิเคราห์", "วิเคระ", "วิเคระห์", "วิเคราะ", "โอกาศ", "ใหม", "มั้ย", "เทรด"
+        "", "", "", "", "", "", "", ""
     ]
     
     # [v3.10.0] AI Intent Analysis Guard
@@ -1144,7 +1144,7 @@ async def _run_council_huddle(context):
     # Only fall back to keywords if intent is UNCERTAIN or CONSULTATION.
     if user_intent == "CODE_CHANGE":
         is_analysis_request = False
-        log_print(f"🏛️ [AI Council] 🛡️ Intent: CODE_CHANGE -> Bypassing Keyword Guard.")
+        log_print(f" [AI Council]  Intent: CODE_CHANGE -> Bypassing Keyword Guard.")
     else:
         is_analysis_request = (user_intent == "CONSULTATION")
         
@@ -1154,38 +1154,38 @@ async def _run_council_huddle(context):
             "analyze", "analysis", "trend", "forecast", "predict", "outlook", "perspective", 
             "consultation", "why", "what", "how", "chart", 
             # Thai (Correct)
-            "วิเคราะห์", "แนวโน้ม", "กราฟ", "ทำไม", "อย่างไร", "โอกาส", "คาดการณ์",
+            "", "", "", "", "", "", "",
             # Thai (Common Typos/Informal)
-            "วิเคราห์", "วิเคระ", "วิเคระห์", "วิเคราะ", "โอกาศ", "ใหม", "มั้ย", "เทรด"
+            "", "", "", "", "", "", "", ""
         ]
         
         error_text = str(context.get("error", "")).lower()
         if any(k in error_text for k in analysis_keywords):
             is_analysis_request = True
-            log_print(f"🏛️ [AI Council] 🔍 Analysis Request Detected by KEYWORD ('{error_text[:20]}...').")
+            log_print(f" [AI Council]  Analysis Request Detected by KEYWORD ('{error_text[:20]}...').")
     
     if is_analysis_request:
-        log_print(f"🏛️ [AI Council] 🛡️ Intent: CONSULTATION -> Forcing 'No Code Changes' Mode.")
+        log_print(f" [AI Council]  Intent: CONSULTATION -> Forcing 'No Code Changes' Mode.")
 
-    log_print(f"🏛️ [AI Council] 🗳️ Multi-Vote mode — querying {len(chain)} providers: {', '.join(chain)}")
+    log_print(f" [AI Council]  Multi-Vote mode  querying {len(chain)} providers: {', '.join(chain)}")
     
     candidates = []  # List of (score, provider, proposal, detail)
     min_votes = getattr(config, "COUNCIL_MIN_VOTES", 2)
     
     for provider in chain:
         if not ai_providers._check_daily_limit(provider):
-            log_print(f"🏛️ [AI Council]    ⏳ {provider}: daily limit reached, skip")
+            log_print(f" [AI Council]     {provider}: daily limit reached, skip")
             continue
         
-        log_print(f"🏛️ [AI Council]    🧠 Asking {provider}...")
+        log_print(f" [AI Council]     Asking {provider}...")
         try:
-            resp_text = ai_providers._call_provider(provider, prompt, temperature=0.2)
+            resp_text = ai_providers._call_provider(provider, prompt, temperature=0.2, max_tokens=4096)
         except Exception as e:
-            log_print(f"🏛️ [AI Council]    ❌ {provider}: call failed — {e}")
+            log_print(f" [AI Council]     {provider}: call failed  {e}")
             continue
         
         if not resp_text:
-            log_print(f"🏛️ [AI Council]    ❌ {provider}: empty response")
+            log_print(f" [AI Council]     {provider}: empty response")
             continue
         
         # Parse JSON
@@ -1195,43 +1195,44 @@ async def _run_council_huddle(context):
             proposal = None
         
         if not proposal or not isinstance(proposal, dict):
-            log_print(f"🏛️ [AI Council]    ❌ {provider}: JSON parse failed")
+            log_print(f" [AI Council]     {provider}: JSON parse failed")
             log_print(f"       Raw (100 chars): {resp_text[:100]}...")
             continue
         
         # [v3.9.5] Analysis Guard Enforcement
         # If this is an analysis request, STRIP any code changes to force Consultation Mode.
-        if is_analysis_request and proposal.get("changes"):
-            log_print(f"🏛️ [AI Council]    🛡️ Guard: Stripping code changes from {provider} (Analysis Request).")
+        # [v5.5.x] EXCEPTION: Allow changes if it's a USER_COMMAND so /tune can actually propose optimizations.
+        if is_analysis_request and proposal.get("changes") and context.get("error_type") != "USER_COMMAND":
+            log_print(f" [AI Council]     Guard: Stripping code changes from {provider} (Analysis Request).")
             proposal["changes"] = [] # Force empty list
         
         # Score the proposal
         score, detail = _score_proposal(proposal, provider)
         proposal["_source_provider"] = provider  # Tag which AI proposed this
         candidates.append((score, provider, proposal, detail))
-        log_print(f"🏛️ [AI Council]    ✅ {provider}: {proposal.get('title', '?')} — {detail}")
+        log_print(f" [AI Council]     {provider}: {proposal.get('title', '?')}  {detail}")
     
     if not candidates:
-        log_print("🏛️ [AI Council] 🗳️ No valid proposals from any provider.")
+        log_print(" [AI Council]  No valid proposals from any provider.")
         return None
     
     # Sort by score (highest first)
     candidates.sort(key=lambda x: x[0], reverse=True)
     
     # Log the vote result
-    log_print(f"🏛️ [AI Council] 🗳️ Vote Results ({len(candidates)} proposals):")
+    log_print(f" [AI Council]  Vote Results ({len(candidates)} proposals):")
     for rank, (score, provider, proposal, detail) in enumerate(candidates, 1):
-        marker = "👑" if rank == 1 else "  "
-        log_print(f"   {marker} #{rank} {provider}: score={score} — {proposal.get('title', '?')}")
+        marker = "" if rank == 1 else "  "
+        log_print(f"   {marker} #{rank}: {provider} (Score: {score}) - {proposal.get('title', '?')}")
     
     # Pick the winner
     best_score, best_provider, best_proposal, best_detail = candidates[0]
     
     if best_score < 30:
-        log_print(f"🏛️ [AI Council] 🗳️ Best score too low ({best_score}). No confident fix.")
+        log_print(f" [AI Council]  Best score too low ({best_score}). No confident fix.")
         return None
     
-    log_print(f"🏛️ [AI Council] 🗳️ Winner: {best_provider} (score={best_score})")
+    log_print(f" [AI Council]  Winner: {best_provider} (score={best_score})")
     log_print(f"   Title: {best_proposal.get('title', '?')}")
     log_print(f"   Risk: {best_proposal.get('risk_level', '?')} | Changes: {len(best_proposal.get('changes', []))}")
     
@@ -1243,23 +1244,23 @@ def _query_single_provider_chain(prompt, chain):
     for provider in chain:
         if not ai_providers._check_daily_limit(provider):
             continue
-        log_print(f"🏛️ [AI Council] Trying {provider}...")
-        resp_text = ai_providers._call_provider(provider, prompt, temperature=0.2)
+        log_print(f" [AI Council] Trying {provider}...")
+        resp_text = ai_providers._call_provider(provider, prompt, temperature=0.2, max_tokens=4096)
         if not resp_text:
             continue
         try:
             proposal = ai_providers._extract_json_from_text(resp_text)
             if proposal and isinstance(proposal, dict):
-                log_print(f"🏛️ [AI Council] Proposal from {provider}: {proposal.get('title', '?')}")
+                log_print(f" [AI Council] Proposal from {provider}: {proposal.get('title', '?')}")
                 return proposal
         except Exception:
             pass
-    log_print("🏛️ [AI Council] No response from any AI provider.")
+    log_print(" [AI Council] No response from any AI provider.")
     return None
 
 def _apply_proposal(proposal):
     """Executes the changes with backups and syntax checks.
-    All changes are atomic — if any fails, all are rolled back.
+    All changes are atomic  if any fails, all are rolled back.
     On success: bumps version and appends CHANGELOG entry.
     """
     changes = proposal.get("changes", [])
@@ -1298,7 +1299,7 @@ def _apply_proposal(proposal):
                 backup_file = f"{target_file}.v{current_version}.{counter}.bak"
             shutil.copy2(target_file, backup_file)
             backup_map[target_file] = backup_file
-            log_print(f"🏛️ [AI Council] Backup: {os.path.basename(backup_file)}")
+            log_print(f" [AI Council] Backup: {os.path.basename(backup_file)}")
             
             # 2. Read & Replace
             with open(target_file, "r", encoding="utf-8") as f:
@@ -1318,7 +1319,7 @@ def _apply_proposal(proposal):
             # Replace the ACTUAL found text with the new text
             new_content = content.replace(exact_search, replace, 1)
             
-            # 🔥 3. Write with FORCED SYNC
+ # comment cleaned
             with open(target_file, "w", encoding="utf-8") as f:
                 f.write(new_content)
                 f.flush()  # Force flush to OS buffer
@@ -1332,16 +1333,16 @@ def _apply_proposal(proposal):
                     return {"success": False, "message": f"Syntax Error after fix in {change['file']}: {err}"}
             
             applied_files.append(change["file"])
-            log_print(f"🏛️ [AI Council] ✅ Applied change to: {change['file']}")
+            log_print(f" [AI Council]  Applied change to: {change['file']}")
 
-        # 🔥 5. CRITICAL: Clear ALL Python Cache
+ # comment cleaned
         _clear_python_cache(applied_files)
         
         # 6. Post-fix: Bump version + Update CHANGELOG
         new_version = _bump_patch_version(current_version)
         _update_version_in_config(current_version, new_version)
         _append_changelog(new_version, proposal, applied_files)
-        log_print(f"🏛️ [AI Council] 🏷️ Version bumped: v{current_version} → v{new_version}")
+        log_print(f" [AI Council]  Version bumped: v{current_version}  v{new_version}")
         
         # 7. Determine if restart is required (e.g., if any .py files were changed)
         restart_required = any(f.endswith(".py") for f in applied_files)
@@ -1402,21 +1403,21 @@ def _clear_python_cache(modified_files):
             if mod_name in sys.modules:
                 try:
                     importlib.reload(sys.modules[mod_name])
-                    log_print(f"♻️  Reloaded: {mod_name}")
+                    log_print(f"  Reloaded: {mod_name}")
                 except Exception as e:
-                    log_print(f"⚠️  Reload failed ({mod_name}): {e}")
+                    log_print(f"  Reload failed ({mod_name}): {e}")
             
             # Fallback for root modules (e.g. 'config')
             root_m = os.path.basename(filename).replace(".py", "")
             if root_m in sys.modules and root_m != mod_name:
                 try:
                     importlib.reload(sys.modules[root_m])
-                    log_print(f"♻️  Reloaded root: {root_m}")
+                    log_print(f"  Reloaded root: {root_m}")
                 except: pass
 
-        log_print(f"🏛️ [AI Council] ✅ Cleared {cleared_count} cache file(s)")
+        log_print(f" [AI Council]  Cleared {cleared_count} cache file(s)")
     except Exception as e:
-        log_print(f"⚠️ [AI Council] Cache clear failed: {e}")
+        log_print(f" [AI Council] Cache clear failed: {e}")
 
 def _rollback_all(backup_map):
     """Rollback all files from their backups."""
@@ -1424,9 +1425,9 @@ def _rollback_all(backup_map):
         try:
             if os.path.exists(backup):
                 shutil.copy2(backup, original)
-                log_print(f"🏛️ [AI Council] Rolled back: {os.path.basename(original)}")
+                log_print(f" [AI Council] Rolled back: {os.path.basename(original)}")
         except Exception as e:
-            log_print(f"🏛️ [AI Council] ⚠️ Rollback failed for {original}: {e}")
+            log_print(f" [AI Council]  Rollback failed for {original}: {e}")
 
 
 # ============================================================
@@ -1456,7 +1457,7 @@ def _update_version_in_config(old_version, new_version):
         if old_line in content:
             content = content.replace(old_line, new_line, 1)
             
-            # 🔥 Write with FORCED SYNC
+ # comment cleaned
             with open(config_path, "w", encoding="utf-8") as f:
                 f.write(content)
                 f.flush()
@@ -1465,12 +1466,12 @@ def _update_version_in_config(old_version, new_version):
             # Update runtime value
             config.BOT_VERSION = new_version
             
-            log_print(f"🏛️ [AI Council] Updated config.py: BOT_VERSION = \"{new_version}\"")
+            log_print(f" [AI Council] Updated config.py: BOT_VERSION = \"{new_version}\"")
         else:
-            log_print(f"🏛️ [AI Council] ⚠️ Could not find BOT_VERSION line in config.py")
+            log_print(f" [AI Council]  Could not find BOT_VERSION line in config.py")
     
     except Exception as e:
-        log_print(f"🏛️ [AI Council] ⚠️ Failed to update config.py version: {e}")
+        log_print(f" [AI Council]  Failed to update config.py version: {e}")
 
 def _append_changelog(new_version, proposal, applied_files):
     # [v3.9.2] Fix: CHANGELOG is now in docs/
@@ -1490,7 +1491,7 @@ def _append_changelog(new_version, proposal, applied_files):
     
     entry = f"""
 ## [v{new_version}] - {today}
-### 🏛️ AI Council Auto-Fix
+ # comment cleaned
 - **{title}**
 {chr(10).join(change_lines)}
 - _Analysis: {analysis}_
@@ -1501,7 +1502,7 @@ def _append_changelog(new_version, proposal, applied_files):
         if os.path.exists(changelog_path):
             with open(changelog_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            # Insert after the first header line (# 📜 Changelog...)
+ # comment cleaned
             header_end = content.find("\n## [")
             if header_end == -1:
                 # No existing version entries, append at end
@@ -1513,11 +1514,11 @@ def _append_changelog(new_version, proposal, applied_files):
                 f.write(content)
         else:
             with open(changelog_path, "w", encoding="utf-8") as f:
-                f.write(f"# 📜 Changelog (Deriv Bot)\n\nAll notable changes to this project will be documented in this file.\n{entry}")
+                f.write(f"# Changelog (Deriv Bot)\n\n{entry}")
         
-        log_print(f"🏛️ [AI Council] 📜 CHANGELOG.md updated with v{new_version} entry")
+        log_print(f" [AI Council]  CHANGELOG.md updated with v{new_version} entry")
     except Exception as e:
-        log_print(f"🏛️ [AI Council] ⚠️ Failed to update CHANGELOG.md: {e}")
+        log_print(f" [AI Council]  Failed to update CHANGELOG.md: {e}")
 
 
 def get_pending_proposals():
@@ -1583,7 +1584,7 @@ def reject_proposal(prop_id):
 
 
 # ============================================================
-# 🏛️ USER COMMAND EXECUTION (v3.7.4)
+ # comment cleaned
 # ============================================================
 
 def execute_user_command(command_text):
@@ -1604,7 +1605,7 @@ def execute_user_command(command_text):
         else:
             return loop.run_until_complete(execute_user_command_async(command_text))
     except Exception as e:
-        log_print(f"🏛️ [AI Council] Sync command bridge fail: {e}")
+        log_print(f" [AI Council] Sync command bridge fail: {e}")
         return {"success": False, "message": f"Execution failed: {str(e)}"}
 
 async def execute_user_command_async(command_text):
@@ -1616,11 +1617,11 @@ async def execute_user_command_async(command_text):
     if not command_text or not command_text.strip():
         return {"success": False, "message": "Empty command"}
     
-    log_print(f"🏛️ [AI Council] User Command: {command_text[:100]}...")
+    log_print(f" [AI Council] User Command: {command_text[:100]}...")
     
     # [v3.10.0] Classify Intent
     user_intent = _classify_intent(command_text)
-    log_print(f"🏛️ [AI Council] 🧠 Intent Classifier: {user_intent}")
+    log_print(f" [AI Council]  Intent Classifier: {user_intent}")
     
     # Build context (no traceback for user commands)
     context = {
@@ -1642,7 +1643,7 @@ async def execute_user_command_async(command_text):
             payload = json.loads(command_text)
             command_text = payload.get("text", "")
             target_provider = payload.get("target")
-            log_print(f"🏛️ [AI Council] 🎯 Target Provider: {target_provider}")
+            log_print(f" [AI Council]  Target Provider: {target_provider}")
             
             # Update context with cleaner command text
             context["error"] = command_text
@@ -1662,13 +1663,13 @@ async def execute_user_command_async(command_text):
                 lines = f.readlines()
                 context["console_tail"] = "".join(lines[-50:])
     except Exception as e:
-        log_print(f"🏛️ [AI Council] Failed to read console log: {e}")
+        log_print(f" [AI Council] Failed to read console log: {e}")
     
     # Run Council Huddle
     try:
         proposal = await _run_council_huddle(context)
     except Exception as e:
-        log_print(f"🏛️ [AI Council] Command execution error: {e}")
+        log_print(f" [AI Council] Command execution error: {e}")
         return {"success": False, "message": f"AI Council error: {str(e)}"}
     
     if not proposal:
@@ -1677,14 +1678,14 @@ async def execute_user_command_async(command_text):
     # Validate proposal
     is_valid, val_msg = _validate_proposal(proposal)
     if not is_valid:
-        log_print(f"🏛️ [AI Council] ❌ Command proposal rejected: {val_msg}")
+        log_print(f" [AI Council]  Command proposal rejected: {val_msg}")
         return {"success": False, "message": f"Proposal validation failed: {val_msg}"}
         
     prop_id = f"CMD-{int(time.time())}"
 
     # [v3.7.8] Detect Consultation Mode (No changes)
     if not proposal.get("changes"):
-        log_print("🏛️ [AI Council] 💡 Consultation Mode: Saving advice to history (no code change).")
+        log_print(" [AI Council]  Consultation Mode: Saving advice to history (no code change).")
         
         # Save directly to history as "CONSULTATION"
         record = {
@@ -1718,7 +1719,7 @@ async def execute_user_command_async(command_text):
     }
     _save_pending(pending)
     
-    log_print(f"🏛️ [AI Council] ✅ Command proposal saved: {prop_id}")
+    log_print(f" [AI Council]  Command proposal saved: {prop_id}")
     return {
         "success": True,
         "message": f"Proposal created: {prop_id}",
@@ -1734,7 +1735,7 @@ async def approve_proposal_async(prop_id):
     proposal_data = pending.pop(prop_id)
     proposal = proposal_data["proposal"]
     
-    log_print(f"🏛️ [AI Council] ✅ User Approved Proposal: {prop_id}")
+    log_print(f" [AI Council]  User Approved Proposal: {prop_id}")
     
     # Apply changes
     result = _apply_proposal(proposal)

@@ -77,8 +77,8 @@ class DerivStreamManager:
                 )
                 
                 while self._is_running:
-                    # 🛡️ Watchdog: If no tick in 15 seconds, assume silent drop
-                    response = await asyncio.wait_for(q.get(), timeout=15.0)
+                    # 🛡️ Watchdog: If no tick in 20 seconds, assume silent drop (v3.8.3)
+                    response = await asyncio.wait_for(q.get(), timeout=20.0)
                     
                     if 'tick' in response:
                         tick = response['tick']

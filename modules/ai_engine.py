@@ -1,7 +1,7 @@
 """
-🧠 AI Engine (Consolidated v3.11.62)
+ AI Engine (Consolidated v3.11.63)
 The "Brain" of the system: Orchestrates AI Providers and Smart Trader.
-[v3.11.62] Safety Sync: Universal MACD Exhaustion Guard integration.
+[v3.11.63] Bridge Sync: Performance & Atomic checkpoint support.
 """
 
 import asyncio
@@ -27,8 +27,8 @@ _regime_cooldowns = {}
 _regime_state = {}         # {asset: "NORMAL" | "HIGH_VOL" | "LOW_VOL"}
 _regime_history = {}       # {asset: ["NORMAL", "HIGH_VOL", ...]} (tracks last N ticks of raw threshold crossings)
 
-# --- [v5.1.2] Consecutive Sideways Counter (Pure Logic — No AI) ---
-_sideways_counter = {}     # {asset: int} — tracks consecutive SIDEWAYS candles per asset
+ # [v5.1.2] cleaned
+_sideways_counter = {} # comment cleaned
 SIDEWAYS_RESCAN_THRESHOLD = 5  # Force asset rescan after this many consecutive SIDEWAYS candles
 
 def get_sideways_rescan_needed(asset):
@@ -55,12 +55,12 @@ def apply_adaptive_config(asset, df_1m, base_cfg):
     
     if specific_profile:
         cfg = specific_profile.copy()
-        log_print(f"   🎯 [Adaptive Routing] Specific regime profile found: {regime_profile_key}")
+        log_print(f"    [Adaptive Routing] Specific regime profile found: {regime_profile_key}")
     else:
         # Second: Fallback to base_cfg (which config.get_asset_profile sets to {asset} or DEFAULT)
         cfg = base_cfg.copy()
         if regime != "NORMAL":
-            log_print(f"   🔄 [Adaptive Routing] No specific profile for {regime_profile_key}. Using base/default with dynamic offsets.")
+            log_print(f"    [Adaptive Routing] No specific profile for {regime_profile_key}. Using base/default with dynamic offsets.")
 
     # 2. Safety Layer: Explicit Numerical Sanitization (Full Float Guard)
     # This ensures all adaptive thresholds are float-safe for pandas/TA calculations.
@@ -101,7 +101,7 @@ def apply_adaptive_config(asset, df_1m, base_cfg):
     # [v5.1] Informative logging
     if regime != "NORMAL":
         bounce_val = float(cfg.get('bounce_limit', 0.0))
-        log_print(f"   📊 [Adaptive Applied] {asset} | Regime={regime} | Bounce={bounce_val:.1f}")
+        log_print(f"    [Adaptive Applied] {asset} | Regime={regime} | Bounce={bounce_val:.1f}")
         
     return cfg
 
@@ -174,20 +174,20 @@ def is_rsi_valid_for_signal(signal, rsi, profile=None):  # [v5.0 BUG-06 FIX]
     return True
 
 def run_logic_self_audit():
-    log_print("🛡️  [Self-Audit] Active Logic Thresholds:")
+    log_print("  [Self-Audit] Active Logic Thresholds:")
     # [v5.1.7] Show RSI bounds from DEFAULT profile (actual active bounds)
     _default_profile = getattr(config, "ASSET_STRATEGY_MAP", {}).get("DEFAULT", {})
     lo_c, hi_c = _get_rsi_bounds_call(_default_profile)
-    log_print(f"   • RSI CALL Window: {lo_c} - {hi_c} (from asset_profiles DEFAULT)")
+    log_print(f"    RSI CALL Window: {lo_c} - {hi_c} (from asset_profiles DEFAULT)")
     lo_p, hi_p = _get_rsi_bounds_put(_default_profile)
-    log_print(f"   • RSI PUT Window:  {lo_p} - {hi_p} (from asset_profiles DEFAULT)")
-    log_print(f"   • MIN_ATR_THRESHOLD_PCT: {safe_config_get('MIN_ATR_THRESHOLD_PCT', 0.012)}%")
-    log_print(f"   • MA_SLOPE_THRESHOLD_PCT: {safe_config_get('MA_SLOPE_THRESHOLD_PCT', 0.03)}%")
+    log_print(f"    RSI PUT Window:  {lo_p} - {hi_p} (from asset_profiles DEFAULT)")
+    log_print(f"    MIN_ATR_THRESHOLD_PCT: {safe_config_get('MIN_ATR_THRESHOLD_PCT', 0.012)}%")
+    log_print(f"    MA_SLOPE_THRESHOLD_PCT: {safe_config_get('MA_SLOPE_THRESHOLD_PCT', 0.03)}%")
     try:
         dummy_labels = ["UPTREND"] * 5 + ["DOWNTREND"] * 2 + ["SIDEWAYS"] * 3
         flips = sum(1 for i in range(1, len(dummy_labels)) if dummy_labels[i] != dummy_labels[i-1])
-        log_print(f"   • Regime Detection Logic: OK (Dummy Seq Flips: {flips})")
-    except Exception as e: log_print(f"⚠️  [Stability Audit] Error: {e}")
+        log_print(f"    Regime Detection Logic: OK (Dummy Seq Flips: {flips})")
+    except Exception as e: log_print(f"  [Stability Audit] Error: {e}")
     _run_rsi_regression_test()
 
 def _run_rsi_regression_test():
@@ -203,10 +203,10 @@ def _run_rsi_regression_test():
     failures = [f"{sig} @ {val:.1f}: Expected {exp}, got {is_rsi_valid_for_signal(sig, val)}" for sig, val, exp in test_cases if is_rsi_valid_for_signal(sig, val) != exp]
     
     if failures:
-        log_print("❌ [Self-Audit] RSI Logic Regression Test: FAILED!")
+        log_print(" [Self-Audit] RSI Logic Regression Test: FAILED!")
         for f in failures: log_print(f"   - {f}")
     else: 
-        log_print("✅ [Self-Audit] RSI Logic Regression Test: PASSED")
+        log_print(" [Self-Audit] RSI Logic Regression Test: PASSED")
 
 def _log_metrics_to_file():
     if not getattr(config, "ENABLE_METRICS_LOGGING", True): return
@@ -256,7 +256,7 @@ def _get_bet_gate_metrics(df_1m, asset, strategy):
     ds = dashboard_get_state()
     history = ds.get("trade_history", [])
     
-    # ดึงประวัติ Asset — suppress if < 3 trades to avoid 0%/100% bias
+ # comment cleaned
     asset_trades = [t for t in history if t.get("asset") == asset]
     _a_sample = asset_trades[-20:]
     if len(_a_sample) < 3:
@@ -264,7 +264,7 @@ def _get_bet_gate_metrics(df_1m, asset, strategy):
     else:
         asset_wr_str = f"{(sum(1 for t in _a_sample if t.get('result') == 'WIN') / len(_a_sample)) * 100:.1f}%"
     
-    # ดึงประวัติ Strategy — suppress if < 3 trades to avoid 0%/100% bias
+ # comment cleaned
     strat_trades = [t for t in history if t.get("strategy") == strategy]
     _s_sample = strat_trades[-20:]
     if len(_s_sample) < 3:
@@ -349,7 +349,7 @@ Output Format: Respond with JSON only in this format:
         result["latency"] = latency
         return result
         
-    return {"action": "VETO", "confidence": 0.0, "signal": "SKIP", "reason": "AI Offline — FAIL-CLOSED", "latency": latency}
+    return {"action": "VETO", "confidence": 0.0, "signal": "SKIP", "reason": "AI Offline  FAIL-CLOSED", "latency": latency}
 
 def calculate_local_risk_score(metrics, signal, context):
     """
@@ -407,7 +407,7 @@ def _get_feature_df(df_1m, granularity_sec=60):
         df_feat = df_feat.iloc[-100:].copy()
         
     if len(df_feat) < 3: return None
-    log_print(f"   🧩 Feature DF: rows={len(df_feat)} last_ts={int(df_feat.iloc[-1]['timestamp'])} (trimmed=100)")
+    log_print(f"    Feature DF: rows={len(df_feat)} last_ts={int(df_feat.iloc[-1]['timestamp'])} (trimmed=100)")
     return df_feat
 
 async def analyze_and_decide(api, asset, market_data_summary, df_1m):
@@ -430,7 +430,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     
     is_safe, sentiment_reason = check_market_sentiment()
     if not is_safe:
-        log_print(f"   🛑 Analysis Skipped: {sentiment_reason}")
+        log_print(f"    Analysis Skipped: {sentiment_reason}")
         return None
 
     # [User Request] Martingale Staleness Reset Guard
@@ -439,12 +439,12 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     if mg_step > 0 and last_loss_timestamp > 0:
         timeout_mins = getattr(config, "MARTINGALE_RESET_TIMEOUT_MINS", 60)
         if (time.time() - last_loss_timestamp) > (timeout_mins * 60):
-            log_print(f"   ⚠️ [Martingale] MG Step {mg_step} expired (waited > {timeout_mins}m). Resetting to Step 0 for safety.")
+            log_print(f"    [Martingale] MG Step {mg_step} expired (waited > {timeout_mins}m). Resetting to Step 0 for safety.")
             reset_martingale_state()
 
     df_feat = _get_feature_df(df_1m, 60)
     if df_feat is None:
-        log_print("   ⚠️ Not enough closed candles for feature calculation. FAIL-CLOSED -> SKIP.")
+        log_print("    Not enough closed candles for feature calculation. FAIL-CLOSED -> SKIP.")
         _perf_metrics["pre_ai_skip_cycles"] += 1
         return None
     
@@ -456,7 +456,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         cooldown = _regime_cooldowns.get(asset, 0)
         if cooldown > 0:
             _regime_cooldowns[asset] = cooldown - 1
-            log_print(f"   ⏳ Regime stability cooldown: {cooldown-1} candles remaining for {asset}")
+            log_print(f"    Regime stability cooldown: {cooldown-1} candles remaining for {asset}")
             _perf_metrics["pre_ai_skip_cycles"] += 1
             return None
             
@@ -467,7 +467,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         if is_choppy:
             cooldown_count = safe_config_get("REGIME_COOLDOWN_CANDLES", 3)
             _regime_cooldowns[asset] = cooldown_count
-            log_print(f"   🛑 PRE-AI SKIP (Regime Stability): CHOPPY flips={flips}/{window} > {max_flips} | labels={labels[-5:]} | cooldown={cooldown_count}")
+            log_print(f"    PRE-AI SKIP (Regime Stability): CHOPPY flips={flips}/{window} > {max_flips} | labels={labels[-5:]} | cooldown={cooldown_count}")
             _perf_metrics["pre_ai_skip_cycles"] += 1
             return None
 
@@ -502,7 +502,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         current_state = _regime_state.get(asset, "NORMAL")
         if len(history) == 3 and all(h == raw_regime for h in history):
             if current_state != raw_regime:
-                log_print(f"   🔄 [Regime Change] {asset} shifted from {current_state} -> {raw_regime} (ATR EMA: {atr_pct:.4f}%)")
+                log_print(f"    [Regime Change] {asset} shifted from {current_state} -> {raw_regime} (ATR EMA: {atr_pct:.4f}%)")
                 _regime_state[asset] = raw_regime
                 
         sma = df_feat["close"].rolling(7).mean()
@@ -518,25 +518,25 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         # --- VOLATILITY CHECKS (LOW & HIGH) ---
         min_atr_pct = getattr(config, "MIN_ATR_THRESHOLD_PCT", 0.012)
         
-        # 🛡️ Dynamic Slippage Guard [v5.0 FIX] was hardcoded 0.15, now reads MAX_ATR_THRESHOLD_PCT from config
+ # comment cleaned
         max_atr_pct = float(getattr(config, 'MAX_ATR_THRESHOLD_PCT', 0.15))
         
         if atr_pct < min_atr_pct:
             rsi_display = f"{rsi_val:.1f}" if rsi_val is not None else "N/A"
-            log_print(f"   🛑 PRE-AI SKIP (Low Vol): {atr_pct:.4f}% < {min_atr_pct}% | RSI: {rsi_display} | Trend: {det_trend}")
+            log_print(f"    PRE-AI SKIP (Low Vol): {atr_pct:.4f}% < {min_atr_pct}% | RSI: {rsi_display} | Trend: {det_trend}")
             _perf_metrics["pre_ai_skip_cycles"] += 1
             return None
             
         if atr_pct > max_atr_pct:
             rsi_display = f"{rsi_val:.1f}" if rsi_val is not None else "N/A"
-            log_print(f"   🛑 PRE-AI SKIP (High Vol): {atr_pct:.4f}% > {max_atr_pct}% (Slippage Risk) | Trend: {det_trend}")
+            log_print(f"    PRE-AI SKIP (High Vol): {atr_pct:.4f}% > {max_atr_pct}% (Slippage Risk) | Trend: {det_trend}")
             _perf_metrics["pre_ai_skip_cycles"] += 1
             return None
             
         candle = df_feat.iloc[-1]
         c_range = abs(float(candle['high']) - float(candle['low']))
         if atr > 0 and c_range > (atr * 2.5):
-            log_print(f"   🛑 PRE-AI SKIP (Whipsaw Guard): Candle Range {c_range:.2f} > 2.5x ATR ({atr:.2f}). Waiting.")
+            log_print(f"    PRE-AI SKIP (Whipsaw Guard): Candle Range {c_range:.2f} > 2.5x ATR ({atr:.2f}). Waiting.")
             _perf_metrics["pre_ai_skip_cycles"] += 1
             return None
 
@@ -545,22 +545,22 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             _sideways_counter[asset] = _sideways_counter.get(asset, 0) + 1
             count = _sideways_counter[asset]
             if count >= SIDEWAYS_RESCAN_THRESHOLD:
-                log_print(f"   🔄 [Sideways Guard] {count} consecutive SIDEWAYS candles on {asset} — flagging for forced asset rescan.")
+                log_print(f"    [Sideways Guard] {count} consecutive SIDEWAYS candles on {asset}  flagging for forced asset rescan.")
         elif det_trend in ("UPTREND", "DOWNTREND"):
             if _sideways_counter.get(asset, 0) > 0:
                 _sideways_counter[asset] = 0
 
         if rsi_val is not None:
             if det_trend == "UPTREND" and not is_rsi_valid_for_signal("CALL", rsi_val, _early_profile):
-                log_print(f"   🛑 PRE-AI SKIP (RSI Guard): UPTREND RSI {rsi_val:.1f} violation | Volume: {atr_pct:.4f}%")
+                log_print(f"    PRE-AI SKIP (RSI Guard): UPTREND RSI {rsi_val:.1f} violation | Volume: {atr_pct:.4f}%")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
             if det_trend == "DOWNTREND" and not is_rsi_valid_for_signal("PUT", rsi_val, _early_profile):
-                log_print(f"   🛑 PRE-AI SKIP (RSI Guard): DOWNTREND RSI {rsi_val:.1f} violation | Volume: {atr_pct:.4f}%")
+                log_print(f"    PRE-AI SKIP (RSI Guard): DOWNTREND RSI {rsi_val:.1f} violation | Volume: {atr_pct:.4f}%")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
             if det_trend == "SIDEWAYS":
-                log_print(f"   🛑 PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f} | Consecutive: {_sideways_counter.get(asset, 0)}")
+                log_print(f"    PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f} | Consecutive: {_sideways_counter.get(asset, 0)}")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
         # --- [v4.1.2] Confluence Guard: Trend/MACD Divergence Filter ---
@@ -580,7 +580,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         #     except Exception:
         #         pass  # Graceful fallback - skip guard if MACD calculation fails
     else:
-        log_print("   ⚠️ Not enough 1m candle data for analysis.")
+        log_print("    Not enough 1m candle data for analysis.")
         return None
 
     if getattr(config, "USE_AI_ANALYST", True):
@@ -633,19 +633,19 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             
             if decision == "APPROVE" and signal in ["CALL", "PUT"]:
                 if local_score < 0.5:
-                    log_print(f"   🛡️ LOCAL VETO: AI said APPROVE, but Local Risk Score is {local_score:.2f} (< 0.50). Overriding to VETO.")
+                    log_print(f"    LOCAL VETO: AI said APPROVE, but Local Risk Score is {local_score:.2f} (< 0.50). Overriding to VETO.")
                     decision = "VETO"
                     signal = "SKIP"
                     ai_reason = f"(LOCAL VETO: score {local_score}) " + ai_reason
                 else:
-                    log_print(f"   🛡️ Local Risk Score: {local_score:.2f} (Passed)")
+                    log_print(f"    Local Risk Score: {local_score:.2f} (Passed)")
 
             raw_snapshot = {"rsi": rsi_val, "slope": slope, "atr_pct": atr_pct, "macd_hist": macd_hist, "atr": atr}
 
-            log_print(f"   🤖 Unified AI: {signal} (Decision: {decision}, Conf: {confidence}) | Latency: {unified_latency:.2f}s")
+            log_print(f"    Unified AI: {signal} (Decision: {decision}, Conf: {confidence}) | Latency: {unified_latency:.2f}s")
             # [v5.3.2] Decision Audit Log
-            log_print(f"   📝 [Decision Audit] AI Conf: {confidence:.2f} | Local Risk Score: {local_score:.2f} | Final: {signal}")
-            if ai_reason: log_print(f"   💡 Reason: {ai_reason}")
+            log_print(f"    [Decision Audit] AI Conf: {confidence:.2f} | Local Risk Score: {local_score:.2f} | Final: {signal}")
+            if ai_reason: log_print(f"    Reason: {ai_reason}")
 
             if signal == "SKIP":
                 _perf_metrics["ai_skip_cycles"] += 1
@@ -654,7 +654,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             # [Post-AI Hard Rules & Safety Checks]
             if rsi_val is not None and not is_rsi_valid_for_signal(signal, rsi_val, _early_profile):
                 lo, hi = _get_rsi_bounds_call(_early_profile) if signal == "CALL" else _get_rsi_bounds_put(_early_profile)
-                log_print(f"   🛑 POST-AI BLOCK: {signal} rejected. RSI {rsi_val:.1f} out of bounds ({lo}-{hi})")
+                log_print(f"    POST-AI BLOCK: {signal} rejected. RSI {rsi_val:.1f} out of bounds ({lo}-{hi})")
                 _perf_metrics["post_ai_block_cycles"] += 1
                 return None
 
@@ -662,11 +662,11 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 _stoch_put_strict = float(getattr(config, "STOCH_PUT_STRICT", 20))
                 _stoch_call_strict = float(getattr(config, "STOCH_CALL_STRICT", 80))
                 if signal == "PUT" and stoch_k_val < _stoch_put_strict:
-                    log_print(f"   🛑 POST-AI BLOCK (Stoch Strict): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict:.0f}")
+                    log_print(f"    POST-AI BLOCK (Stoch Strict): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict:.0f}")
                     _perf_metrics["post_ai_block_cycles"] += 1
                     return None
                 if signal == "CALL" and stoch_k_val > _stoch_call_strict:
-                    log_print(f"   🛑 POST-AI BLOCK (Stoch Strict): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict:.0f}")
+                    log_print(f"    POST-AI BLOCK (Stoch Strict): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict:.0f}")
                     _perf_metrics["post_ai_block_cycles"] += 1
                     return None
 
@@ -678,17 +678,17 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             elif mg_step >= 2: required_conf = safe_config_get("CONFIDENCE_MG_STEP_2", 0.80)
 
             if confidence < required_conf:
-                log_print(f"   🛑 POST-AI BLOCK (Sniper Guard): {signal} rejected. Conf {confidence:.2f} < {required_conf:.2f}")
+                log_print(f"    POST-AI BLOCK (Sniper Guard): {signal} rejected. Conf {confidence:.2f} < {required_conf:.2f}")
                 _perf_metrics["post_ai_block_cycles"] += 1
                 return None
 
             _perf_metrics["ai_suggest_cycles"] += 1
         else:
-            log_print("   ⚠️ Unified AI offline/invalid. FAIL-CLOSED -> SKIP.")
+            log_print("    Unified AI offline/invalid. FAIL-CLOSED -> SKIP.")
             _perf_metrics["ai_skip_cycles"] += 1
             return None
     else:
-        log_print("   📡 AI Analyst disabled. Using Technical Signals...")
+        log_print("    AI Analyst disabled. Using Technical Signals...")
         score_call, details_call = await _SMART_TRADER.tech.get_confirmation_score(api, asset, "CALL", df_feat)
         score_put, details_put = await _SMART_TRADER.tech.get_confirmation_score(api, asset, "PUT", df_feat)
         
@@ -696,10 +696,10 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             signal, confidence, ai_reason = "CALL", score_call, f"Tech Match: {details_call}"
         elif score_put >= 0.7:
             signal, confidence, ai_reason = "PUT", score_put, f"Tech Match: {details_put}"
-        log_print(f"   📈 Tech Signal: {signal} (Conf: {confidence})")
+        log_print(f"    Tech Signal: {signal} (Conf: {confidence})")
     
     if signal not in ["CALL", "PUT"]:
-        log_print(f"   🤖 AI Analysis: {signal} (No entry today)")
+        log_print(f"    AI Analysis: {signal} (No entry today)")
         return None
 
     if signal == "PUT" and not getattr(config, "ALLOW_PUT_SIGNALS", True): return None
@@ -707,21 +707,21 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     if float(confidence) < min_conf: return None
 
     # --- SMART TRADER INTERVENTION ---
-    # [v5.2.0] mg_step already loaded once above (Sniper Recovery section) — reusing cached value
+ # [v5.2.0] cleaned
     
     trade_count = sum(1 for t in _SMART_TRADER.perf.data.get("trades", []) if t.get("asset") == asset)
     base_asset_profile = config.get_asset_profile(asset, trade_count)
     
     # [v5.0 BUG-04 FIX] Block disallowed signal directions per asset profile (CHECK FIRST)
     if base_asset_profile.get("_disabled", False):
-        log_print(f"   🚫 [AssetProfile] {asset} DISABLED — {base_asset_profile.get('_disabled_reason', '')}")
+        log_print(f"    [AssetProfile] {asset} DISABLED  {base_asset_profile.get('_disabled_reason', '')}")
         _perf_metrics["pre_ai_skip_cycles"] += 1
         return None
 
     # [V5.0] Apply Dynamic Overrides based on Sticky Regime
     asset_profile = apply_adaptive_config(asset, df_feat, base_asset_profile)
 
-    # [v5.1.1 FIX] Strategy Selection — 3-Tier Priority
+ # comment cleaned
     # Priority 1: Specific regime profile (e.g. 1HZ10V_LOW_VOL.strategy)
     # Priority 2: regime_strategy_map from config (fallback when no specific profile)
     # Priority 3: base asset_profile.strategy (NORMAL regime / AUTO)
@@ -733,9 +733,9 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     _specific_profile = _profile_map.get(_specific_key)
     
     if _specific_profile and _specific_profile.get("strategy"):
-        # Specific profile wins — this was already loaded into asset_profile by apply_adaptive_config
+ # comment cleaned
         strategy_name = _specific_profile["strategy"]
-        log_print(f"   🎯 [Adaptive] Regime={current_regime} → Profile '{_specific_key}' strategy: {strategy_name}")
+        log_print(f"    [Adaptive] Regime={current_regime}  Profile '{_specific_key}' strategy: {strategy_name}")
     else:
         # Tier 2: config regime_strategy_map fallback
         regime_strategy_map = {
@@ -747,15 +747,15 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
 
         if regime_override != "AUTO":
             strategy_name = regime_override
-            log_print(f"   🔀 [Adaptive] Regime={current_regime} → Config fallback strategy: {strategy_name}")
+            log_print(f"    [Adaptive] Regime={current_regime}  Config fallback strategy: {strategy_name}")
         else:
             # Tier 3: base asset profile (NORMAL regime)
             strategy_name = asset_profile.get("strategy", "TREND_FOLLOWING")
-            log_print(f"   📋 [Adaptive] Regime={current_regime} → Base profile strategy: {strategy_name}")
+            log_print(f"    [Adaptive] Regime={current_regime}  Base profile strategy: {strategy_name}")
 
     allowed_signals = asset_profile.get("allowed_signals", ["CALL", "PUT"])
     if signal not in allowed_signals:
-        log_print(f"   🚫 [AssetProfile] Signal {signal} blocked for {asset} — profile only allows {allowed_signals}")
+        log_print(f"    [AssetProfile] Signal {signal} blocked for {asset}  profile only allows {allowed_signals}")
         return None
     
     final_decision = None
@@ -767,11 +767,11 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         details["ai_analysis"] = ai_reason
         final_decision = (should_enter, bet_mult, details, strategy_name)
     else:
-        log_print(f"   🚫 Strategy {strategy_name} BLOCKED or REJECTED. Checking fallback...")
+        log_print(f"    Strategy {strategy_name} BLOCKED or REJECTED. Checking fallback...")
         # [v5.1.7] Fallback: If PULLBACK_ENTRY blocked, try TREND_FOLLOWING
         if strategy_name == "PULLBACK_ENTRY" and not final_decision:
             fallback_strategy = "TREND_FOLLOWING"
-            log_print(f"   🔄 Trying fallback strategy: {fallback_strategy}")
+            log_print(f"    Trying fallback strategy: {fallback_strategy}")
             fb_enter, fb_mult, fb_details = await _SMART_TRADER.should_enter(
                 api=api, asset=asset, strategy=fallback_strategy, signal=signal, confidence=confidence, df_1m=df_feat, asset_profile=asset_profile
             )
@@ -782,20 +782,20 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 # [v5.1.9] Log reason why fallback also failed
                 fb_reasons = fb_details.get("reasons", [])
                 if fb_reasons:
-                    log_print(f"   ❌ Fallback {fallback_strategy} blocked: {'; '.join(fb_reasons[-2:])}")
+                    log_print(f"    Fallback {fallback_strategy} blocked: {'; '.join(fb_reasons[-2:])}")
 
     if not final_decision:
         if mg_step > 0:
             # [v5.2.0] Martingale Override with Critical Safety Gate
-            # ทบเงินสูง ($2-4) → ต้องเช็ค critical hard rules ก่อน force trade
-            # ป้องกันการยัดเทรดตอน MACD Bearish Cross / Dead Market
+ # comment cleaned
+ # comment cleaned
             from modules.technical_analysis import TechnicalConfirmation
             _mg_rsi_bounds = asset_profile.get("rsi_bounds") if asset_profile else None
             is_safe_for_mg, mg_block_reason = TechnicalConfirmation.check_hard_rules(df_feat, signal, "TREND_FOLLOWING", rsi_bounds=_mg_rsi_bounds)
 
             if is_safe_for_mg:
                 mg_override_strategy = strategy_name if 'strategy_name' in locals() else "AI_RECOVERY"
-                log_print(f"   ⚠️ Martingale Override: Recovery trade forced through. (MG Step: {mg_step})")
+                log_print(f"    Martingale Override: Recovery trade forced through. (MG Step: {mg_step})")
                 override_details = {
                     "reasons": [f"Martingale Recovery (Step {mg_step})", f"Signal Source: {ai_reason}"],
                     "ai_analysis": ai_reason,
@@ -803,15 +803,15 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 }
                 final_decision = (True, 1.0, override_details, mg_override_strategy)
             else:
-                log_print(f"   🛡️ MG Override BLOCKED by critical safety: {mg_block_reason}")
-                log_print(f"   ❌ MG Step {mg_step} — refusing to force trade into dangerous conditions. Waiting for safer entry.")
+                log_print(f"    MG Override BLOCKED by critical safety: {mg_block_reason}")
+                log_print(f"    MG Step {mg_step}  refusing to force trade into dangerous conditions. Waiting for safer entry.")
                 return None
         else:
-            log_print(f"   ❌ All strategies blocked for {asset}. Skipping.")
+            log_print(f"    All strategies blocked for {asset}. Skipping.")
             return None
         
     should_enter, bet_mult, details, active_strategy = final_decision
-    log_print(f"   ✅ Trade Accepted with strategy: {active_strategy}")
+    log_print(f"    Trade Accepted with strategy: {active_strategy}")
     _perf_metrics["trades_count"] += 1
     
     total = _perf_metrics["total_cycles"]
@@ -829,7 +829,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
 
     # [v5.3.2] Cycle Latency End
     total_latency = time.time() - cycle_start
-    log_print(f"   ⏱️ [Latency] Total Cycle Time: {total_latency:.3f}s (AI: {unified_latency:.2f}s)")
+    log_print(f"    [Latency] Total Cycle Time: {total_latency:.3f}s (AI: {unified_latency:.2f}s)")
 
     return {
         "action": signal,
@@ -886,14 +886,17 @@ async def analyze_trade_loss(asset, strategy, signal, profit, confidence, market
         actionable = result.get("actionable", False)
         fix_suggestion = result.get("fix_suggestion", "N/A")
         
-        log_print(f"    🧠 AI Post-Mortem: {analysis}")
-        log_print(f"    🔧 Actionable: {actionable} | Suggestion: {fix_suggestion}")
+        log_print(f"     AI Post-Mortem: {analysis}")
+        log_print(f"     Actionable: {actionable} | Suggestion: {fix_suggestion}")
         
-        # [v3.11.44] Conditional Auto-Fix Trigger: Requires Streak >= 2
+        # [v3.11.44] Conditional Auto-Fix Trigger: Requires Streak >= 5
+        # [v5.6.2] Raised from 2→5: streak of 2-4 is normal market noise.
+        # Firing AI Council on every 2 losses causes RSI windows to narrow permanently
+        # after every normal drawdown → vicious cycle of fewer trades & worse WR data.
         if actionable and fix_suggestion != "N/A":
-            if loss_streak >= 2:
+            if loss_streak >= 5:
                 from . import ai_council
-                log_print(f"    🚀 Triggering AI Council for Auto-Fix (Consecutive Losses: {loss_streak})...")
+                log_print(f"     Triggering AI Council for Auto-Fix (Consecutive Losses: {loss_streak})...")
                 # [v5.5.1] Build proper traceback context for AI Council
                 council_context = (
                     f"Consecutive Loss Auto-Fix Trigger\n"
@@ -906,7 +909,7 @@ async def analyze_trade_loss(asset, strategy, signal, profit, confidence, market
                 # Call ai_council directly to avoid telegram_bridge silent failure
                 asyncio.create_task(ai_council.resolve_error(error_msg, council_context))
             else:
-                log_print(f"    ℹ️ AI Council Skip: Loss streak is only {loss_streak}. Will trigger on next consecutive loss.")
+                log_print(f"     AI Council Skip: Loss streak is only {loss_streak}. Will trigger on next consecutive loss.")
             
         return {
             "analysis": analysis,
@@ -927,7 +930,7 @@ def record_trade_result(asset, strategy, signal, result, profit, confidence, is_
     
     # [v4.1.3] Skip RL penalty for forced Martingale recovery trades
     if is_override:
-        log_print(f"   🛡️ RL Protection: Skipping RL update for MG Override trade ({result}).")
+        log_print(f"    RL Protection: Skipping RL update for MG Override trade ({result}).")
     else:
         reward = 1.0 if profit > 0 else -1.0
         _SMART_TRADER.rl.update(asset, strategy, confidence, "ENTER", reward)
@@ -967,8 +970,8 @@ async def choose_best_asset(api, asset_summaries):
     if result and isinstance(result, dict):
         best = result.get("best_asset")
         if best:
-            log_print(f"   🎯 AI Scanner Choice: {best}")
-            log_print(f"   💡 Reason: {result.get('reason', '')}")
+            log_print(f"    AI Scanner Choice: {best}")
+            log_print(f"    Reason: {result.get('reason', '')}")
             return best
     return None
 

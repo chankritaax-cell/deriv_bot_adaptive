@@ -77,47 +77,41 @@ def _clean_json_raw(text):
     return text
 
 def _extract_json_from_text(text):
-    """Robust JSON extraction from chatty AI responses."""
+    """Robust JSON extraction from chatty AI responses (v3.8.1)."""
     if not text: return None
-    
-    # 0. Pre-clean (v3.11.3)
     text = text.strip()
     
-    # 1. Try stripping markdown
-    clean = text.replace("```json", "").replace("```", "").strip()
-    try: return json.loads(clean)
-    except: pass
-    
-    # 2. Find ALL JSON objects and try each (last valid wins — usually the final answer)
+    # 1. Try stripping exact markdown blocks first
+    if "```json" in text:
+        try:
+            matched = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+            if matched:
+                clean = matched.group(1).strip()
+                return json.loads(_clean_json_raw(clean))
+        except: pass
+    elif "```" in text:
+        try:
+            matched = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
+            if matched:
+                clean = matched.group(1).strip()
+                return json.loads(_clean_json_raw(clean))
+        except: pass
+
+    # 2. Greedy Matching: find the outermost { ... }
     try:
-        # Standard balanced braces pattern (v3.11.3: recursive regex removed as Python 're' doesn't support it)
-        # This handles objects with one or two levels of nesting (e.g., changes list of objects)
-        matches = re.findall(r'(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})', text, re.DOTALL)
-             
-        for m in reversed(matches):
-            try:
-                # [v3.11.5] Try direct load first to avoid corrupting strings with cleanup
-                return json.loads(m)
+        start_idx = text.find('{')
+        end_idx = text.rfind('}')
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            candidate = text[start_idx : end_idx + 1]
+            try: return json.loads(candidate)
             except:
-                try:
-                    # Cleanup only on failure
-                    m_cleaned = _clean_json_raw(m)
-                    obj = json.loads(m_cleaned)
-                    if isinstance(obj, dict) and len(obj) >= 2:
-                        return obj
-                except: continue
+                try: return json.loads(_clean_json_raw(candidate))
+                except: pass
     except: pass
     
-    # 3. Greedy Object (fallback)
-    try:
-        match = re.search(r"(\{.*\})", text, re.DOTALL)
-        if match: 
-            try:
-                return json.loads(_clean_json_raw(match.group(1)))
-            except: pass
-    except: pass
-    
-    return None
+    # 3. Last-ditch attempt: standard JSON loads
+    try: return json.loads(text)
+    except: return None
 
 def normalize_ai_result(raw_result, task_name="UNKNOWN"):
     default = {"asset": None, "strategy": None, "confidence": 0.0, "regime_trend": "UNKNOWN", "reason": "missing", "source": "UNKNOWN"}
@@ -241,7 +235,7 @@ def _chatgpt_raw_call(prompt, temperature=0.3, max_tokens=None):
             "model": getattr(config, "CHATGPT_MODEL", "gpt-4o"),
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
-            "max_tokens": max_tokens
+            "max_tokens": max_tokens or 4096
         }
         base_url = getattr(config, "OPENAI_API_BASE", "https://api.openai.com/v1")
         timeout = getattr(config, "AI_PROVIDER_TIMEOUT_SECONDS", 20)
@@ -287,7 +281,7 @@ def _claude_raw_call(prompt, temperature=0.3, max_tokens=None):
         }
         data = {
             "model": getattr(config, "CLAUDE_MODEL", "claude-sonnet-4-5-20250929"),
-            "max_tokens": max_tokens or 1024,
+            "max_tokens": max_tokens or 4096,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}]
         }
@@ -348,7 +342,7 @@ def _ollama_raw_call(prompt, temperature=0.3, max_tokens=None):
         elif resp.status_code == 404:
             log_print(f"⚠️ Ollama Error (404): Model '{model}' not found. Run 'ollama pull {model}'")
             _track_ai_usage("OLLAMA", "error")
-            return None
+        else:
             log_print(f"⚠️ Ollama Error: HTTP {resp.status_code}")
             _track_ai_usage("OLLAMA", "error")
             return None

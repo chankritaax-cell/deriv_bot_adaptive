@@ -38,7 +38,11 @@
       "Bash(__NEW_LINE_b40f049139725e4d__ echo \"\")",
       "Bash(__NEW_LINE_532b9a7dd4c595a6__ echo \"\")",
       "Bash(__NEW_LINE_9397f3f5f1a29e20__ echo \"\")",
-      "Bash(xargs grep -l \"martingale\\\\|mg_state\\\\|MG\")"
+      "Bash(xargs grep -l \"martingale\\\\|mg_state\\\\|MG\")",
+      "Bash(sort -t' ' -k2 -n)",
+      "Bash(xargs grep -l \"CALL window\\\\|call_window\\\\|55.0.*65.0\\\\|RSI_CALL\")",
+      "Bash(xargs grep -l \"Checking with Bet Gate\\\\|BET_GATE\\\\|bet_gate_check\")",
+      "Bash(xargs grep -rln \"BET_GATE\")"
     ]
   }
 }

@@ -8,14 +8,14 @@
         "rsi_bounds": {
             "pullback_call_lo": 38.0,
             "pullback_call_hi": 55.0,
-            "pullback_call_min": 28.0,
+            "pullback_call_min": 25.0,
             "pullback_put_lo": 45.0,
             "pullback_put_hi": 62.0,
-            "pullback_put_max": 72.0,
-            "call_min": 55.0,
-            "call_max": 65.0,
-            "put_min": 35.0,
-            "put_max": 45.0
+            "pullback_put_max": 75.0,
+            "call_min": 52.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 48.0
         },
         "bounce_limit": 10.0,
         "ma_slope_min": 0.025
