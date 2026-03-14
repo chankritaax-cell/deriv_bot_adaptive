@@ -1,13 +1,13 @@
-"""
-⚙️ Configuration Module (v5.1.0)
+﻿"""
+âš™ï¸ Configuration Module (v5.1.0)
 Central configuration for Deriv Bot, including account settings, AI parameters, and trading profiles.
 """
 import os
 
 # ---------------------------------------------------------
-# 🏷️ BOT_VERSION (Single Source of Truth)
+# ðŸ·ï¸ BOT_VERSION (Single Source of Truth)
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.5.10"    # [v5.5.10] Safety Guard: Universal MACD Exhaustion Block (All Strategies)
+BOT_VERSION = "5.5.11"    # [v5.5.11] Inactivity AI Report + RSI Bound Guard
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -17,7 +17,7 @@ USD_THB_RATE_FALLBACK = 36.50
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------
-# 🔐 LOAD ENV VARS
+# ðŸ” LOAD ENV VARS
 # ---------------------------------------------------------
 def load_env_file():
     env_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -38,7 +38,7 @@ DERIV_API_TOKEN = os.getenv("DERIV_API_TOKEN", "")
 DERIV_ACCOUNT_TYPE = "real" # "demo" or "real"
 
 # ==========================================
-# ⚙️ TIERED CONFIGURATION SYSTEM
+# âš™ï¸ TIERED CONFIGURATION SYSTEM
 # ==========================================
 ACTIVE_PROFILE = "TIER_COUNCIL" 
 
@@ -71,13 +71,13 @@ PROFILES = {
         "AI_CONFIDENCE_THRESHOLD": 0.80,
     },
    "TIER_COUNCIL": {
-        "AMOUNT": 1,                  # [v5.2.6] ลดจาก 1.0→0.8 XRP — Safety First
+        "AMOUNT": 1,                  # [v5.2.6] à¸¥à¸”à¸ˆà¸²à¸ 1.0â†’0.8 XRP â€” Safety First
         "MAX_DAILY_LOSS_PERCENT": 100.0,
-        "MAX_DAILY_LOSS_ABSOLUTE": 15,  # เผื่อพื้นที่ให้หายใจนิดนึงเวลาตลาดผันผวน
-        "MAX_MARTINGALE_STEPS": 1,      # ทบสูงสุด 1 ครั้ง (0.8→1.6 only) จำกัดความเสียหาย
-        "MAX_STAKE_AMOUNT": 2,        # [v5.2.6] 0.8 * 2.0 = 1.6 XRP (cap ไม้ทบ)
+        "MAX_DAILY_LOSS_ABSOLUTE": 15,  # à¹€à¸œà¸·à¹ˆà¸­à¸žà¸·à¹‰à¸™à¸—à¸µà¹ˆà¹ƒà¸«à¹‰à¸«à¸²à¸¢à¹ƒà¸ˆà¸™à¸´à¸”à¸™à¸¶à¸‡à¹€à¸§à¸¥à¸²à¸•à¸¥à¸²à¸”à¸œà¸±à¸™à¸œà¸§à¸™
+        "MAX_MARTINGALE_STEPS": 1,      # à¸—à¸šà¸ªà¸¹à¸‡à¸ªà¸¸à¸” 1 à¸„à¸£à¸±à¹‰à¸‡ (0.8â†’1.6 only) à¸ˆà¸³à¸à¸±à¸”à¸„à¸§à¸²à¸¡à¹€à¸ªà¸µà¸¢à¸«à¸²à¸¢
+        "MAX_STAKE_AMOUNT": 2,        # [v5.2.6] 0.8 * 2.0 = 1.6 XRP (cap à¹„à¸¡à¹‰à¸—à¸š)
         "MARTINGALE_MULTIPLIER": 2.0,
-        "AI_CONFIDENCE_THRESHOLD": 0.75, # [v5.5.0] ปรับลดเกณฑ์เป็น 0.75 เพื่อมาตรฐานสากล
+        "AI_CONFIDENCE_THRESHOLD": 0.75, # [v5.5.0] à¸›à¸£à¸±à¸šà¸¥à¸”à¹€à¸à¸“à¸‘à¹Œà¹€à¸›à¹‡à¸™ 0.75 à¹€à¸žà¸·à¹ˆà¸­à¸¡à¸²à¸•à¸£à¸à¸²à¸™à¸ªà¸²à¸à¸¥
     },
 }
 
@@ -111,18 +111,18 @@ def _parse_asset_list(env_var, default_val):
     return [x.strip() for x in val.split(",") if x.strip()]
 
 # Assets (Volatility Indices)
-# [v5.2.5] 1HZ75V ถูกลบออก — 36.4% WR / -5.24 XRP (worst asset, disabled)
+# [v5.2.5] 1HZ75V à¸–à¸¹à¸à¸¥à¸šà¸­à¸­à¸ â€” 36.4% WR / -5.24 XRP (worst asset, disabled)
 ASSETS_VOLATILITY = _parse_asset_list("ASSETS_VOLATILITY", "R_75,1HZ100V,1HZ50V,R_25,R_50,1HZ25V,1HZ10V")
 
 # [v3.6.7] Asset Priority Tiers (Recalculated from Trade History)
-# [v5.2.5] ลบ 1HZ75V ออกจาก TIER_3 (disabled), อัปเดต TIER_COUNCIL default
+# [v5.2.5] à¸¥à¸š 1HZ75V à¸­à¸­à¸à¸ˆà¸²à¸ TIER_3 (disabled), à¸­à¸±à¸›à¹€à¸”à¸• TIER_COUNCIL default
 ASSET_PRIORITY_TIERS = {
     "TIER_1": _parse_asset_list("ASSET_TIER_1", "R_75,1HZ50V"),
     "TIER_2": _parse_asset_list("ASSET_TIER_2", "1HZ100V"),
     "TIER_3": _parse_asset_list("ASSET_TIER_3", "R_50,1HZ10V"),
-    "TIER_COUNCIL": _parse_asset_list("ASSET_TIER_COUNCIL", "R_75,R_100,R_50,1HZ50V,1HZ100V,1HZ75V")  # [v5.2.6] ตรงกับ .env จริง
+    "TIER_COUNCIL": _parse_asset_list("ASSET_TIER_COUNCIL", "R_75,R_100,R_50,R_25,R_10,1HZ50V,1HZ100V,1HZ75V,1HZ25V,1HZ10V")
 }
-ACTIVE_ASSET = os.getenv("ACTIVE_ASSET", "R_75") # ดึงค่าจาก .env ถ้าไม่มีให้ใช้ R_75 เป็นค่าเริ่มต้น
+ACTIVE_ASSET = os.getenv("ACTIVE_ASSET", "R_75") # à¸”à¸¶à¸‡à¸„à¹ˆà¸²à¸ˆà¸²à¸ .env à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¸¡à¸µà¹ƒà¸«à¹‰à¹ƒà¸Šà¹‰ R_75 à¹€à¸›à¹‡à¸™à¸„à¹ˆà¸²à¹€à¸£à¸´à¹ˆà¸¡à¸•à¹‰à¸™
 
 # [v3.6.0] Advanced Blocking Config
 # [v3.6.5] Tuned Aggressive: Moderate Threshold (0.40)
@@ -157,22 +157,22 @@ AI_CONF_BET_MAX_MULTIPLIER = 1.5
 AI_CONF_BET_MIN_MULTIPLIER = 0.7  # [v3.11.27] Allow risk reduction
 
 # ---------------------------------------------------------
-# 🎯 Sniper Recovery System (Dynamic Confidence Threshold)
+# ðŸŽ¯ Sniper Recovery System (Dynamic Confidence Threshold)
 # ---------------------------------------------------------
-# [v5.2.0] Tuned from data: AI sends 0.85 (77%) and 0.90 (23%) — old 0.90 threshold blocked 77% of Step 2 signals
-CONFIDENCE_BASE = 0.75        # [v5.5.0] ไม้แรก: ปรับลด 0.85→0.75 — มาตรฐานใหม่เพื่อความคล่องตัว
-CONFIDENCE_MG_STEP_1 = 0.80   # [v5.5.0] ไม้ทบ 1: ปรับลด 0.90→0.80 — Sniper Guard Guard แบบมาตรฐาน
-CONFIDENCE_MG_STEP_2 = 0.80   # [v5.5.0] ไม้ทบ 2: ปรับลด 0.90→0.80
+# [v5.2.0] Tuned from data: AI sends 0.85 (77%) and 0.90 (23%) â€” old 0.90 threshold blocked 77% of Step 2 signals
+CONFIDENCE_BASE = 0.75        # [v5.5.0] à¹„à¸¡à¹‰à¹à¸£à¸: à¸›à¸£à¸±à¸šà¸¥à¸” 0.85â†’0.75 â€” à¸¡à¸²à¸•à¸£à¸à¸²à¸™à¹ƒà¸«à¸¡à¹ˆà¹€à¸žà¸·à¹ˆà¸­à¸„à¸§à¸²à¸¡à¸„à¸¥à¹ˆà¸­à¸‡à¸•à¸±à¸§
+CONFIDENCE_MG_STEP_1 = 0.80   # [v5.5.0] à¹„à¸¡à¹‰à¸—à¸š 1: à¸›à¸£à¸±à¸šà¸¥à¸” 0.90â†’0.80 â€” Sniper Guard Guard à¹à¸šà¸šà¸¡à¸²à¸•à¸£à¸à¸²à¸™
+CONFIDENCE_MG_STEP_2 = 0.80   # [v5.5.0] à¹„à¸¡à¹‰à¸—à¸š 2: à¸›à¸£à¸±à¸šà¸¥à¸” 0.90â†’0.80
 
 # BOT_VERSION declaration moved to top
 
 # [Safety Guards & Limits]
-MIN_STAKE_AMOUNT = 0.8   # [v5.2.6] ปรับให้ตรงกับ TIER_COUNCIL AMOUNT=0.8 (เดิม 1.0 ทำให้ยิงไม่ได้!)
+MIN_STAKE_AMOUNT = 0.8   # [v5.2.6] à¸›à¸£à¸±à¸šà¹ƒà¸«à¹‰à¸•à¸£à¸‡à¸à¸±à¸š TIER_COUNCIL AMOUNT=0.8 (à¹€à¸”à¸´à¸¡ 1.0 à¸—à¸³à¹ƒà¸«à¹‰à¸¢à¸´à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰!)
 SLIPPAGE_BUFFER = 0.10
 ENABLE_RSI_GUARD = True
 
 # [v5.1.6 LEGACY] RSI bounds below are NO LONGER USED by smart_trader.py
-# Active RSI bounds are defined per-asset in asset_profiles.json → rsi_bounds
+# Active RSI bounds are defined per-asset in asset_profiles.json â†’ rsi_bounds
 # Kept for backward compatibility with any external tools referencing these values
 RSI_CALL_MAX = 68
 RSI_PUT_LOWER = 32
@@ -180,11 +180,11 @@ RSI_CALL_MIN = 55.0
 RSI_PUT_UPPER = 45.0
 
 # [v5.1.6 LEGACY] ATR/Slope thresholds below are NO LONGER USED by smart_trader.py
-# Active values come from asset_profiles.json → ma_slope_min, bounce_limit
+# Active values come from asset_profiles.json â†’ ma_slope_min, bounce_limit
 # Regime thresholds below ARE still used by ai_engine.py regime detection
 MIN_ATR_THRESHOLD_PCT = 0.015
 MAX_ATR_THRESHOLD_PCT = 0.30
-MA_SLOPE_THRESHOLD_PCT = 0.020  # [v5.2.6] ขึ้นจาก 0.015→0.020 ให้ตรงกับ AI prompt (slope > 0.02% = UPTREND) ป้องกันเสีย AI call ฟรี
+MA_SLOPE_THRESHOLD_PCT = 0.020  # [v5.2.6] à¸‚à¸¶à¹‰à¸™à¸ˆà¸²à¸ 0.015â†’0.020 à¹ƒà¸«à¹‰à¸•à¸£à¸‡à¸à¸±à¸š AI prompt (slope > 0.02% = UPTREND) à¸›à¹‰à¸­à¸‡à¸à¸±à¸™à¹€à¸ªà¸µà¸¢ AI call à¸Ÿà¸£à¸µ
 
 # [v5.0 Adaptive Engine] Regime Detection Thresholds
 # R_ assets (Volatility Index): lower ATR range
@@ -197,15 +197,15 @@ REGIME_LOW_VOL_THRESHOLD_1HZ  = float(os.getenv("REGIME_LOW_VOL_1HZ",  "0.030"))
 
 # [v5.0 Adaptive Engine] Strategy auto-selection per regime
 # When regime shifts, bot overrides profile strategy with these
-REGIME_STRATEGY_HIGH_VOL = os.getenv("REGIME_STRATEGY_HIGH_VOL", "PULLBACK_ENTRY")  # [v5.2.6] TREND→PULLBACK: Anti-Whipsaw (ทุก _HIGH_VOL profile ใช้ PULLBACK แล้ว)
+REGIME_STRATEGY_HIGH_VOL = os.getenv("REGIME_STRATEGY_HIGH_VOL", "PULLBACK_ENTRY")  # [v5.2.6] TRENDâ†’PULLBACK: Anti-Whipsaw (à¸—à¸¸à¸ _HIGH_VOL profile à¹ƒà¸Šà¹‰ PULLBACK à¹à¸¥à¹‰à¸§)
 REGIME_STRATEGY_LOW_VOL  = os.getenv("REGIME_STRATEGY_LOW_VOL",  "PULLBACK_ENTRY")
 REGIME_STRATEGY_NORMAL   = os.getenv("REGIME_STRATEGY_NORMAL",   "AUTO")
-# AUTO = ใช้ strategy จาก asset_profiles.json ตามปกติ
+# AUTO = à¹ƒà¸Šà¹‰ strategy à¸ˆà¸²à¸ asset_profiles.json à¸•à¸²à¸¡à¸›à¸à¸•à¸´
 
 ENABLE_STOCHASTIC_BOUNCE_GUARD = True
-# [v5.2.6] Stochastic Strict Thresholds — Anti-Whipsaw gate
-STOCH_PUT_STRICT = 20    # ห้ามเปิด PUT หาก Stoch < 20 (Oversold zone — bounce risk)
-STOCH_CALL_STRICT = 80   # ห้ามเปิด CALL หาก Stoch > 80 (Overbought zone — reversal risk)
+# [v5.2.6] Stochastic Strict Thresholds â€” Anti-Whipsaw gate
+STOCH_PUT_STRICT = 20    # à¸«à¹‰à¸²à¸¡à¹€à¸›à¸´à¸” PUT à¸«à¸²à¸ Stoch < 20 (Oversold zone â€” bounce risk)
+STOCH_CALL_STRICT = 80   # à¸«à¹‰à¸²à¸¡à¹€à¸›à¸´à¸” CALL à¸«à¸²à¸ Stoch > 80 (Overbought zone â€” reversal risk)
 
 
 
@@ -235,8 +235,8 @@ ENABLE_AI_TASK_ROUTING = True
 AI_TASK_ROUTING = {
     "ASSET_SCANNER":        ["GEMINI", "CHATGPT"],
     "TREND_FILTER":         ["GEMINI", "CHATGPT"],
-    "AI_ANALYST":           ["GEMINI"],             # 🚀 Force Gemini for Unified Engine
-    "BET_GATE":             ["GEMINI"],             # 🚀 Force Gemini for Unified Engine
+    "AI_ANALYST":           ["GEMINI"],             # ðŸš€ Force Gemini for Unified Engine
+    "BET_GATE":             ["GEMINI"],             # ðŸš€ Force Gemini for Unified Engine
     "RISK_MANAGER":         ["GEMINI", "CLAUDE"],
     "COUNCIL":              ["CLAUDE", "CHATGPT"],
 }
@@ -262,7 +262,7 @@ SCAN_INTERVAL_MINUTES = 10
 ASSET_SCAN_INTERVAL_MINS = 10
 ASSET_SCAN_INTERVAL_NO_TRADE_MINS = 10
 
-# 🛡️ Mathematical Guards (Post-AI Veto)
+# ðŸ›¡ï¸ Mathematical Guards (Post-AI Veto)
 ENABLE_MACD_MOMENTUM_GUARD = True
 ENABLE_TICK_VELOCITY_GUARD = True
 MAX_TICK_VELOCITY_ATR_PCT = 0.5  # Tolerance for spike size relative to current ATR
@@ -286,7 +286,7 @@ ENABLE_TELEGRAM_NOTIFICATIONS = True  # [v3.6.8] Toggle for trade alerts via Tel
 ENABLE_AI_COUNCIL_NOTIFICATIONS = True  # [v3.6.9] Toggle for AI Council summaries via Telegram
 
 # =========================================================
-# 🗺️ V5.0: ASSET-STRATEGY DYNAMIC MAPPING
+# ðŸ—ºï¸ V5.0: ASSET-STRATEGY DYNAMIC MAPPING
 # =========================================================
 import json
 
@@ -300,7 +300,7 @@ def load_asset_profiles():
             with open(profile_path, "r", encoding="utf-8") as f:
                 ASSET_STRATEGY_MAP = json.load(f)
         except Exception as e:
-            print(f"⚠️ Failed to load asset_profiles.json: {e}")
+            print(f"âš ï¸ Failed to load asset_profiles.json: {e}")
             ASSET_STRATEGY_MAP = {}
     
     # Ensure DEFAULT exists as a fallback
@@ -320,7 +320,7 @@ load_asset_profiles()
 def get_asset_profile(asset, trade_count=0):
     profile = ASSET_STRATEGY_MAP.get(asset, ASSET_STRATEGY_MAP.get("DEFAULT", {}))
     
-    # [FIXED] เช็คทั้ง 2 เงื่อนไข ป้องกันการหลุดรอด (v5.1.0 Refined)
+    # [FIXED] à¹€à¸Šà¹‡à¸„à¸—à¸±à¹‰à¸‡ 2 à¹€à¸‡à¸·à¹ˆà¸­à¸™à¹„à¸‚ à¸›à¹‰à¸­à¸‡à¸à¸±à¸™à¸à¸²à¸£à¸«à¸¥à¸¸à¸”à¸£à¸­à¸” (v5.1.0 Refined)
     if profile.get("_disabled", False) or not profile.get("enabled", True):  
         return {
             "_disabled": True,
@@ -332,3 +332,4 @@ def get_asset_profile(asset, trade_count=0):
     if trade_count < min_trades:
         return ASSET_STRATEGY_MAP.get("DEFAULT", {})
     return profile
+

@@ -474,6 +474,27 @@ def _validate_proposal(proposal):
                         if any(key in change["search_snippet"] for key in rsi_keys):
                             return False, f"Change #{i}: RSI threshold modification is FORBIDDEN on REAL accounts for safety. Please adjust manually in config.py if needed. 🛡️"
                 except: pass
+
+        # [v5.5.x] Anti-Stupidity Check: Prevent AI from setting impossible RSI boundaries
+        if fname == "asset_profiles.json":
+            try:
+                r_text = change["replace_snippet"]
+                c_min_match = re.search(r'"call_min":\s*([0-9.]+)', r_text)
+                c_max_match = re.search(r'"call_max":\s*([0-9.]+)', r_text)
+                p_min_match = re.search(r'"put_min":\s*([0-9.]+)', r_text)
+                p_max_match = re.search(r'"put_max":\s*([0-9.]+)', r_text)
+                
+                if c_min_match and c_max_match:
+                    if float(c_min_match.group(1)) >= float(c_max_match.group(1)):
+                        log_print("🏛️ [AI Council] ❌ Validation Failed: call_min >= call_max. This breaks trading logic.")
+                        return False, "Hard Block: AI attempted to set call_min >= call_max."
+                
+                if p_min_match and p_max_match:
+                    if float(p_min_match.group(1)) >= float(p_max_match.group(1)):
+                        log_print("🏛️ [AI Council] ❌ Validation Failed: put_min >= put_max. This breaks trading logic.")
+                        return False, "Hard Block: AI attempted to set put_min >= put_max."
+            except Exception as e:
+                pass # Fail open if regex fails
     return True, "OK"
 
 

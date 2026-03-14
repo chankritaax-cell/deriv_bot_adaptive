@@ -8,6 +8,7 @@ import time
 import json
 import asyncio
 import logging
+import html
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler
@@ -327,6 +328,10 @@ TRADE_LOG = os.path.join(ROOT, "logs", "trades", "trade_history.jsonl")
 SUMMARY_LOG = os.path.join(ROOT, "logs", "dashboard", "summary_history.jsonl")
 COUNCIL_LOG = os.path.join(ROOT, "logs", "council", "history.json")
 
+# Inactivity tracking
+LAST_TRADE_TIME = time.time()
+LAST_INACTIVITY_REPORT = 0
+
 async def monitor_pending(application):
     """Background task to monitor pending proposals and alert user with buttons."""
     if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
@@ -390,6 +395,7 @@ async def monitor_pending(application):
 
 async def notify_trades(application):
     """Background task to monitor trade log and notify user."""
+    global LAST_TRADE_TIME
     if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
         logging.info("📢 Trade notifications disabled or Chat ID missing.")
         return
@@ -415,6 +421,7 @@ async def notify_trades(application):
                                 await _send_trade_alert(application, trade)
                             except Exception as e:
                                 logging.error(f"Error parsing trade line: {e}")
+                        LAST_TRADE_TIME = time.time()
                         last_count = len(lines)
         except Exception as e:
             logging.error(f"Error in notify_trades: {e}")
@@ -492,6 +499,59 @@ async def notify_summaries(application):
             logging.error(f"Error in notify_summaries: {e}")
             
         await asyncio.sleep(30) # Poll summaries every 30s
+
+async def monitor_inactivity(application):
+    """Notify user if no trades executed for 4 hours with AI log summary."""
+    global LAST_TRADE_TIME, LAST_INACTIVITY_REPORT
+
+    if not getattr(config, "ENABLE_TELEGRAM_NOTIFICATIONS", False) or not config.TELEGRAM_CHAT_ID:
+        logging.info("Inactivity monitor disabled or Chat ID missing.")
+        return
+
+    while True:
+        try:
+            now = time.time()
+            if (now - LAST_TRADE_TIME) >= 14400 and (now - LAST_INACTIVITY_REPORT) >= 14400:
+                date_str = time.strftime("%Y-%m-%d")
+                log_file = os.path.join(ROOT, "logs", "console", f"console_log_{date_str}.txt")
+                lines = []
+                if os.path.exists(log_file):
+                    with open(log_file, "r", encoding="utf-8") as f:
+                        lines = f.readlines()[-300:]
+
+                logs_text = "".join(lines).strip()
+                if not logs_text:
+                    logs_text = "No recent log lines found."
+
+                prompt = (
+                    "ACT AS: Senior Quantitative Analyst. The trading bot has NOT executed any trades "
+                    "in the last 4 hours. Read the recent log lines below and summarize briefly in THAI "
+                    "why the bot is skipping trades (e.g., Sideways market, RSI blocks, Asset selector failed). "
+                    "Keep it concise, friendly, and actionable.\n\n"
+                    f"LOGS:\n{logs_text}"
+                )
+
+                summary = await asyncio.to_thread(
+                    call_ai_raw_with_failover, prompt, "INACTIVITY_ANALYSIS"
+                )
+                if not summary:
+                    summary = "ไม่พบสาเหตุชัดเจนจาก log ล่าสุด ลองตรวจสอบสถานะตลาดและการเชื่อมต่อ API อีกครั้งครับ"
+
+                safe_summary = html.escape(str(summary))
+                msg = (
+                    "<b>Inactivity AI Analyst Report</b>\n"
+                    f"{safe_summary}"
+                )
+                await application.bot.send_message(
+                    chat_id=config.TELEGRAM_CHAT_ID,
+                    text=msg,
+                    parse_mode="HTML"
+                )
+                LAST_INACTIVITY_REPORT = now
+        except Exception as e:
+            logging.error(f"Error in monitor_inactivity: {e}")
+
+        await asyncio.sleep(60)
 
 async def _send_summary_alert(application, summary):
     """[v3.11.46] Formats and sends the periodic summary report."""
@@ -686,6 +746,7 @@ async def post_init(application):
     asyncio.create_task(notify_council(application))
     asyncio.create_task(notify_summaries(application)) # [v3.11.46]
     asyncio.create_task(monitor_pending(application))
+    asyncio.create_task(monitor_inactivity(application))
 
 if __name__ == '__main__':
     if not config.TELEGRAM_BOT_TOKEN:
