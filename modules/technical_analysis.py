@@ -5,6 +5,7 @@ Handles MACD, Stochastic, RSI, ATR, and Multi-Timeframe Analysis.
 [v4.0.1] Fixed import portability for standalone/package execution.
 """
 
+import time
 import numpy as np
 import pandas as pd
 import config
@@ -28,6 +29,9 @@ except (ImportError, ValueError):
 
 class TechnicalConfirmation:
     """Multi-timeframe analysis and advanced indicators for trade confirmation."""
+
+    # [v5.6.7] MACD Exhaustion Cooldown state: {"{asset}_{signal}": expiry_timestamp}
+    _exhaustion_cooldowns: dict = {}
 
     @staticmethod
     def get_macd(df, fast=12, slow=26, signal_period=9):
@@ -279,15 +283,25 @@ class TechnicalConfirmation:
         }
 
     @staticmethod
-    def check_hard_rules(df, signal, strategy="", rsi_bounds=None):
+    def check_hard_rules(df, signal, strategy="", rsi_bounds=None, asset=""):
         """
         [v5.2.2] Hard safety checks to prevent Reversal/Momentum losses.
         strategy param used to skip exhaustion guard for TREND_FOLLOWING.
         rsi_bounds: dict from asset_profile (e.g. {"call_min":45,"call_max":72,...})
                     If None, falls back to legacy config.py values.
+        asset: used for MACD Exhaustion Cooldown tracking (v5.6.7).
         Returns: (passed: bool, reason: str)
         """
         if df is None or len(df) < 35: return True, "Not enough data"
+
+        # [v5.6.7] MACD Exhaustion Cooldown — Pre-flight check
+        # Prevents "dead-cat bounce" second entries right after an exhaustion block.
+        if asset and signal in ("CALL", "PUT"):
+            _cd_key = f"{asset}_{signal}"
+            _cd_expiry = TechnicalConfirmation._exhaustion_cooldowns.get(_cd_key, 0)
+            if time.time() < _cd_expiry:
+                _remaining = int(_cd_expiry - time.time())
+                return False, f"Hard Block: {signal} rejected. Cooling down from recent MACD Exhaustion (wait {_remaining}s) 🛑"
         
         # 1. MACD Reversal Block
         # Calculate full series to get previous value
@@ -323,10 +337,16 @@ class TechnicalConfirmation:
             if signal == "CALL" and hist_now <= hist_prev:
                 decay = abs(hist_prev - hist_now) / abs(hist_prev) if hist_prev != 0 else 1.0
                 if decay >= 0.28:  # Only block on significant decay (28%+), not minor oscillation
+                    # [v5.6.7] Set 3-minute cooldown to prevent dead-cat-bounce second entries
+                    if asset:
+                        TechnicalConfirmation._exhaustion_cooldowns[f"{asset}_CALL"] = time.time() + 180
                     return False, f"Hard Block: CALL rejected. MACD Exhaustion ({hist_now:.4f}, decay {decay:.0%}) 🛑"
             if signal == "PUT" and hist_now >= hist_prev:
                 decay = abs(hist_now - hist_prev) / abs(hist_prev) if hist_prev != 0 else 1.0
                 if decay >= 0.28:
+                    # [v5.6.7] Set 3-minute cooldown to prevent dead-cat-bounce second entries
+                    if asset:
+                        TechnicalConfirmation._exhaustion_cooldowns[f"{asset}_PUT"] = time.time() + 180
                     return False, f"Hard Block: PUT rejected. MACD Exhaustion ({hist_now:.4f}, decay {decay:.0%}) 🛑"
         # 2. RSI Block
         rsi = TechnicalConfirmation.get_rsi(df)

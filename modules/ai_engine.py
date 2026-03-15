@@ -410,6 +410,25 @@ def _get_feature_df(df_1m, granularity_sec=60):
     log_print(f"    Feature DF: rows={len(df_feat)} last_ts={int(df_feat.iloc[-1]['timestamp'])} (trimmed=100)")
     return df_feat
 
+def _shadow_fire(api, asset: str, signal: str, reason: str, df_feat, rsi_val, macd_hist, stoch_k_val):
+    """[v5.6.5] Fire-and-forget shadow trade tracker. Never blocks the main loop."""
+    try:
+        if signal not in ("CALL", "PUT"):
+            return
+        from .shadow_tracker import shadow_tracker
+        entry_price = float(df_feat["close"].iloc[-1])
+        indicators = {
+            "rsi":       rsi_val or 0.0,
+            "macd_hist": macd_hist or 0.0,
+            "stoch_k":   stoch_k_val or 0.0,
+        }
+        asyncio.create_task(
+            shadow_tracker.track_virtual_trade(api, asset, signal, reason, entry_price, indicators)
+        )
+    except Exception:
+        pass
+
+
 async def analyze_and_decide(api, asset, market_data_summary, df_1m):
     global _perf_metrics
     _perf_metrics["total_cycles"] += 1
@@ -634,6 +653,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             if decision == "APPROVE" and signal in ["CALL", "PUT"]:
                 if local_score < 0.5:
                     log_print(f"    LOCAL VETO: AI said APPROVE, but Local Risk Score is {local_score:.2f} (< 0.50). Overriding to VETO.")
+                    # [v5.6.5] Shadow track trades blocked by Local Risk Score
+                    _shadow_fire(api, asset, signal, f"LOCAL_VETO: score={local_score:.2f}", df_feat, rsi_val, macd_hist, stoch_k_val)
                     decision = "VETO"
                     signal = "SKIP"
                     ai_reason = f"(LOCAL VETO: score {local_score}) " + ai_reason
@@ -649,6 +670,9 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
 
             if signal == "SKIP":
                 _perf_metrics["ai_skip_cycles"] += 1
+                # [v5.6.5] Shadow track CALL/PUT that AI vetoed as SKIP
+                if action_raw in ("CALL", "PUT"):
+                    _shadow_fire(api, asset, action_raw, f"AI_SKIP: {ai_reason}", df_feat, rsi_val, macd_hist, stoch_k_val)
                 return None
 
             # [Post-AI Hard Rules & Safety Checks]
@@ -656,6 +680,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 lo, hi = _get_rsi_bounds_call(_early_profile) if signal == "CALL" else _get_rsi_bounds_put(_early_profile)
                 log_print(f"    POST-AI BLOCK: {signal} rejected. RSI {rsi_val:.1f} out of bounds ({lo}-{hi})")
                 _perf_metrics["post_ai_block_cycles"] += 1
+                # [v5.6.5] Shadow track RSI-blocked trades
+                _shadow_fire(api, asset, signal, f"POST_AI_RSI: rsi={rsi_val:.1f} bounds=({lo}-{hi})", df_feat, rsi_val, macd_hist, stoch_k_val)
                 return None
 
             if stoch_k_val is not None:
@@ -664,10 +690,14 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 if signal == "PUT" and stoch_k_val < _stoch_put_strict:
                     log_print(f"    POST-AI BLOCK (Stoch Strict): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict:.0f}")
                     _perf_metrics["post_ai_block_cycles"] += 1
+                    # [v5.6.5] Shadow track Stoch-blocked trades
+                    _shadow_fire(api, asset, signal, f"POST_AI_STOCH_STRICT: PUT stoch={stoch_k_val:.1f} < {_stoch_put_strict:.0f}", df_feat, rsi_val, macd_hist, stoch_k_val)
                     return None
                 if signal == "CALL" and stoch_k_val > _stoch_call_strict:
                     log_print(f"    POST-AI BLOCK (Stoch Strict): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict:.0f}")
                     _perf_metrics["post_ai_block_cycles"] += 1
+                    # [v5.6.5] Shadow track Stoch-blocked trades
+                    _shadow_fire(api, asset, signal, f"POST_AI_STOCH_STRICT: CALL stoch={stoch_k_val:.1f} > {_stoch_call_strict:.0f}", df_feat, rsi_val, macd_hist, stoch_k_val)
                     return None
 
             # Sniper Recovery (Dynamic Confidence)
@@ -680,6 +710,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             if confidence < required_conf:
                 log_print(f"    POST-AI BLOCK (Sniper Guard): {signal} rejected. Conf {confidence:.2f} < {required_conf:.2f}")
                 _perf_metrics["post_ai_block_cycles"] += 1
+                # [v5.6.5] Shadow track confidence-blocked trades
+                _shadow_fire(api, asset, signal, f"SNIPER_GUARD: conf={confidence:.2f} < required={required_conf:.2f} mg_step={mg_step}", df_feat, rsi_val, macd_hist, stoch_k_val)
                 return None
 
             _perf_metrics["ai_suggest_cycles"] += 1
@@ -808,6 +840,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 return None
         else:
             log_print(f"    All strategies blocked for {asset}. Skipping.")
+            # [v5.6.5] Shadow track when all strategies are blocked
+            _shadow_fire(api, asset, signal, f"ALL_STRATS_BLOCKED: {asset}", df_feat, rsi_val, macd_hist, stoch_k_val)
             return None
         
     should_enter, bet_mult, details, active_strategy = final_decision

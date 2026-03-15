@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
  # [Cleaned garbled comment]
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.6.5"     # [v5.6.3] Manual Stability Fixes: MACD threshold, AI Council guard, RSI bounds
+BOT_VERSION = "5.6.7"     # [v5.6.7] MACD Exhaustion Cooldown — prevent dead-cat-bounce second entries
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91

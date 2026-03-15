@@ -6,6 +6,47 @@ All notable changes to this project will be documented in this file.
 
 
 
+## [v5.6.7] - 2026-03-15
+### 🛡️ MACD Exhaustion Cooldown — Anti Dead-Cat-Bounce Guard
+
+- **[NEW] `TechnicalConfirmation._exhaustion_cooldowns`** (class variable in `modules/technical_analysis.py`)
+  - Dict tracking active cooldowns per `"{asset}_{signal}"` key with `time.time() + 180` expiry.
+
+- **[NEW] Pre-flight cooldown check** at the top of `check_hard_rules()` (before all other rules)
+  - If an active cooldown exists for `asset + signal`, immediately returns `False` with message:
+    `Hard Block: {signal} rejected. Cooling down from recent MACD Exhaustion (wait Xs) 🛑`
+  - Shows remaining seconds dynamically in the block message.
+
+- **[NEW] Cooldown trigger** — fires immediately after either MACD Exhaustion hard block (`CALL` or `PUT`)
+  - `TechnicalConfirmation._exhaustion_cooldowns[f"{asset}_{CALL/PUT}"] = time.time() + 180`
+  - Only triggered when `asset` is non-empty (live trading). Scanner, backtest, MG-recovery paths unaffected.
+
+- **[UPDATED] `modules/smart_trader.py`** — passes `asset=asset` to `check_hard_rules()`.
+  - This is the primary live-trading path where the cooldown is enforced.
+  - Backtest, `asset_selector.py`, and MG-recovery (`ai_engine.py`) callers are intentionally unchanged.
+
+- **Root cause prevented**: After MACD exhaustion blocks a trade, the market often produces a 1-2 minute "dead-cat bounce" that fools RSI and MA slope into approving a follow-up entry right before a major reversal. The 3-minute cooldown strictly isolates this noise window.
+
+## [v5.6.6] - 2026-03-15
+### 🔭 Shadow Tracking System (Virtual Trade Analysis)
+
+- **[NEW] `modules/shadow_tracker.py`**: Virtual trading engine that tracks blocked/skipped trades to evaluate signal accuracy.
+  - `ShadowTracker` class with async `track_virtual_trade()` — waits 180s, fetches exit price via `api.ticks_history`, records WIN/LOSS to CSV.
+  - Atomic CSV writes via `asyncio.Lock` + `asyncio.to_thread`.
+  - Output: `logs/shadow_trades.csv` with columns: Timestamp, Asset, Signal, Reason, RSI, MACD, Stoch, Entry_Price, Exit_Price, Virtual_Result.
+  - 15s timeout on API calls. All exceptions silently swallowed — never crashes the main loop.
+
+- **[NEW] `_shadow_fire()` in `modules/ai_engine.py`**: Fire-and-forget wrapper using `asyncio.create_task`. Integrated at 6 veto/block points:
+  1. `AI_SKIP` — AI returned SKIP but raw signal was CALL/PUT
+  2. `LOCAL_VETO` — Local Risk Score < 0.5 override
+  3. `POST_AI_RSI` — RSI out of bounds after AI approval
+  4. `POST_AI_STOCH_STRICT` — Stochastic strict block (PUT < 20, CALL > 80)
+  5. `SNIPER_GUARD` — Confidence below MG-step threshold
+  6. `ALL_STRATS_BLOCKED` — No valid strategy passed for asset
+
+- **[NEW] `bot.py` init**: `shadow_tracker.set_api(api)` called after authorization to inject live API reference.
+- **[FIX] `asset_profiles.json` R_75 `put_max`**: Restored from 39.5 → 45.0 (AI Council had silently modified it).
+
 ## [v5.6.5] - 2026-03-15
  # comment cleaned
 - **Adjust RSI_PUT_MIN for R_75 TREND_FOLLOWING Strategy**

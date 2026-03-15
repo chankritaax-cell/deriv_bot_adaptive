@@ -1293,6 +1293,12 @@ async def main():
             return
             
         log_print(f" Authorized. Balance: {authorize['authorize']['balance']} {config.CURRENCY}{thb_suffix(float(authorize['authorize']['balance']))}")
+        # [v5.6.5] Initialize Shadow Tracker with live API reference
+        try:
+            from modules.shadow_tracker import shadow_tracker
+            shadow_tracker.set_api(api)
+        except Exception as _st_e:
+            log_print(f" [ShadowTracker] Init warning: {_st_e}")
     except Exception as e:
         if "ResponseError" in str(type(e)):
             log_print(f" API Response Error: {str(e)}")

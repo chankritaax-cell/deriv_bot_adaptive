@@ -265,7 +265,7 @@ class SmartTrader:
         # [v5.2.2] Pass strategy + rsi_bounds from asset_profile for consistency
         _hr_rsi_bounds = asset_profile.get("rsi_bounds") if asset_profile else None
         if safe_config_get("ENABLE_HARD_RULES", True):
-            is_safe, failure_reason = TechnicalConfirmation.check_hard_rules(df_1m, signal, strategy, rsi_bounds=_hr_rsi_bounds)
+            is_safe, failure_reason = TechnicalConfirmation.check_hard_rules(df_1m, signal, strategy, rsi_bounds=_hr_rsi_bounds, asset=asset)
             if not is_safe:
                  details["final_decision"] = "SKIP"
                  details["reasons"].append(f"L1.5: {failure_reason}")
