@@ -1353,13 +1353,13 @@ async def main():
 last_activity_time = 0
 
 async def watchdog_task():
-    """[v4.1.4] Monitors the main loop. If stuck for >240s, kills the process."""
+    """[v5.6.5] Monitors the main loop. If stuck for >120s, kills the process."""
     global last_activity_time
-    log_print("    Watchdog started (timeout: 240s).")
+    log_print("    Watchdog started (timeout: 120s).")
     while True:
         await asyncio.sleep(10)
-        if time.time() - last_activity_time > 240:
-            msg = " Watchdog: Main loop FROZEN for 240s. No real data received. Killing process to trigger auto-restart."
+        if time.time() - last_activity_time > 120:
+            msg = " Watchdog: Main loop FROZEN for 120s. No real data received. Killing process to trigger auto-restart."
             log_print(msg)
             log_to_file(msg)
             # Force Kill Process (Auto-restart via run.bat loop)

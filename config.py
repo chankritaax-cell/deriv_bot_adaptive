@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
  # [Cleaned garbled comment]
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.6.3"     # [v5.6.3] Manual Stability Fixes: MACD threshold, AI Council guard, RSI bounds
+BOT_VERSION = "5.6.5"     # [v5.6.3] Manual Stability Fixes: MACD threshold, AI Council guard, RSI bounds
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -47,7 +47,7 @@ PROFILES = {
         "AMOUNT": 1.0, 
         "MAX_DAILY_LOSS_PERCENT": 5.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 25,
-        "MAX_MARTINGALE_STEPS": 3,
+        "MAX_MARTINGALE_STEPS": 0,
         "MAX_STAKE_AMOUNT": 5,
         "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.60, 
@@ -56,7 +56,7 @@ PROFILES = {
         "AMOUNT": 1.0,
         "MAX_DAILY_LOSS_PERCENT": 10.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 50,
-        "MAX_MARTINGALE_STEPS": 5,
+        "MAX_MARTINGALE_STEPS": 0,
         "MAX_STAKE_AMOUNT": 10,
         "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.70,
@@ -74,7 +74,7 @@ PROFILES = {
         "AMOUNT": 1, # [v5.2.6] cleaned
         "MAX_DAILY_LOSS_PERCENT": 100.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 15, # [Cleaned garbled comment]
-        "MAX_MARTINGALE_STEPS": 1, # [Cleaned garbled comment]
+        "MAX_MARTINGALE_STEPS": 0, # [Cleaned garbled comment]
         "MAX_STAKE_AMOUNT": 2, # [Cleaned garbled comment]
         "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.75, # [Cleaned garbled comment]

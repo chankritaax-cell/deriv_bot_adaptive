@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 
 
+
+
+## [v5.6.5] - 2026-03-15
+ # comment cleaned
+- **Adjust RSI_PUT_MIN for R_75 TREND_FOLLOWING Strategy**
+- **[CONFIG_CHANGE] asset_profiles.json:** Increase RSI_PUT_MIN to tighten entry conditions for PUT trades.
+- _Analysis: The bot is experiencing consecutive losses due to entering trades when RSI is not in an optimal range. The current RSI_PUT_MIN value is too low, allowing trades in less favorable conditions._
+- _Files: asset_profiles.json_
+
+## [v5.6.4] - 2026-03-15
+ # comment cleaned
+- **Increase RSI_PUT_MIN to 50 for R_75 PULLBACK_ENTRY strategy**
+- **[CONFIG_CHANGE] asset_profiles.json:** Increase RSI put_min from 35 to 50 for R_75 to reduce false PUT signals in high volatility downtrend
+- _Analysis: Bot มี loss streak 5 ครั้งติดต่อกันบน R_75 ด้วย PUT signals ในตลาด downtrend ที่มี RSI=39.9 ซึ่งอยู่ใกล้กับ put_min=35 ปัจจุบัน ควรเพิ่ม put_min เป็น 50 เพื่อให้ PUT signals เกิดขึ้นเฉพาะเมื่อ RSI สูงกว่า (oversold มากกว่า) และลด false signals ในช่วง high volatility_
+- _Files: asset_profiles.json_
+
 ## [v5.6.4] - 2026-03-15
 ### 🔧 Telegram Bridge Bug Fixes & Improvements (`modules/telegram_bridge.py` → v3.12.4)
 

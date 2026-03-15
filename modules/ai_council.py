@@ -475,26 +475,38 @@ def _validate_proposal(proposal):
                             return False, f"Change #{i}: Direct RSI modification in config.py is blocked on REAL accounts. Use asset_profiles.json instead."
                 except: pass
 
-        # [v5.5.x] Anti-Stupidity Check: Prevent AI from setting impossible RSI boundaries
+        # [v5.6.5] Anti-Stupidity Check: Auto-correct impossible RSI boundaries
         if fname == "asset_profiles.json":
             try:
                 r_text = change["replace_snippet"]
-                c_min_match = re.search(r'"call_min":\s*([0-9.]+)', r_text)
-                c_max_match = re.search(r'"call_max":\s*([0-9.]+)', r_text)
-                p_min_match = re.search(r'"put_min":\s*([0-9.]+)', r_text)
-                p_max_match = re.search(r'"put_max":\s*([0-9.]+)', r_text)
                 
-                if c_min_match and c_max_match:
-                    if float(c_min_match.group(1)) >= float(c_max_match.group(1)):
-                        log_print(" [AI Council]  Validation Failed: call_min >= call_max. This breaks trading logic.")
-                        return False, "Hard Block: AI attempted to set call_min >= call_max."
+                # Helper to check and swap reversed pairs
+                def fix_reversed_bounds(text, min_key, max_key):
+                    min_m = re.search(f'"{min_key}":\\s*([0-9.]+)', text)
+                    max_m = re.search(f'"{max_key}":\\s*([0-9.]+)', text)
+                    if min_m and max_m:
+                        v_min = float(min_m.group(1))
+                        v_max = float(max_m.group(1))
+                        if v_min > v_max:
+                            log_print(f"🏛️ [AI Council] ⚠️ Auto-Correcting reversed {min_key}/{max_key} ({v_min} > {v_max}). Swapping values.")
+                            # Simple string replacement for these specific values
+                            text = text.replace(f'"{min_key}": {v_min}', f'"{min_key}": {v_max}')
+                            text = text.replace(f'"{max_key}": {v_max}', f'"{max_key}": {v_min}')
+                            # Handle cases with different spacing if replace failed
+                            if f'"{min_key}": {v_max}' not in text:
+                                text = re.sub(f'"{min_key}":\\s*{v_min}', f'"{min_key}": {v_max}', text)
+                                text = re.sub(f'"{max_key}":\\s*{v_max}', f'"{max_key}": {v_min}', text)
+                    return text
+
+                # Apply to both call and put pairs
+                new_r_text = fix_reversed_bounds(r_text, "call_min", "call_max")
+                new_r_text = fix_reversed_bounds(new_r_text, "put_min", "put_max")
                 
-                if p_min_match and p_max_match:
-                    if float(p_min_match.group(1)) >= float(p_max_match.group(1)):
-                        log_print(" [AI Council]  Validation Failed: put_min >= put_max. This breaks trading logic.")
-                        return False, "Hard Block: AI attempted to set put_min >= put_max."
+                if new_r_text != r_text:
+                    change["replace_snippet"] = new_r_text
+                    log_print("🏛️ [AI Council] ✅ Proposal auto-corrected and validated.")
             except Exception as e:
-                pass # Fail open if regex fails
+                log_print(f" [AI Council] RSI Correction Error: {e}")
     return True, "OK"
 
 

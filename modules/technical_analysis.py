@@ -301,6 +301,12 @@ class TechnicalConfirmation:
         hist_now = histogram.iloc[-1]
         hist_prev = histogram.iloc[-2]
         
+        # [v5.6.5] MACD Contradiction Rule (Strong momentum in opposite direction)
+        if signal == "CALL" and hist_now < -0.0001:
+            return False, f"Hard Block: CALL rejected. MACD Contradiction ({hist_now:.4f}) 🛑"
+        if signal == "PUT" and hist_now > 0.0001:
+            return False, f"Hard Block: PUT rejected. MACD Contradiction ({hist_now:.4f}) 🛑"
+
         # Bearish Cross (Positive -> Negative)
         if hist_prev > 0 and hist_now < 0:
             if signal == "CALL": return False, "Hard Block: MACD Bearish Cross 🛑"
