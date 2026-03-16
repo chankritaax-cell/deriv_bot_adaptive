@@ -58,6 +58,10 @@ from modules.utils import log_print, log_to_file, dashboard_update, dashboard_ad
 from modules.stream_manager import DerivStreamManager # [v4.0.0] New Streaming Manager
 COMMAND_FILE = os.path.join(ROOT, "logs", "commands.json") # [v3.11.28] Define COMMAND_FILE using ROOT
 
+# [v5.6.8] Post-Loss Cooldown: per-asset dict { asset: expiry_timestamp }
+# Module-level so it survives asset rotation (new run_streaming_bot scope).
+_loss_cooldowns: dict = {}
+
 def check_tick_velocity(stream_mgr, current_atr):
     """
     [v4.1.2] Tick Velocity Guard / Micro-Spike Prevention (Stream-Based)
@@ -400,9 +404,17 @@ async def run_streaming_bot(api, thb_suffix):
                 continue
 
             # --- 6. Pre-AI Analysis ---
+            # [v5.6.8] Post-Loss Cooldown — skip if MG recovery is in progress (mg_step > 0)
+            _plc_mg_step, _, _ = load_martingale_state()
+            if _plc_mg_step == 0:
+                _plc_remaining = _loss_cooldowns.get(asset, 0) - time.time()
+                if _plc_remaining > 0:
+                    log_print(f"    [Post-Loss Cooldown] {asset} is resting for {int(_plc_remaining)}s after a recent LOSS. Skipping.")
+                    continue
+
             log_print(f"\n Analyzing {asset} (Closed Candle: {current_epoch} - {human_time})...")
             market_summary = market_engine.get_market_summary_from_df(df)
-            
+
             # 7. AI Analysis & Guards (Internal to analyze_and_decide)
             decision = await ai_engine.analyze_and_decide(api, asset, market_summary, df)
 
@@ -572,6 +584,9 @@ async def run_streaming_bot(api, thb_suffix):
                             last_scan_time = 0 # Force immediate scan to switch assets
                         else:
                             log_print(f"    [Cut and Run] Step 0 loss  normal variance, letting MG handle. No ban.")
+                        # [v5.6.8] Post-Loss Cooldown: block same asset for 3 min to prevent revenge trading
+                        _loss_cooldowns[asset] = time.time() + 180
+                        log_print(f"    [Post-Loss Cooldown] {asset} cooldown set for 3 minutes.")
                     elif result == "DRAW":
                         log_print(f"    DRAW: No changes to streak or martingale.")
                     else: # comment cleaned
@@ -634,6 +649,9 @@ async def run_streaming_bot(api, thb_suffix):
                                         last_scan_time = 0
                                     else:
                                         log_print(f"    [Cut and Run] Step 0 loss  no ban.")
+                                    # [v5.6.8] Post-Loss Cooldown
+                                    _loss_cooldowns[asset] = time.time() + 180
+                                    log_print(f"    [Post-Loss Cooldown] {asset} cooldown set for 3 minutes.")
                                 else:  # DRAW
                                     telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
                                 break  # Exit the definitive wait loop
@@ -643,6 +661,9 @@ async def run_streaming_bot(api, thb_suffix):
  # [v5.1.6] cleaned
                             log_print(f"    [Definitive Wait] Exhausted {_max_definitive_retries} retries for contract {contract_id}. Treating as LOSS for MG safety.")
                             last_trade_result = "LOSS"
+                            # [v5.6.8] Post-Loss Cooldown — unresolved trade treated as LOSS
+                            _loss_cooldowns[asset] = time.time() + 180
+                            log_print(f"    [Post-Loss Cooldown] {asset} cooldown set for 3 minutes (unresolved fallback).")
                             next_mg_step = mg_step + 1
                             if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
                                 reset_martingale_state()
@@ -982,10 +1003,19 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
 
                     last_candle_time = current_candle_time
                     asset_name = market_engine.get_asset_name(asset)
+
+                    # [v5.6.8] Post-Loss Cooldown — skip if MG recovery is in progress (mg_step > 0)
+                    _plc_mg_step, _, _ = load_martingale_state()
+                    if _plc_mg_step == 0:
+                        _plc_remaining = _loss_cooldowns.get(asset, 0) - time.time()
+                        if _plc_remaining > 0:
+                            log_print(f"    [Post-Loss Cooldown] {asset} is resting for {int(_plc_remaining)}s after a recent LOSS. Skipping.")
+                            continue
+
                     log_print(f"\n Analyzing {asset_name} ({asset}) (New Candle: {current_candle_time} - {human_time})...")
                     current_price = df['close'].iloc[-1]
                     log_print(f"   Price: {current_price}")
-                    
+
                     market_summary = await market_engine.get_market_summary_for_ai(api, asset)
                     decision = await ai_engine.analyze_and_decide(api, asset, market_summary, df)
 
@@ -1140,7 +1170,10 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                                         last_scan_time = 0 # Force immediate scan to switch assets
                                     else:
                                         log_print(f"    [Cut and Run] Step 0 loss  no ban.")
-                                    
+                                    # [v5.6.8] Post-Loss Cooldown: block same asset for 3 min
+                                    _loss_cooldowns[asset] = time.time() + 180
+                                    log_print(f"    [Post-Loss Cooldown] {asset} cooldown set for 3 minutes.")
+
                                     current_loss_streak = ds.get("loss_streak", 0)
                                     loss_limit = getattr(config, "MAX_CONSECUTIVE_LOSS_LIMIT", 3)
 

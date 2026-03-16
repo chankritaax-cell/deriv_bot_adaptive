@@ -6,6 +6,76 @@ All notable changes to this project will be documented in this file.
 
 
 
+## [v5.7.0] - 2026-03-16
+### 🧠 Anti-Overfit Post-Mortem Prompt (`modules/ai_engine.py` — `analyze_trade_loss`)
+
+**Root cause fixed**: The original prompt explicitly instructed the LLM to suggest adjusting RSI/Stoch thresholds as an "actionable" fix (line 923: `"e.g. Decrease RSI_CALL_MAX or Increase RSI_PUT_MIN"`). This caused AI Council to narrow RSI windows after every normal loss streak — destructive curve-fitting.
+
+- **[REWRITE] `analyze_trade_loss` prompt** — fully replaced with 3-rule Quant framework:
+
+  **Quant Mindset header** (new context section):
+  - Establishes that the LLM is a Quant Fund Manager who understands statistical variance
+  - Explicitly states that most 1-minute binary losses are Market Noise, not strategy failures
+  - Sets statistical skepticism as the default stance before any analysis
+
+  **Rule 1 — Anti-Micro-Optimization (CRITICAL)**:
+  - Explicitly bans suggestions to adjust RSI_CALL_MAX, RSI_PUT_MIN, Stochastic bounds, MACD thresholds, or any numeric config parameter
+  - States these bounds are "statistically optimized across thousands of trades" — adjusting on a single loss = destructive curve-fitting
+  - Labels any such suggestion as FORBIDDEN
+
+  **Rule 2 — Actionable Criteria (Strict two-tier)**:
+  - `actionable: true` ONLY for massive structural failures: trading against dominant macro trend, or extreme sustained volatility requiring asset pause
+  - `actionable: false` explicitly for: market noise/wick, profit-taking exhaustion, liquidity spike, whipsaw, ANY single-loss case regardless of confidence, any valid entry that reversed unexpectedly
+
+  **Rule 3 — Explanation Quality**:
+  - Requires `actionable: false` analysis to name the specific market mechanic (e.g., profit-taking dump, liquidity spike)
+  - Requires `actionable: true` fix_suggestion to be high-level structural only (no numeric changes)
+
+- **JSON keys unchanged**: `analysis`, `actionable`, `fix_suggestion` — downstream parsing code unaffected
+- **AI Council gate unchanged**: Still requires `loss_streak >= 5` and `actionable: true` before triggering auto-fix
+
+## [v5.6.9] - 2026-03-16
+### ⚡ Pipeline Optimization & LLM Confidence Calibration
+
+#### 1. PRE-AI Stochastic Guard (`modules/ai_engine.py`)
+- **[NEW]** Stochastic strict check moved from POST-AI to PRE-AI phase — executes immediately after Stoch is calculated, **before** `unified_ai_decision_engine()` is called.
+- **Logic**: Uses `det_trend` (already known at pre-AI phase) to infer the only viable signal direction:
+  - `DOWNTREND + Stoch K < STOCH_PUT_STRICT (20)` → `PRE-AI SKIP (Stoch Guard)` — oversold in DOWNTREND
+  - `UPTREND + Stoch K > STOCH_CALL_STRICT (80)` → `PRE-AI SKIP (Stoch Guard)` — overbought in UPTREND
+- **Impact**: Eliminates 100% of wasted LLM API calls for trades that would be blocked by `POST_AI_STOCH_STRICT` anyway.
+- **Fallback preserved**: POST-AI stoch check remains as a safety net for rare cases where the AI returns a signal that contradicts the detected trend direction.
+- **Log message**: `PRE-AI SKIP (Stoch Guard): {signal} rejected. Stoch K=X < Y (oversold in DOWNTREND) — API call saved 🛑`
+
+#### 2. LLM Confidence Score Calibration (`modules/ai_engine.py` — prompt)
+- **[FIX]** Removed implicit "high confidence (>= 0.80)" default that caused Gemini to anchor at 0.85 for nearly all trades.
+  - Before: `"If the technical setup is strong, APPROVE with high confidence (>= 0.80)."`
+  - After: `"If the technical setup is strong, APPROVE. Use the Confidence Calibration rules below for the exact score."`
+- **[NEW]** Added `Step 3 (Confidence Calibration — MANDATORY)` to the prompt with explicit score bands:
+  - `0.65–0.70`: Weak/borderline — 1-2 indicators aligned, others conflicting
+  - `0.75–0.85`: Standard — majority aligned, no major conflicts
+  - `0.90–0.99`: ONLY for perfect multi-indicator alignment (Trend + RSI + Stoch + MACD all clean)
+  - Explicit penalization rule for conflicting data (Stoch/RSI divergence, MACD contradicts trend)
+- **Impact**: Confidence score becomes a meaningful filter again — weak setups score 0.65-0.70 and can be filtered by `AI_CONFIDENCE_THRESHOLD`, while strong setups earn 0.90+.
+
+## [v5.6.8] - 2026-03-15
+### 🛡️ Post-Loss Cooldown — Anti Revenge-Trading Guard
+
+- **[NEW] `_loss_cooldowns = {}` in `bot.py`** (module-level, survives asset rotation)
+  - Per-asset dictionary `{ asset: expiry_timestamp }`. Module-level is critical: session-scoped vars reset when the bot switches assets, so a dict inside `run_streaming_bot()` would be silently cleared on rotation.
+
+- **[NEW] Cooldown trigger** — fires at all 3 possible LOSS exit paths in `run_streaming_bot()`:
+  1. **Normal result path** (immediate settlement) — after CUT AND RUN if/else inside `elif result == "LOSS":`
+  2. **Definitive wait resolved path** — after CUT AND RUN if/else inside the 180s definitive wait loop
+  3. **Exhausted definitive wait fallback** — right after `last_trade_result = "LOSS"` (unresolved contract)
+  - Also fires in `run_polling_bot()` LOSS block for parity.
+
+- **[NEW] Pre-flight check** — inserted after the existing minute-based candle cooldown, before `analyze_and_decide()`:
+  - Only active when `mg_step == 0` (MG recovery trades at step ≥ 1 are never blocked).
+  - Log: `[Post-Loss Cooldown] {asset} is resting for Xs after a recent LOSS. Skipping.`
+  - Applied in both `run_streaming_bot()` and `run_polling_bot()`.
+
+- **Root cause prevented**: With MG disabled (MAX_MARTINGALE_STEPS=0), the bot re-entered the market within 5 seconds after a LOSS (next candle). During 1-2 min turbulence windows this causes back-to-back losses. The 3-minute pause lets the noise settle without changing any entry strategy logic.
+
 ## [v5.6.7] - 2026-03-15
 ### 🛡️ MACD Exhaustion Cooldown — Anti Dead-Cat-Bounce Guard
 

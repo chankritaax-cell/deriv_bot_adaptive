@@ -327,13 +327,19 @@ Input Context:
 - Price Action: {context.get('market_summary', 'N/A')}
 
 Thinking Process:
-Base your APPROVE/VETO decision STRICTLY on Technical Analysis (Price Action, Trend, RSI, Stoch, MACD). Do NOT consider historical win rates or past performance. If the technical setup is strong, APPROVE with high confidence (>= 0.80).
+Base your APPROVE/VETO decision STRICTLY on Technical Analysis (Price Action, Trend, RSI, Stoch, MACD). Do NOT consider historical win rates or past performance. If the technical setup is strong, APPROVE. Use the Confidence Calibration rules below for the exact score.
 Step 1 (Technical Audit): Verify if market momentum and indicators align with a CALL or PUT setup.
    - CALL: Trend must be UPTREND, RSI must be in range, Stoch K must not be Overbought (< 80).
    - PUT: Trend must be DOWNTREND, RSI must be in range, Stoch K must not be Oversold (> 20).
 Step 2 (Risk Filtering): Apply institutional risk rules.
    - If Volatility Spike is True: VETO any trade unless momentum is exceptionally strong.
    - Require strong confirmation from MACD and RSI before deciding.
+Step 3 (Confidence Calibration — MANDATORY):
+   CRITICAL: DO NOT default your confidence score to 0.85. You MUST provide a highly accurate and diverse confidence score between 0.60 and 0.99 based strictly on the alignment of technical indicators.
+   - 0.65-0.70: Weak/borderline setup — only 1-2 indicators aligned, others neutral or conflicting.
+   - 0.75-0.85: Standard setup — majority of indicators aligned with no major conflicts.
+   - 0.90-0.99: ONLY for perfect multi-indicator alignments — Trend, RSI, Stoch, and MACD all confirm cleanly.
+   - Penalize the score if there is conflicting data (e.g. Stoch and RSI diverge, or MACD contradicts trend).
 
 Output Format: Respond with JSON only in this format:
 {{"decision": "APPROVE" | "VETO", "confidence": <float 0.0-1.0>, "signal": "CALL" | "PUT" | "SKIP", "reason": "Short Thai reasoning"}}"""
@@ -612,6 +618,21 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             pass
         stoch_str = f"Stoch K={stoch_k_val:.1f}, D={stoch_d_val:.1f}" if stoch_k_val is not None and stoch_d_val is not None else "Stoch: N/A"
 
+        # [v5.6.9] PRE-AI Stoch Guard — reject obvious violations BEFORE the LLM API call
+        # Logic: in UPTREND only a CALL is viable; in DOWNTREND only a PUT is viable.
+        # If Stoch already fails the strict rule for that direction, skip immediately.
+        if stoch_k_val is not None:
+            _stoch_put_strict_pre = float(getattr(config, "STOCH_PUT_STRICT", 20))
+            _stoch_call_strict_pre = float(getattr(config, "STOCH_CALL_STRICT", 80))
+            if det_trend == "DOWNTREND" and stoch_k_val < _stoch_put_strict_pre:
+                log_print(f"    PRE-AI SKIP (Stoch Guard): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict_pre:.0f} (oversold in DOWNTREND) — API call saved 🛑")
+                _perf_metrics["pre_ai_skip_cycles"] += 1
+                return None
+            if det_trend == "UPTREND" and stoch_k_val > _stoch_call_strict_pre:
+                log_print(f"    PRE-AI SKIP (Stoch Guard): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict_pre:.0f} (overbought in UPTREND) — API call saved 🛑")
+                _perf_metrics["pre_ai_skip_cycles"] += 1
+                return None
+
         # Calculate MACD Histogram before AI call
         macd_hist = 0.0
         try:
@@ -884,28 +905,54 @@ async def analyze_trade_loss(asset, strategy, signal, profit, confidence, market
         return {"analysis": "AI Analysis Disabled", "actionable": False, "fix_suggestion": "N/A"}
 
     prompt = f"""
-    ACT AS: Senior Trading Mentor (Speaking Thai).
-    TASK: Analyze this LOSING trade and determine if it was unavoidable (Market) or fixable (Code/Config).
-    
-    ASSET: {asset}
-    STRATEGY: {strategy} (Signal: {signal})
-    RESULT: LOSS (Profit: {profit})
-    CONFIDENCE: {confidence}
-    MARKET CONDITIONS:
+    ACT AS: Expert Quant Fund Manager conducting a Post-Mortem analysis (Respond in Thai).
+
+    QUANT MINDSET (Read before analyzing):
+    You manage a systematic quant strategy for 1-minute binary options. No strategy achieves a 100% win rate.
+    The majority of individual losses are simply "Market Noise" — False Breakouts, Sudden Liquidity Spikes,
+    or Profit-Taking Exhaustion caused by high volatility — NOT a flaw in the strategy logic.
+    Your job is to distinguish between market-driven losses (unavoidable) and genuine structural failures
+    (a real reason to act). Treat every loss with statistical skepticism before calling it actionable.
+
+    TRADE DATA:
+    - Asset: {asset} | Strategy: {strategy} | Signal: {signal}
+    - Result: LOSS (Profit: {profit}) | AI Confidence at Entry: {confidence}
+    - Loss Streak: {loss_streak}
+    MARKET CONDITIONS AT ENTRY:
     {market_data_summary}
-    
-    REASONING FOR ENTRY:
+    ENTRY REASONING:
     {details.get('reasons', [])}
-    
-    1. Was the market volatile/unpredictable? -> actionable: false
-    2. Did the strategy miss a clear reversal sign? -> actionable: true
-    3. Is the RSI/Indicator threshold too loose? -> actionable: true (e.g. Decrease RSI_CALL_MAX or Increase RSI_PUT_MIN)
-    
+
+    ANALYSIS RULES (Apply in order):
+
+    Rule 1 — Anti-Micro-Optimization (CRITICAL):
+    DO NOT suggest adjusting indicator thresholds such as RSI_CALL_MAX, RSI_PUT_MIN, Stochastic bounds,
+    MACD thresholds, or any numeric config parameter. These bounds are statistically optimized across
+    thousands of trades. Narrowing them based on a single loss causes destructive curve-fitting and
+    degrades long-term performance. Any suggestion of this type is FORBIDDEN.
+
+    Rule 2 — Actionable Criteria (Strict):
+    Set "actionable": true ONLY if there is a massive fundamental failure, such as:
+      - The bot clearly traded against a dominant macro trend (e.g., strong DOWNTREND with a CALL entry).
+      - Extreme, sustained volatility that requires pausing this specific asset temporarily.
+    Set "actionable": false for ALL of the following (these are normal market mechanics, not fixable):
+      - Market noise / random wick / false breakout within normal ATR range.
+      - Profit-taking exhaustion after a recent run-up/dump.
+      - Sudden liquidity spike or low-volume whipsaw.
+      - A single loss even if confidence was high — one data point is not a pattern.
+      - Any loss where the entry conditions were technically valid but the market reversed unexpectedly.
+
+    Rule 3 — Explanation Quality:
+    If "actionable" is false, your "analysis" must explain the specific market mechanic that caused
+    the reversal (e.g., "กราฟวิ่งมาสุดแรง เกิด Profit-taking dump ทันที หลัง RSI แตะ 63 ซึ่งเป็น noise ปกติ").
+    If "actionable" is true, your "fix_suggestion" must be a high-level structural action only
+    (e.g., "หยุดเทรด {asset} ชั่วคราว เนื่องจาก macro trend ขัดแย้งกับ signal โดยตรง").
+
     OUTPUT JSON ONLY:
     {{
-        "analysis": "Brief explanation of why it failed (Thai language)",
+        "analysis": "คำอธิบายสั้นๆ ว่าทำไมถึงแพ้ และเกิดจาก market mechanics อะไร (ภาษาไทย)",
         "actionable": true/false,
-        "fix_suggestion": "Specific instruction to fix (e.g. 'Decrease RSI_CALL_MAX to 60') OR 'N/A' if unavoidable"
+        "fix_suggestion": "High-level structural action เท่านั้น ห้ามแก้ตัวเลข indicator OR 'N/A' ถ้าเป็น market noise"
     }}
     """
     
