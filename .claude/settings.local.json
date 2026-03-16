@@ -42,7 +42,8 @@
       "Bash(sort -t' ' -k2 -n)",
       "Bash(xargs grep -l \"CALL window\\\\|call_window\\\\|55.0.*65.0\\\\|RSI_CALL\")",
       "Bash(xargs grep -l \"Checking with Bet Gate\\\\|BET_GATE\\\\|bet_gate_check\")",
-      "Bash(xargs grep -rln \"BET_GATE\")"
+      "Bash(xargs grep -rln \"BET_GATE\")",
+      "Bash(grep \"\\\\.py$\")"
     ]
   }
 }

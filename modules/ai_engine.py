@@ -325,6 +325,7 @@ Input Context:
 - Volatility (ATR %): {context.get('atr_pct', 'Unknown')}%
 - Volatility Spike: {metrics.get('volatility_spike', False)}
 - Price Action: {context.get('market_summary', 'N/A')}
+- Recent Trades (last 3): {context.get('recent_trades', 'N/A')}
 
 Thinking Process:
 Base your APPROVE/VETO decision STRICTLY on Technical Analysis (Price Action, Trend, RSI, Stoch, MACD). Do NOT consider historical win rates or past performance. If the technical setup is strong, APPROVE. Use the Confidence Calibration rules below for the exact score.
@@ -342,7 +343,7 @@ Step 3 (Confidence Calibration — MANDATORY):
    - Penalize the score if there is conflicting data (e.g. Stoch and RSI diverge, or MACD contradicts trend).
 
 Output Format: Respond with JSON only in this format:
-{{"decision": "APPROVE" | "VETO", "confidence": <float 0.0-1.0>, "signal": "CALL" | "PUT" | "SKIP", "reason": "Short Thai reasoning"}}"""
+{{"decision": "APPROVE" | "VETO", "confidence": <float 0.0-1.0>, "signal": "CALL" | "PUT" | "SKIP", "reason": "Short Thai reasoning", "conflicting_signals": "ระบุ indicators ที่ขัดแย้งกัน หรือ 'None' ถ้าทุกตัว align"}}"""
 
     start_time = time.time()
     # Call Gemini via ai_providers (task routing handles model selection)
@@ -383,9 +384,9 @@ def calculate_local_risk_score(metrics, signal, context):
         elif signal == "PUT" and stoch_k > 20: score += 0.15
         
     # 3. Performance (0.3)
-    # Win Rate (0.2)
+    # Win Rate (0.2) — [v5.7.1] Fixed None guard (asset_winrate_20 = "N/A..." → TypeError)
     win_rate = _fc_to_float(metrics.get("asset_winrate_20", 0))
-    if win_rate > 0.50: score += 0.2
+    if win_rate is not None and win_rate > 50.0: score += 0.2  # asset_winrate_20 is a pct string e.g. "62.5%"
     
     # Volatility Spike (0.1)
     if not metrics.get("volatility_spike", False): score += 0.1
@@ -576,14 +577,32 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 _sideways_counter[asset] = 0
 
         if rsi_val is not None:
-            if det_trend == "UPTREND" and not is_rsi_valid_for_signal("CALL", rsi_val, _early_profile):
-                log_print(f"    PRE-AI SKIP (RSI Guard): UPTREND RSI {rsi_val:.1f} violation | Volume: {atr_pct:.4f}%")
+            # [v5.7.1] Dynamic RSI Guard — wide pre-AI filter
+            # Profile call_min/call_max remain tight for TREND_FOLLOWING execution (smart_trader.py)
+            _rsi_extreme_lo = float(getattr(config, "RSI_GUARD_EXTREME_LO", 15.0))
+            _rsi_extreme_hi = float(getattr(config, "RSI_GUARD_EXTREME_HI", 90.0))
+            _regime_now = _regime_state.get(asset, "NORMAL")
+            _rsi_expand = float(getattr(config, "RSI_GUARD_HIGH_VOL_EXPAND", 5.0)) if _regime_now == "HIGH_VOL" else 0.0
+
+            # Block absolute extremes regardless of trend direction
+            if rsi_val < _rsi_extreme_lo or rsi_val > _rsi_extreme_hi:
+                log_print(f"    PRE-AI SKIP (RSI Guard): RSI {rsi_val:.1f} in extreme zone (<{_rsi_extreme_lo:.0f} or >{_rsi_extreme_hi:.0f})")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
-            if det_trend == "DOWNTREND" and not is_rsi_valid_for_signal("PUT", rsi_val, _early_profile):
-                log_print(f"    PRE-AI SKIP (RSI Guard): DOWNTREND RSI {rsi_val:.1f} violation | Volume: {atr_pct:.4f}%")
-                _perf_metrics["pre_ai_skip_cycles"] += 1
-                return None
+            if det_trend == "UPTREND":
+                _rsi_lo = float(getattr(config, "RSI_GUARD_UPTREND_LO", 45.0)) - _rsi_expand
+                _rsi_hi = float(getattr(config, "RSI_GUARD_UPTREND_HI", 75.0)) + _rsi_expand
+                if not (_rsi_lo <= rsi_val <= _rsi_hi):
+                    log_print(f"    PRE-AI SKIP (RSI Guard): UPTREND RSI {rsi_val:.1f} outside [{_rsi_lo:.0f}–{_rsi_hi:.0f}] | Vol: {atr_pct:.4f}%")
+                    _perf_metrics["pre_ai_skip_cycles"] += 1
+                    return None
+            elif det_trend == "DOWNTREND":
+                _rsi_lo = float(getattr(config, "RSI_GUARD_DOWNTREND_LO", 25.0)) - _rsi_expand
+                _rsi_hi = float(getattr(config, "RSI_GUARD_DOWNTREND_HI", 55.0)) + _rsi_expand
+                if not (_rsi_lo <= rsi_val <= _rsi_hi):
+                    log_print(f"    PRE-AI SKIP (RSI Guard): DOWNTREND RSI {rsi_val:.1f} outside [{_rsi_lo:.0f}–{_rsi_hi:.0f}] | Vol: {atr_pct:.4f}%")
+                    _perf_metrics["pre_ai_skip_cycles"] += 1
+                    return None
             if det_trend == "SIDEWAYS":
                 log_print(f"    PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f} | Consecutive: {_sideways_counter.get(asset, 0)}")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
@@ -642,6 +661,20 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
 
         # Gather context for Unified Engine
         metrics = _get_bet_gate_metrics(df_feat, asset, "UNIFIED") # Strategy unknown yet
+
+        # [v5.7.1] Recent 3-trade context for conflict detection
+        try:
+            from .utils import dashboard_get_state as _dgs_inner
+            _ds_ctx = _dgs_inner()
+            _rt_hist = _ds_ctx.get("trade_history", [])
+            _rt_3 = [t for t in _rt_hist if t.get("asset") == asset][-3:]
+            _recent_3_str = ", ".join([
+                f"{t.get('result','?')}({t.get('signal','?')} conf={t.get('ai_confidence',0):.2f})"
+                for t in _rt_3
+            ]) if _rt_3 else "No recent trades on this asset"
+        except Exception:
+            _recent_3_str = "N/A"
+
         context = {
             "asset": asset,
             "metrics": metrics,
@@ -653,7 +686,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             "slope_pct": round(slope, 4),
             "atr_pct": round(atr_pct, 4),
             "asset_profile": _early_profile,
-            "market_summary": market_data_summary
+            "market_summary": market_data_summary,
+            "recent_trades": _recent_3_str,  # [v5.7.1]
         }
 
         # CALL UNIFIED ENGINE (Gemini 2.0 Flash)
@@ -970,12 +1004,11 @@ async def analyze_trade_loss(asset, strategy, signal, profit, confidence, market
         log_print(f"     AI Post-Mortem: {analysis}")
         log_print(f"     Actionable: {actionable} | Suggestion: {fix_suggestion}")
         
-        # [v3.11.44] Conditional Auto-Fix Trigger: Requires Streak >= 5
-        # [v5.6.2] Raised from 2→5: streak of 2-4 is normal market noise.
-        # Firing AI Council on every 2 losses causes RSI windows to narrow permanently
-        # after every normal drawdown → vicious cycle of fewer trades & worse WR data.
+        # [v5.7.1] Conditional Auto-Fix Trigger: Requires Streak >= 3 (was 5)
+        # Anti-overfit Post-Mortem prompt (Rule 1) now prevents RSI-narrowing vicious cycle,
+        # so lowering threshold from 5→3 is safe — real 3-loss streaks warrant review.
         if actionable and fix_suggestion != "N/A":
-            if loss_streak >= 5:
+            if loss_streak >= 3:
                 from . import ai_council
                 log_print(f"     Triggering AI Council for Auto-Fix (Consecutive Losses: {loss_streak})...")
                 # [v5.5.1] Build proper traceback context for AI Council
@@ -990,7 +1023,7 @@ async def analyze_trade_loss(asset, strategy, signal, profit, confidence, market
                 # Call ai_council directly to avoid telegram_bridge silent failure
                 asyncio.create_task(ai_council.resolve_error(error_msg, council_context))
             else:
-                log_print(f"     AI Council Skip: Loss streak is only {loss_streak}. Will trigger on next consecutive loss.")
+                log_print(f"     AI Council Skip: Loss streak is {loss_streak} (need >= 3). Will trigger on next consecutive loss.")
             
         return {
             "analysis": analysis,

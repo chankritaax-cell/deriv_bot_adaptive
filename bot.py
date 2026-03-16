@@ -282,20 +282,20 @@ async def run_streaming_bot(api, thb_suffix):
                         if getattr(config, "ACTIVE_PROFILE", "") == "TIER_COUNCIL":
                             from modules.asset_selector import AssetSelector
                             log_print("    [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
-                            best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=12, min_trades=8)
+                            best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=12, min_trades=5)  # [v5.7.1] relaxed from 8→5
 
-                            if best_selector and wr_selector > 50.0:
+                            if best_selector and wr_selector >= 48.0:  # [v5.7.1] relaxed from >50% to >=48%
                                 best = best_selector
                                 asset_symbols = [best]
                                 log_print(f"    TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
                             elif best_selector and best_selector != asset and wr_selector > 35.0:
-                                # [v5.2.4] Fallback: no >50% asset, but different asset with >35% WR exists
+                                # [v5.2.4] Fallback: no >=48% asset, but different asset with >35% WR exists
                                 # Prefer switching to break "stuck-on-banned-asset" cycle
                                 best = best_selector
                                 asset_symbols = [best]
-                                log_print(f"    No >50% WR asset. Fallback  best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
+                                log_print(f"    No >=48% WR asset. Fallback  best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                             else:
-                                log_print("    No TIER_COUNCIL asset met criteria (>8 trades, >50% WR).")
+                                log_print("    No TIER_COUNCIL asset met criteria (>=5 trades, >=48% WR).")  # [v5.7.1]
                         else:
                             assets = await market_engine.scan_open_assets(api, smart_trader_instance=_SMART_TRADER)
                             # Exclude current asset if inactive
@@ -455,9 +455,13 @@ async def run_streaming_bot(api, thb_suffix):
 
                     spike_size = abs(latest_tick['price'] - oldest_tick['price'])
                     limit = current_atr * getattr(config, "MAX_TICK_VELOCITY_ATR_PCT", 0.5)
-                    
-                    if spike_size > limit:
-                        log_print(f"    STREAM VETO: Trade rejected. Extreme Velocity (Spike: {spike_size:.4f} > Limit: {limit:.4f})")
+
+                    # [v5.7.1] Tolerance margin prevents veto for borderline spikes (0.4–1.9% over limit)
+                    _veto_regime = ai_engine._regime_state.get(asset, "NORMAL")
+                    _veto_tol = float(getattr(config, "TICK_VELOCITY_TOLERANCE_HIGH_VOL", 0.15)) if _veto_regime == "HIGH_VOL" \
+                                else float(getattr(config, "TICK_VELOCITY_TOLERANCE_NORMAL", 0.08))
+                    if spike_size > limit * (1.0 + _veto_tol):
+                        log_print(f"    STREAM VETO: Trade rejected. Extreme Velocity (Spike: {spike_size:.4f} > Limit: {limit:.4f} +{_veto_tol:.0%})")
                         dashboard_update("status", "Skip (Spike Veto)")
                         continue
 
@@ -592,7 +596,7 @@ async def run_streaming_bot(api, thb_suffix):
                     else: # comment cleaned
                         log_print(f"    UNRESOLVED TRADE ({result}): Entering definitive wait loop for contract {contract_id}...")
                         _definitive_retries = 0
-                        _max_definitive_retries = 36  # [v5.1.6] 36 x 5s = 180s max wait
+                        _max_definitive_retries = 12  # [v5.7.1] 12 x 5s = 60s max wait (was 36 = 180s)
                         while _definitive_retries < _max_definitive_retries:
                             _definitive_retries += 1
                             for _ in range(5):  # 5s heartbeat to prevent watchdog kill
@@ -658,18 +662,14 @@ async def run_streaming_bot(api, thb_suffix):
                             else:
                                 log_print(f"    Still {result}. Retrying in 5s... ({_definitive_retries}/{_max_definitive_retries}) (contract: {contract_id})")
                         else:
- # [v5.1.6] cleaned
-                            log_print(f"    [Definitive Wait] Exhausted {_max_definitive_retries} retries for contract {contract_id}. Treating as LOSS for MG safety.")
-                            last_trade_result = "LOSS"
-                            # [v5.6.8] Post-Loss Cooldown — unresolved trade treated as LOSS
-                            _loss_cooldowns[asset] = time.time() + 180
-                            log_print(f"    [Post-Loss Cooldown] {asset} cooldown set for 3 minutes (unresolved fallback).")
-                            next_mg_step = mg_step + 1
-                            if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
-                                reset_martingale_state()
-                            else:
-                                save_martingale_state(next_mg_step)
-                                log_print(f"    Saved Martingale State: Step {next_mg_step} (unresolved fallback).")
+                            # [v5.7.1] Timeout after 60s → DRAW (was: LOSS + MG step)
+                            # No martingale step change; no loss cooldown; no streak penalty.
+                            log_print(f"    [Definitive Wait] Timeout after {_max_definitive_retries * 5}s for contract {contract_id}. Recording as DRAW.")
+                            last_trade_result = "DRAW"
+                            result = "DRAW"  # Ensure post-loop LOSS check is skipped
+                            asyncio.create_task(send_telegram_alert(
+                                f"⚠️ Contract {contract_id} ({asset} {direction}) timed out after {_max_definitive_retries * 5}s — recorded as DRAW."
+                            ))
                     # AI Loss Analysis
                     if result == "LOSS":
                         ds = dashboard_get_state()  # [v5.1.6] Refresh ds after definitive wait loop

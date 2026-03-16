@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
  # [Cleaned garbled comment]
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.7.0"     # [v5.7.0] Anti-overfit Post-Mortem prompt + pipeline optimizations
+BOT_VERSION = "5.7.1"     # [v5.7.1] RSI Guard dynamic range + AI fixes + Stream Veto tolerance + UNRESOLVED DRAW timeout
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -171,6 +171,16 @@ MIN_STAKE_AMOUNT = 0.8 # [Cleaned garbled comment]
 SLIPPAGE_BUFFER = 0.10
 ENABLE_RSI_GUARD = True
 
+# [v5.7.1] RSI Guard Dynamic Range (wide PRE-AI filter — replaces tight profile bounds at PRE-AI stage)
+# Profile call_min/call_max/put_min/put_max remain for TREND_FOLLOWING execution checks in smart_trader.py
+RSI_GUARD_UPTREND_LO   = 45.0   # UPTREND CALL zone: RSI must be >= this
+RSI_GUARD_UPTREND_HI   = 75.0   # UPTREND CALL zone: RSI must be <= this
+RSI_GUARD_DOWNTREND_LO = 25.0   # DOWNTREND PUT zone: RSI must be >= this
+RSI_GUARD_DOWNTREND_HI = 55.0   # DOWNTREND PUT zone: RSI must be <= this
+RSI_GUARD_EXTREME_LO   = 15.0   # Always block RSI below this (crash zone / mega oversold)
+RSI_GUARD_EXTREME_HI   = 90.0   # Always block RSI above this (mega overbought)
+RSI_GUARD_HIGH_VOL_EXPAND = 5.0 # Expand both bounds by this in HIGH_VOL regime
+
 # [v5.1.6 LEGACY] RSI bounds below are NO LONGER USED by smart_trader.py
  # comment cleaned
 # Kept for backward compatibility with any external tools referencing these values
@@ -259,14 +269,16 @@ METRICS_LOG_CONSOLE = bool(int(os.getenv("METRICS_LOG_CONSOLE", "0")))
 # Scanner Settings
 AI_PROVIDER_TIMEOUT_SECONDS = 60
 ENABLE_ASSET_ROTATION = True # [User Request] Re-enabled to Scan (R_75 + 1HZ50V)
-SCAN_INTERVAL_MINUTES = 10
-ASSET_SCAN_INTERVAL_MINS = 10
-ASSET_SCAN_INTERVAL_NO_TRADE_MINS = 10
+SCAN_INTERVAL_MINUTES = 30                   # [v5.7.1] Reduced scan noise: 10 → 30 min
+ASSET_SCAN_INTERVAL_MINS = 30               # [v5.7.1] Normal scan interval (was 10 min)
+ASSET_SCAN_INTERVAL_NO_TRADE_MINS = 10      # Inactivity trigger stays at 10 min
 
  # [Cleaned garbled comment]
 ENABLE_MACD_MOMENTUM_GUARD = True
 ENABLE_TICK_VELOCITY_GUARD = True
 MAX_TICK_VELOCITY_ATR_PCT = 0.5  # Tolerance for spike size relative to current ATR
+TICK_VELOCITY_TOLERANCE_NORMAL   = 0.08   # [v5.7.1] 8% grace margin on spike limit (NORMAL regime)
+TICK_VELOCITY_TOLERANCE_HIGH_VOL = 0.15   # [v5.7.1] 15% grace margin on spike limit (HIGH_VOL regime)
 ANTI_REVERSAL_RSI_BOUNCE_LIMIT = 15.0 # [v5.1 Tuning] Raised from 10.0 to handle 1HZ10V volatility
 ENABLE_MICRO_CONF_GUARD = False
 ENABLE_DASHBOARD_CHART = False

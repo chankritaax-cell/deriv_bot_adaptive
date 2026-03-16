@@ -6,6 +6,46 @@ All notable changes to this project will be documented in this file.
 
 
 
+## [v5.7.1] - 2026-03-16
+### 🔧 7-Fix Pass: Trade Frequency + Reliability Improvements
+
+**Root cause**: Trade pass rate was 1.2% (16 trades / 22 hours). 7 independent pipeline failures identified.
+
+#### Fix 1 — RSI Guard Dynamic Range (`modules/ai_engine.py`)
+- **Problem**: Tight profile `call_min/call_max` (e.g., 61–65) blocked 87% of candles at PRE-AI stage — only 4-point windows out of 100.
+- **Fix**: Replaced tight profile bounds with wide dynamic range: UPTREND→RSI 45–75, DOWNTREND→RSI 25–55. Absolute extreme guard: RSI <15 or >90 always blocked. HIGH_VOL regime: ±5 expansion.
+- **Config keys added** (`config.py`): `RSI_GUARD_UPTREND_LO/HI`, `RSI_GUARD_DOWNTREND_LO/HI`, `RSI_GUARD_EXTREME_LO/HI`, `RSI_GUARD_HIGH_VOL_EXPAND`
+- **Note**: Profile `call_min/call_max/put_min/put_max` remain for TREND_FOLLOWING execution check in `smart_trader.py`.
+
+#### Fix 2 — AI Confidence / Local Risk Score (`modules/ai_engine.py`)
+- **Bug**: `calculate_local_risk_score()` crashed with `TypeError: '>' not supported between NoneType and float` when asset had fewer than 3 trades (`asset_winrate_20` = "N/A (Only X trades)" → `_fc_to_float` returns None → `None > 0.50` raises). Every AI-approved trade crashed silently in the bot's except handler — trade lost.
+- **Fix**: Added `win_rate is not None and` guard. Fixed comparison to `> 50.0` (percentage, not decimal).
+- **Enhancement**: Added recent 3-trade context `{asset} result/signal/conf` to unified AI prompt.
+- **Enhancement**: Added `conflicting_signals` field to AI output JSON for conflict visibility.
+
+#### Fix 3 — PULLBACK_ENTRY Dead Code (`asset_profiles.json`)
+- **Problem**: `R_75_HIGH_VOL` used `PULLBACK_ENTRY` strategy but was blocked 74/74 times (no pullback conditions ever met in HIGH_VOL regime). Profile had no `call_min/call_max/put_min/put_max` for TREND_FOLLOWING fallback.
+- **Fix**: Changed strategy to `TREND_FOLLOWING` + added `call_min: 58.0, call_max: 68.0, put_min: 35.0, put_max: 44.0` (wider than normal R_75 for HIGH_VOL momentum).
+
+#### Fix 4 — TIER_COUNCIL Scanner Never Finds Assets (`bot.py` + `config.py`)
+- **Problem**: Scanner criteria `>8 trades, >50% WR` almost never met in backtests.
+- **Fix**: Relaxed to `>=5 trades, >=48% WR`. Updated fallback message.
+- **Fix**: Scan interval `ASSET_SCAN_INTERVAL_MINS` increased from 10 min → 30 min (reduce scanner overhead when already on a good asset).
+
+#### Fix 5 — Stream Veto Too Aggressive (`bot.py`)
+- **Problem**: 43% of valid signals blocked by tick velocity (12/28). Many blocked spikes were only 0.4–1.9% over the ATR limit — within normal market noise.
+- **Fix**: Added `TICK_VELOCITY_TOLERANCE_NORMAL = 0.08` (8% grace margin) and `TICK_VELOCITY_TOLERANCE_HIGH_VOL = 0.15` (15%). Regime-aware via `ai_engine._regime_state`.
+
+#### Fix 6 — UNRESOLVED Trades Blocking Loop (`bot.py`)
+- **Problem**: Definitive wait loop retried 36 × 5s = 180s before timing out. Timeout fallback treated unresolved contracts as LOSS (unfair, causes false MG progression and loss cooldown).
+- **Fix**: Reduced to 12 × 5s = 60s hard timeout. On timeout: record as DRAW (no MG change, no loss cooldown, no streak penalty). Sends Telegram alert on timeout via `send_telegram_alert()`.
+
+#### Fix 7 — AI Council Never Triggers (`modules/ai_engine.py`)
+- **Problem**: AI Council trigger threshold was `loss_streak >= 5` — too high, almost never triggered.
+- **Fix**: Lowered to `loss_streak >= 3`. Safe because anti-overfit Post-Mortem prompt (v5.7.0 Rule 1) now prevents RSI-narrowing suggestions regardless of how many times Council fires.
+
+---
+
 ## [v5.7.0] - 2026-03-16
 ### 🧠 Anti-Overfit Post-Mortem Prompt (`modules/ai_engine.py` — `analyze_trade_loss`)
 

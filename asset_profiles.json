@@ -21,12 +21,16 @@
         "ma_slope_min": 0.025
     },
     "R_75_HIGH_VOL": {
-        "strategy": "PULLBACK_ENTRY",
+        "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "CALL",
             "PUT"
         ],
         "rsi_bounds": {
+            "call_min": 58.0,
+            "call_max": 68.0,
+            "put_min": 35.0,
+            "put_max": 44.0,
             "pullback_call_lo": 35.0,
             "pullback_call_hi": 52.0,
             "pullback_call_min": 25.0,
@@ -36,7 +40,7 @@
         },
         "bounce_limit": 12.0,
         "ma_slope_min": 0.02,
-        "notes": "Anti-Whipsaw: บังคับรอให้กราฟย่อตัวหนักๆ เท่านั้นถึงจะเข้า"
+        "notes": "[v5.7.1] Changed PULLBACK_ENTRY→TREND_FOLLOWING (was 74/74 blocked). Wider RSI bounds for HIGH_VOL momentum."
     },
     "1HZ100V": {
         "strategy": "PULLBACK_ENTRY",
