@@ -460,6 +460,11 @@ async def _send_summary_alert(application, summary):
     msg = f" <b>Summary</b>\nProfit: <code>{summary.get('profit', 0):+.4f}</code>\nWR: <code>{summary.get('win_rate')}</code>"
     await application.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=msg, parse_mode='HTML')
 
+# [v5.7.2] Stub — bot.py calls this but actual notification is handled by notify_trades() monitoring trade_log.jsonl
+def send_trade_notification(trade_info, balance=0, profit=0):
+    """No-op: trade alerts are sent automatically by notify_trades() via trade_log.jsonl monitoring."""
+    pass
+
 async def post_init(application):
     asyncio.create_task(monitor_pending(application))
     asyncio.create_task(notify_trades(application))

@@ -43,7 +43,20 @@
       "Bash(xargs grep -l \"CALL window\\\\|call_window\\\\|55.0.*65.0\\\\|RSI_CALL\")",
       "Bash(xargs grep -l \"Checking with Bet Gate\\\\|BET_GATE\\\\|bet_gate_check\")",
       "Bash(xargs grep -rln \"BET_GATE\")",
-      "Bash(grep \"\\\\.py$\")"
+      "Bash(grep \"\\\\.py$\")",
+      "Bash(copy \"D:\\\\SpProject\\\\deriv_bot_v5_dev\\\\config.py\" \"D:\\\\SpProject\\\\deriv_bot_v5_dev\\\\config.py.bak.5.7.1\")",
+      "Bash(sed -i \"442s/.*/        resp_text = _call_provider\\(provider, prompt, temperature, max_tokens, task_name=task_name\\)/\" D:/SpProject/deriv_bot_v5_dev/modules/ai_providers.py)",
+      "Bash(sed -i \"491s/.*/        resp_text = _call_provider\\(provider, prompt, temperature, max_tokens, task_name=task_name\\)/\" D:/SpProject/deriv_bot_v5_dev/modules/ai_providers.py)",
+      "Bash(sed -n '265,292p' D:/SpProject/deriv_bot_v5_dev/modules/ai_providers.py)",
+      "Bash(sed -n '402,415p' D:/SpProject/deriv_bot_v5_dev/modules/ai_providers.py)",
+      "Bash(python -c \"import sys; sys.path.insert\\(0, ''D:/SpProject/deriv_bot_v5_dev''\\); import config; print\\(''BOT_VERSION:'', config.BOT_VERSION\\); print\\(''DERIV_ACCOUNT_TYPE:'', config.DERIV_ACCOUNT_TYPE\\); print\\(''AI_TASK_ROUTING:'', config.AI_TASK_ROUTING\\); print\\(''CLAUDE_HAIKU_TASKS:'', config.CLAUDE_HAIKU_TASKS\\); print\\(''CLAUDE_MODEL_HAIKU:'', config.CLAUDE_MODEL_HAIKU\\); print\\(''CLAUDE_MODEL_SONNET:'', config.CLAUDE_MODEL_SONNET\\)\")",
+      "WebSearch",
+      "Bash(python -c \"import sys; sys.path.insert\\(0, ''D:/SpProject/deriv_bot_v5_dev''\\); import config; print\\(''CLAUDE_MODEL_HAIKU :'', config.CLAUDE_MODEL_HAIKU\\); print\\(''CLAUDE_MODEL_SONNET:'', config.CLAUDE_MODEL_SONNET\\)\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0, ''D:/SpProject/deriv_bot_v5_dev''\\); import config; print\\(''DERIV_ACCOUNT_TYPE:'', config.DERIV_ACCOUNT_TYPE\\); print\\(''CURRENCY:'', config.CURRENCY\\); print\\(''INITIAL_CAPITAL:'', config.INITIAL_CAPITAL\\)\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(powershell -Command \"\\(Get-Content ''D:/SpProject/deriv_bot_v5_dev/.env''\\) -replace ''REGIME_STRATEGY_HIGH_VOL=PULLBACK_ENTRY'',''REGIME_STRATEGY_HIGH_VOL=TREND_FOLLOWING'' | Set-Content ''D:/SpProject/deriv_bot_v5_dev/.env''\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,''D:/SpProject/deriv_bot_v5_dev''\\); import config; print\\(''REGIME_STRATEGY_HIGH_VOL:'', config.REGIME_STRATEGY_HIGH_VOL\\)\")",
+      "Bash(python -c \"import google.genai; print\\(google.genai.__version__\\)\")"
     ]
   }
 }

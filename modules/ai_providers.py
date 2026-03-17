@@ -89,6 +89,13 @@ def _extract_json_from_text(text):
                 clean = matched.group(1).strip()
                 return json.loads(_clean_json_raw(clean))
         except: pass
+        # [v5.7.2] Handle truncated response — closing ``` missing (Gemini 2.5 preamble + token cut-off)
+        try:
+            matched = re.search(r"```json\s*(.*)", text, re.DOTALL)
+            if matched:
+                clean = matched.group(1).strip().rstrip("`").strip()
+                return json.loads(_clean_json_raw(clean))
+        except: pass
     elif "```" in text:
         try:
             matched = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
@@ -176,30 +183,65 @@ def _gemini_smart_call(prompt, temperature=0.3, max_tokens=None):
         
         try:
             _gemini_last_request_ts = time.time()
+            # [v5.7.2] Gemini 2.5 fix:
+            # - thinking_budget=0  → disable thinking mode (ไม่งั้น thinking กิน tokens ก่อน, max_output_tokens=300 → {\n)
+            # - system_instruction  → บังคับ JSON-only output (Gemini 2.5 ignore response_mime_type)
+            # - max_output_tokens   → ใช้ค่าที่ส่งมา (300 สำหรับ AI_ANALYST เพียงพอเมื่อไม่มี thinking)
             response = client.models.generate_content(
                 model=model, contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=temperature,
                     max_output_tokens=max_tokens,
-                    response_mime_type="application/json"
+                    response_mime_type="application/json",
+                    system_instruction="You are a JSON-only API. Output ONLY valid JSON. No markdown, no code blocks, no preamble, no explanation. Start your response with { and end with }.",
+                    thinking_config=types.ThinkingConfig(thinking_budget=0)
                 )
             )
             return response.text
         except Exception as e:
             err = str(e)
-            if "429" in err or "quota" in err.lower():
+            if "429" in err or "quota" in err.lower() or "RESOURCE_EXHAUSTED" in err:
+                # [v5.7.2] Log 429 ให้เห็นใน log — ก่อนหน้านี้ silent
+                log_print(f"⚠️ Gemini 429/Quota ({model}): Rate Limited — ban 5m, rotating model...")
                 _gemini_model_disabled_until[model] = time.time() + 300
                 _gemini_current_model_idx = (_gemini_current_model_idx + 1) % len(models)
+                # [v5.7.2] Try backup API key if available
+                _backup_key = getattr(config, "GEMINI_API_KEY2", "")
+                if _backup_key and _backup_key != config.GEMINI_API_KEY:
+                    log_print(f"   🔑 Switching to backup Gemini API key...")
+                    client = genai.Client(api_key=_backup_key)
                 continue
             elif "404" in err:
+                log_print(f"⚠️ Gemini 404 ({model}): Model not found — ban 24h")
                 _gemini_model_disabled_until[model] = time.time() + 86400
+                _gemini_current_model_idx = (_gemini_current_model_idx + 1) % len(models)
+                continue
+            elif "503" in err or "UNAVAILABLE" in err or "overload" in err.lower() or "high demand" in err.lower():
+                # [v5.7.2] 503 = temporary server overload — short retry 2m (ไม่ใช่ 15m ban)
+                log_print(f"⚠️ Gemini 503 ({model}): Overloaded — ban 2m, rotating model...")
+                _gemini_model_disabled_until[model] = time.time() + 120
+                _gemini_current_model_idx = (_gemini_current_model_idx + 1) % len(models)
+                continue
+            elif "500" in err or "INTERNAL" in err:
+                # 500 = internal server error — retry 1m
+                log_print(f"⚠️ Gemini 500 ({model}): Internal error — ban 1m, rotating model...")
+                _gemini_model_disabled_until[model] = time.time() + 60
                 _gemini_current_model_idx = (_gemini_current_model_idx + 1) % len(models)
                 continue
             else:
                 log_print(f"⚠️ Gemini Error ({model}): {err}")
                 return None
-    
-    GEMINI_DISABLED_UNTIL = time.time() + 60
+
+    # [v5.7.2] All models exhausted (429/404) — sync BOTH cooldown systems so _is_on_cooldown() works
+    # Root fix: GEMINI_DISABLED_UNTIL และ _provider_cooldowns เป็นคนละ dict กัน
+    # ต้อง set ทั้งคู่ ไม่งั้น call_ai_with_failover จะ override ด้วย 15m ban เพิ่มอีก
+    _now = time.time()
+    _min_available = min((_gemini_model_disabled_until.get(m, _now) for m in models), default=_now)
+    _wait_secs = max(60, _min_available - _now)
+    _wait_mins = max(1, int(_wait_secs / 60) + 1)
+    GEMINI_DISABLED_UNTIL = _now + _wait_secs          # ← สำหรับ internal Gemini check
+    _set_cooldown("GEMINI", _wait_mins)                 # ← สำหรับ _is_on_cooldown() ใน failover chain
+    log_print(f"⚠️ Gemini: All models exhausted. Cooldown {_wait_mins}m (until {time.strftime('%H:%M:%S', time.localtime(_now + _wait_secs))})")
     return None
 
 # ============================================================
@@ -262,17 +304,32 @@ def _chatgpt_raw_call(prompt, temperature=0.3, max_tokens=None):
 # 4. CLAUDE IMPLEMENTATION
 # ============================================================
 
-def _claude_raw_call(prompt, temperature=0.3, max_tokens=None):
-    """Raw Claude call that returns text."""
+def _claude_raw_call(prompt, temperature=0.3, max_tokens=None, task_name="GENERAL"):
+    """Raw Claude call that returns text.
+    [v5.7.2] task_name-aware model selection:
+      AI_ANALYST tasks → CLAUDE_MODEL_HAIKU  (fast, low-cost)
+      All other tasks  → CLAUDE_MODEL_SONNET (smart, deep-analysis)
+    Override via CLAUDE_HAIKU_TASKS list in config.
+    """
     global CLAUDE_DISABLED_UNTIL
     if not getattr(config, "ANTHROPIC_API_KEY", ""):
         return None
-    
+
     now = time.time()
     if now < CLAUDE_DISABLED_UNTIL:
         log_print(f"⏳ Claude on cooldown until {time.ctime(CLAUDE_DISABLED_UNTIL)}")
         return None
-    
+
+    # [v5.7.2] Per-task model selection
+    _haiku_tasks = getattr(config, "CLAUDE_HAIKU_TASKS", ["AI_ANALYST"])
+    if task_name in _haiku_tasks:
+        _claude_model = getattr(config, "CLAUDE_MODEL_HAIKU", "claude-haiku-4-5-20251030")
+        _model_label = "Haiku"
+    else:
+        _claude_model = getattr(config, "CLAUDE_MODEL_SONNET", "claude-sonnet-4-5-20250929")
+        _model_label = "Sonnet"
+    log_print(f"   🤖 Claude [{_model_label}] task={task_name}")
+
     try:
         headers = {
             "x-api-key": config.ANTHROPIC_API_KEY,
@@ -280,7 +337,7 @@ def _claude_raw_call(prompt, temperature=0.3, max_tokens=None):
             "content-type": "application/json"
         }
         data = {
-            "model": getattr(config, "CLAUDE_MODEL", "claude-sonnet-4-5-20250929"),
+            "model": _claude_model,
             "max_tokens": max_tokens or 4096,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}]
@@ -384,12 +441,16 @@ def _check_daily_limit(provider):
     stats = _ai_usage_stats.get(provider, {})
     return stats.get("calls", 0) < max_calls
 
-def _call_provider(provider, prompt, temperature=0.3, max_tokens=None):
-    """Call a specific AI provider. Returns raw text or None."""
+def _call_provider(provider, prompt, temperature=0.3, max_tokens=None, task_name="GENERAL"):
+    """Call a specific AI provider. Returns raw text or None.
+    [v5.7.2] Passes task_name to Claude so it can pick Haiku vs Sonnet.
+    """
     call_fn = _PROVIDER_CALL_MAP.get(provider)
     if not call_fn:
         return None
     try:
+        if provider == "CLAUDE":
+            return call_fn(prompt, temperature, max_tokens, task_name=task_name)
         return call_fn(prompt, temperature, max_tokens)
     except Exception as e:
         log_print(f"⚠️ {provider} call failed: {e}")
@@ -420,14 +481,18 @@ def call_ai_with_failover(prompt, task_name="GENERAL", temperature=0.3, max_toke
             continue
         
         log_print(f"🧠 [{task_name}] Trying {provider}...")
-        resp_text = _call_provider(provider, prompt, temperature, max_tokens)
+        resp_text = _call_provider(provider, prompt, temperature, max_tokens, task_name=task_name)
         
         if resp_text:
             source = provider
             break
         else:
             log_print(f"   ↳ {provider} failed/empty. Failover...")
-            _set_cooldown(provider, 15) # Penalize failure with short cooldown
+            # [v5.7.2] อย่า override cooldown ถ้า provider ตั้ง cooldown ของตัวเองไว้แล้ว
+            # (เช่น Gemini all-models-429 ตั้ง cooldown ตาม model ban time แล้ว)
+            _already_cd, _already_rem = _is_on_cooldown(provider)
+            if not _already_cd:
+                _set_cooldown(provider, 15)  # 15m เฉพาะกรณี unknown error เท่านั้น
     
     if not resp_text:
         # Throttle total failure message
@@ -469,7 +534,7 @@ def call_ai_raw_with_failover(prompt, task_name="GENERAL", temperature=0.3, max_
             continue
         
         log_print(f"🧠 [{task_name}] Trying {provider}...")
-        resp_text = _call_provider(provider, prompt, temperature, max_tokens)
+        resp_text = _call_provider(provider, prompt, temperature, max_tokens, task_name=task_name)
         
         if resp_text:
             log_print(f"   ✅ [{task_name}] Response from {provider}")

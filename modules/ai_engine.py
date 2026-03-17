@@ -335,12 +335,19 @@ Step 1 (Technical Audit): Verify if market momentum and indicators align with a 
 Step 2 (Risk Filtering): Apply institutional risk rules.
    - If Volatility Spike is True: VETO any trade unless momentum is exceptionally strong.
    - Require strong confirmation from MACD and RSI before deciding.
-Step 3 (Confidence Calibration — MANDATORY):
-   CRITICAL: DO NOT default your confidence score to 0.85. You MUST provide a highly accurate and diverse confidence score between 0.60 and 0.99 based strictly on the alignment of technical indicators.
-   - 0.65-0.70: Weak/borderline setup — only 1-2 indicators aligned, others neutral or conflicting.
-   - 0.75-0.85: Standard setup — majority of indicators aligned with no major conflicts.
-   - 0.90-0.99: ONLY for perfect multi-indicator alignments — Trend, RSI, Stoch, and MACD all confirm cleanly.
-   - Penalize the score if there is conflicting data (e.g. Stoch and RSI diverge, or MACD contradicts trend).
+Step 3 (Confidence Calibration — STRICT ENFORCEMENT):
+   Giving 0.80 or 0.85 as a default for every trade is a calibration failure. You MUST score per the matrix below.
+   SCORING MATRIX (apply exactly — count aligned indicators first):
+   Aligned indicators: (a) Trend direction correct, (b) RSI in target zone, (c) Stoch K not OB/OS,
+                       (d) MACD histogram sign matches trend direction, (e) No volatility spike.
+   - 4-5 aligned + zero conflicts → 0.90-0.95
+   - 3 aligned + 1 neutral        → 0.78-0.85
+   - 2-3 aligned + 1 conflicting  → 0.65-0.75
+   - 1-2 aligned + 2+ conflicting → 0.50-0.60
+   DEDUCTIONS (apply after base score):
+   - DEDUCT 0.05 for each conflicting signal (e.g. MACD bearish while trend UPTREND = -0.05)
+   - DEDUCT 0.05 if Volatility Spike is True
+   - If "conflicting_signals" field is not "None", confidence CANNOT exceed 0.82
 
 Output Format: Respond with JSON only in this format:
 {{"decision": "APPROVE" | "VETO", "confidence": <float 0.0-1.0>, "signal": "CALL" | "PUT" | "SKIP", "reason": "Short Thai reasoning", "conflicting_signals": "ระบุ indicators ที่ขัดแย้งกัน หรือ 'None' ถ้าทุกตัว align"}}"""
@@ -360,38 +367,52 @@ Output Format: Respond with JSON only in this format:
 
 def calculate_local_risk_score(metrics, signal, context):
     """
-    [v5.3.1] Mathematical Validation Layer (Non-AI).
-    Returns a score between 0.0 and 1.0 based on hard technical/performance rules.
+    [v5.7.2] Mathematical Validation Layer (Non-AI).
+    Returns a score; LOCAL VETO fires if score < 0.55.
+    Components: Trend (0.35) + RSI (0.15) + Stoch (0.15) + MACD alignment (+0.10/-0.15) + WinRate (0.15) + Spike (0.10)
     """
     score = 0.0
-    
-    # 1. Trend (0.4)
+
+    # 1. Trend (0.35) — slightly reduced to make room for MACD
     slope = context.get("slope_pct", 0)
-    if signal == "CALL" and slope > 0.02: score += 0.4
-    elif signal == "PUT" and slope < -0.02: score += 0.4
-    
-    # 2. Momentum (0.3)
-    # RSI (0.15)
+    if signal == "CALL" and slope > 0.015: score += 0.35
+    elif signal == "PUT" and slope < -0.015: score += 0.35
+
+    # 2. Momentum
+    # RSI wide guard (0.15) — uses wide GUARD bounds, not tight profile bounds
     rsi_val = _fc_to_float(context.get("rsi"))
-    profile = context.get("asset_profile")
-    if rsi_val is not None and is_rsi_valid_for_signal(signal, rsi_val, profile):
-        score += 0.15
-        
+    if rsi_val is not None:
+        _rsi_ok = False
+        if signal == "CALL" and float(getattr(config, "RSI_GUARD_UPTREND_LO", 45.0)) <= rsi_val <= float(getattr(config, "RSI_GUARD_UPTREND_HI", 75.0)):
+            _rsi_ok = True
+        elif signal == "PUT" and float(getattr(config, "RSI_GUARD_DOWNTREND_LO", 25.0)) <= rsi_val <= float(getattr(config, "RSI_GUARD_DOWNTREND_HI", 55.0)):
+            _rsi_ok = True
+        if _rsi_ok:
+            score += 0.15
+
     # Stoch (0.15)
     stoch_k = _fc_to_float(context.get("stoch_k"))
     if stoch_k is not None:
         if signal == "CALL" and stoch_k < 80: score += 0.15
         elif signal == "PUT" and stoch_k > 20: score += 0.15
-        
-    # 3. Performance (0.3)
-    # Win Rate (0.2) — [v5.7.1] Fixed None guard (asset_winrate_20 = "N/A..." → TypeError)
+
+    # MACD alignment bonus/penalty (+0.10 aligned / -0.15 contradicts) [v5.7.2]
+    macd_hist = _fc_to_float(context.get("macd_hist"))
+    if macd_hist is not None:
+        if signal == "CALL" and macd_hist > 0: score += 0.10
+        elif signal == "PUT" and macd_hist < 0: score += 0.10
+        elif (signal == "CALL" and macd_hist < 0) or (signal == "PUT" and macd_hist > 0):
+            score -= 0.15  # MACD contradicts signal direction
+
+    # 3. Performance
+    # Win Rate (0.15) — [v5.7.1] Fixed None guard; [v5.7.2] reduced 0.2→0.15
     win_rate = _fc_to_float(metrics.get("asset_winrate_20", 0))
-    if win_rate is not None and win_rate > 50.0: score += 0.2  # asset_winrate_20 is a pct string e.g. "62.5%"
-    
-    # Volatility Spike (0.1)
-    if not metrics.get("volatility_spike", False): score += 0.1
-    
-    return round(score, 2)
+    if win_rate is not None and win_rate > 50.0: score += 0.15
+
+    # Volatility Spike (0.10)
+    if not metrics.get("volatility_spike", False): score += 0.10
+
+    return round(max(0.0, score), 2)
 
 def _get_feature_df(df_1m, granularity_sec=60):
     if df_1m is None or len(df_1m) < 3: return None
@@ -589,6 +610,24 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 log_print(f"    PRE-AI SKIP (RSI Guard): RSI {rsi_val:.1f} in extreme zone (<{_rsi_extreme_lo:.0f} or >{_rsi_extreme_hi:.0f})")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
+
+            # [v5.7.2] SIDEWAYS RSI directional pass-through — check BEFORE range gates
+            # If slope is flat but RSI is clearly directional → override det_trend for AI context
+            if det_trend == "SIDEWAYS":
+                _rsi_up  = float(getattr(config, "RSI_SIDEWAYS_UPBIAS", 55.0))
+                _rsi_dn  = float(getattr(config, "RSI_SIDEWAYS_DNBIAS", 45.0))
+                if rsi_val > _rsi_up:
+                    det_trend = "UPTREND"   # quasi-UPTREND: slope flat but RSI bullish
+                    log_print(f"    [Trend Override] SIDEWAYS→UPTREND (RSI {rsi_val:.1f} > {_rsi_up:.0f}, slope={slope:.4f}%)")
+                elif rsi_val < _rsi_dn:
+                    det_trend = "DOWNTREND"  # quasi-DOWNTREND: slope flat but RSI bearish
+                    log_print(f"    [Trend Override] SIDEWAYS→DOWNTREND (RSI {rsi_val:.1f} < {_rsi_dn:.0f}, slope={slope:.4f}%)")
+                else:
+                    log_print(f"    PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f} | Consecutive: {_sideways_counter.get(asset, 0)}")
+                    _perf_metrics["pre_ai_skip_cycles"] += 1
+                    return None
+
+            # Apply directional RSI range check (det_trend may have been overridden above)
             if det_trend == "UPTREND":
                 _rsi_lo = float(getattr(config, "RSI_GUARD_UPTREND_LO", 45.0)) - _rsi_expand
                 _rsi_hi = float(getattr(config, "RSI_GUARD_UPTREND_HI", 75.0)) + _rsi_expand
@@ -603,10 +642,6 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                     log_print(f"    PRE-AI SKIP (RSI Guard): DOWNTREND RSI {rsi_val:.1f} outside [{_rsi_lo:.0f}–{_rsi_hi:.0f}] | Vol: {atr_pct:.4f}%")
                     _perf_metrics["pre_ai_skip_cycles"] += 1
                     return None
-            if det_trend == "SIDEWAYS":
-                log_print(f"    PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f} | Consecutive: {_sideways_counter.get(asset, 0)}")
-                _perf_metrics["pre_ai_skip_cycles"] += 1
-                return None
         # --- [v4.1.2] Confluence Guard: Trend/MACD Divergence Filter ---
         # if df_feat is not None and len(df_feat) >= 35 and det_trend in ["UPTREND", "DOWNTREND"]:
         #     try:
@@ -706,8 +741,8 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             local_score = calculate_local_risk_score(metrics, signal, context) if signal in ["CALL", "PUT"] else 0.0
             
             if decision == "APPROVE" and signal in ["CALL", "PUT"]:
-                if local_score < 0.5:
-                    log_print(f"    LOCAL VETO: AI said APPROVE, but Local Risk Score is {local_score:.2f} (< 0.50). Overriding to VETO.")
+                if local_score < 0.55:  # [v5.7.2] Raised from 0.50 → 0.55 (tighter gate after MACD component added)
+                    log_print(f"    LOCAL VETO: AI said APPROVE, but Local Risk Score is {local_score:.2f} (< 0.55). Overriding to VETO.")
                     # [v5.6.5] Shadow track trades blocked by Local Risk Score
                     _shadow_fire(api, asset, signal, f"LOCAL_VETO: score={local_score:.2f}", df_feat, rsi_val, macd_hist, stoch_k_val)
                     decision = "VETO"

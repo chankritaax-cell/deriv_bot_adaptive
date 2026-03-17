@@ -6,6 +6,38 @@ All notable changes to this project will be documented in this file.
 
 
 
+## [v5.7.2] - 2026-03-17
+### 🔧 5-Fix Pass: SIDEWAYS Pass-Through + Confidence Scoring + R_75 TREND_FOLLOWING + TIER_COUNCIL Lookback + REGIME_STRATEGY Fix
+
+**Root cause context**: 22h run, 1,316 candles processed, only 16 trades (1.2% pass rate), 25% WR. Five independent pipeline blockages identified.
+
+#### Fix 1 — RSI Guard SIDEWAYS Over-Skip (`config.py`, `modules/ai_engine.py`)
+- **Problem**: `MA_SLOPE_THRESHOLD_PCT=0.020` classified ~80% of candles as SIDEWAYS → immediate PRE-AI skip (e.g., RSI 55.4 labelled UPTREND in log but slope was 0.017% → SIDEWAYS → blocked).
+- **Fix A**: Lowered `MA_SLOPE_THRESHOLD_PCT` 0.020 → 0.015 to reduce SIDEWAYS false positives.
+- **Fix B**: Added RSI-directional SIDEWAYS pass-through: if trend is SIDEWAYS but RSI > 55 → override to quasi-UPTREND; if RSI < 45 → override to quasi-DOWNTREND; otherwise genuine SIDEWAYS → skip.
+- **Config keys added**: `RSI_SIDEWAYS_UPBIAS = 55.0`, `RSI_SIDEWAYS_DNBIAS = 45.0`
+- **Log tag**: `[Trend Override] SIDEWAYS→UPTREND / SIDEWAYS→DOWNTREND`
+
+#### Fix 2 — AI Confidence Rubber Stamp (`modules/ai_engine.py`)
+- **Problem**: 53% of decisions received 0.85, 30% received 0.80 regardless of indicator alignment — WIN and LOSS trades indistinguishable by confidence.
+- **Fix A**: Replaced Step 3 calibration text with explicit SCORING MATRIX: count 5 aligned indicators → tier score 0.90-0.95 / 0.78-0.85 / 0.65-0.75 / 0.50-0.60. Deduct 0.05 per conflicting signal; cap at 0.82 if any `conflicting_signals` present.
+- **Fix B**: `calculate_local_risk_score()` rewritten — added MACD alignment component (+0.10 aligned / -0.15 opposing). RSI check now uses wide GUARD bounds (not tight profile bounds) for consistency. Total components: Trend(0.35)+RSI(0.15)+Stoch(0.15)+MACD(±0.10-0.15)+WinRate(0.15)+Spike(0.10).
+- **Fix C**: LOCAL VETO threshold raised 0.50 → 0.55.
+
+#### Fix 3 — R_75 PULLBACK_ENTRY 100% Block (`asset_profiles.json`)
+- **Problem**: R_75 base profile used PULLBACK_ENTRY strategy. Pullback conditions never met in NORMAL regime → 100% block rate. Fallback to TREND_FOLLOWING used tight bounds (call_min=61, call_max=65 = 4-point window) → still mostly blocked.
+- **Fix**: Strategy changed to `TREND_FOLLOWING`. Widened: `call_min=55, call_max=68, put_min=35, put_max=45`. `ma_slope_min=0.015`. `pullback_*` keys preserved for PULLBACK_ENTRY code path.
+
+#### Fix 4 — TIER_COUNCIL Lookback Too Long (`bot.py`)
+- **Problem**: `lookback_hours=12` produced insufficient recent data for simulation scoring. With PULLBACK_ENTRY still on most profiles, `should_enter` returned False → 140/140 assets failed even with min_trades=5.
+- **Fix**: `lookback_hours` 12 → 6 (more recent, denser signal window). `min_trades` 5 → 3 (lower bar). Applied to both streaming (line ~285) and polling (line ~856) TIER_COUNCIL blocks.
+
+#### Fix 5 — REGIME_STRATEGY_HIGH_VOL Fallback Broken (`config.py`)
+- **Problem**: `REGIME_STRATEGY_HIGH_VOL = "PULLBACK_ENTRY"` — when Tier 1 specific profile not found, Tier 2 fallback picked PULLBACK_ENTRY for all assets in HIGH_VOL regime → always blocked.
+- **Fix**: Changed default to `"TREND_FOLLOWING"`. R_75_HIGH_VOL was already fixed in v5.7.1 (Tier 1); this fix covers all other assets via Tier 2.
+
+---
+
 ## [v5.7.1] - 2026-03-16
 ### 🔧 7-Fix Pass: Trade Frequency + Reliability Improvements
 

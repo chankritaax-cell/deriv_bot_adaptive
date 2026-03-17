@@ -1,24 +1,25 @@
 {
     "R_75": {
-        "strategy": "PULLBACK_ENTRY",
+        "strategy": "TREND_FOLLOWING",
         "allowed_signals": [
             "CALL",
             "PUT"
         ],
         "rsi_bounds": {
+            "call_min": 55.0,
+            "call_max": 68.0,
+            "put_min": 35.0,
+            "put_max": 45.0,
             "pullback_call_lo": 38.0,
             "pullback_call_hi": 55.0,
             "pullback_call_min": 28.0,
             "pullback_put_lo": 45.0,
             "pullback_put_hi": 62.0,
-            "pullback_put_max": 72.0,
-            "call_min": 61.0,
-            "call_max": 65.0,
-            "put_min": 37.0,
-            "put_max": 39.5
+            "pullback_put_max": 72.0
         },
         "bounce_limit": 10.0,
-        "ma_slope_min": 0.025
+        "ma_slope_min": 0.015,
+        "notes": "[v5.7.2] PULLBACK_ENTRY→TREND_FOLLOWING (was 100% blocked in NORMAL regime). Widened call 55-68 / put 35-45. pullback_* keys preserved."
     },
     "R_75_HIGH_VOL": {
         "strategy": "TREND_FOLLOWING",

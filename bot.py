@@ -282,7 +282,7 @@ async def run_streaming_bot(api, thb_suffix):
                         if getattr(config, "ACTIVE_PROFILE", "") == "TIER_COUNCIL":
                             from modules.asset_selector import AssetSelector
                             log_print("    [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
-                            best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=12, min_trades=5)  # [v5.7.1] relaxed from 8→5
+                            best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=6, min_trades=3)  # [v5.7.2] 12h→6h (recent data), 5→3 (lower bar)
 
                             if best_selector and wr_selector >= 48.0:  # [v5.7.1] relaxed from >50% to >=48%
                                 best = best_selector
@@ -295,7 +295,7 @@ async def run_streaming_bot(api, thb_suffix):
                                 asset_symbols = [best]
                                 log_print(f"    No >=48% WR asset. Fallback  best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                             else:
-                                log_print("    No TIER_COUNCIL asset met criteria (>=5 trades, >=48% WR).")  # [v5.7.1]
+                                log_print("    No TIER_COUNCIL asset met criteria (>=3 trades, >=48% WR).")  # [v5.7.2]
                         else:
                             assets = await market_engine.scan_open_assets(api, smart_trader_instance=_SMART_TRADER)
                             # Exclude current asset if inactive
@@ -853,7 +853,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                     if getattr(config, "ACTIVE_PROFILE", "") == "TIER_COUNCIL":
                         from modules.asset_selector import AssetSelector
                         log_print("    [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
-                        best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=12, min_trades=8)
+                        best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=6, min_trades=3)  # [v5.7.2] 12h→6h, 8→3
 
                         if best_selector and wr_selector > 50.0:
                             best = best_selector
@@ -866,7 +866,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                             asset_symbols = [best]
                             log_print(f"    No >50% WR asset. Fallback  best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                         else:
-                            log_print("    No TIER_COUNCIL asset met criteria (>8 trades, >50% WR).")
+                            log_print("    No TIER_COUNCIL asset met criteria (>=3 trades, >=48% WR).")  # [v5.7.2]
                     else:
                         assets = await market_engine.scan_open_assets(api, smart_trader_instance=_SMART_TRADER)
                         if excluded_asset:

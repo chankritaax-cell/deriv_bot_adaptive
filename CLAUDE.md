@@ -30,7 +30,7 @@ contract_info.json          ← Deriv contract metadata (payout %, duration)
 modules/
   ai_engine.py              ← Brain. analyze_and_decide() is the main async decision function
   ai_providers.py           ← LLM failover router (Gemini → ChatGPT → Claude → Ollama)
-  ai_council.py             ← Autonomous self-repair system. Triggered on loss_streak >= 5
+  ai_council.py             ← Autonomous self-repair system. Triggered on loss_streak >= 3
   ai_editor.py              ← File editor used by AI Council to write code/config changes
   smart_trader.py           ← Strategy selector + hard rule enforcement (L1.5 layer)
   technical_analysis.py     ← TechnicalConfirmation class (RSI, MACD, Stoch, ATR, etc.)
@@ -58,10 +58,10 @@ Every closed candle flows through these gates in order. Any gate returning `None
 
 ```
 1. PRE-AI SKIP: Low Vol / High Vol / Whipsaw Guard (ATR-based)
-2. PRE-AI SKIP: RSI Guard  (UPTREND→CALL RSI check, DOWNTREND→PUT RSI check, SIDEWAYS→skip)
+2. PRE-AI SKIP: RSI Guard  (UPTREND→CALL RSI check, DOWNTREND→PUT RSI check, SIDEWAYS+RSI>55→quasi-UPTREND, SIDEWAYS+RSI<45→quasi-DOWNTREND, else skip)
 3. PRE-AI SKIP: Stoch Guard [v5.6.9] (overbought UPTREND / oversold DOWNTREND → skip before API call)
 4. LLM CALL: unified_ai_decision_engine() → Gemini 2.0 Flash (+ failover chain)
-5. LOCAL VETO: calculate_local_risk_score() < 0.5 → override AI APPROVE to VETO
+5. LOCAL VETO: calculate_local_risk_score() < 0.55 → override AI APPROVE to VETO
 6. POST-AI BLOCK: RSI hard bounds (is_rsi_valid_for_signal)
 7. POST-AI BLOCK: Stoch Strict (PUT K<20 / CALL K>80) — fallback/edge-case safety net
 8. POST-AI BLOCK: Sniper Guard (confidence < required_conf based on mg_step)
@@ -83,10 +83,10 @@ if confidence < required_conf:   # check is < not <=
 
 ### 2. AI Council trigger threshold
 ```python
-if loss_streak >= 5:   # was 2, raised to 5 in v5.6.2
+if loss_streak >= 3:   # was 5, lowered to 3 in v5.7.1 (safe: anti-overfit prompt added in v5.7.0)
 ```
-Triggering on streak < 5 causes the RSI-narrowing vicious cycle:
-losses → AI Council narrows windows → fewer trades → worse data → more Council sessions → deadlock.
+**Safe floor is >= 3.** The anti-overfit Post-Mortem prompt (v5.7.0) prevents RSI-narrowing suggestions regardless of Council frequency.
+**Never lower below 3** — triggering on streak < 3 creates false-positive Council activations on normal variance.
 
 ### 3. asset_profiles.json R_75 RSI bounds
 The `pullback_*` keys and `call_*/put_*` keys are SEPARATE and serve different code paths:
@@ -135,7 +135,7 @@ Cooldown is only set/checked when `asset != ""` (scanner + backtest callers pass
 | `COOLDOWN_ANY_TRADE_MINS` | 5 | Global candle cooldown after any trade |
 | `COOLDOWN_LOSS_TRADE_MINS` | 10 | Global candle cooldown after a LOSS |
 | `USE_AI_ANALYST` | True | Enable/disable LLM calls |
-| `REGIME_STRATEGY_HIGH_VOL` | PULLBACK_ENTRY | Strategy in HIGH_VOL regime (not TREND_FOLLOWING) |
+| `REGIME_STRATEGY_HIGH_VOL` | TREND_FOLLOWING | Tier 2 fallback strategy in HIGH_VOL regime (changed from PULLBACK_ENTRY in v5.7.2) |
 
 All variables are read as `getattr(config, "KEY", default)` — safe even if absent from `.env`.
 
@@ -145,13 +145,15 @@ All variables are read as `getattr(config, "KEY", default)` — safe even if abs
 
 Each profile key corresponds to an asset or asset+regime combo (`R_75`, `R_75_HIGH_VOL`, `DEFAULT`).
 
-**R_75 current bounds (as of v5.7.0):**
+**R_75 current bounds (as of v5.7.2):**
 ```json
-"call_min": 61.0, "call_max": 65.0,
-"put_min":  37.0, "put_max":  39.5,
+"strategy": "TREND_FOLLOWING",
+"call_min": 55.0, "call_max": 68.0,
+"put_min":  35.0, "put_max":  45.0,
 "pullback_call_lo": 38.0, "pullback_call_hi": 55.0, "pullback_call_min": 28.0,
 "pullback_put_lo":  45.0, "pullback_put_hi":  62.0, "pullback_put_max":  72.0
 ```
+Strategy changed from PULLBACK_ENTRY → TREND_FOLLOWING. Bounds widened (was call 61–65, put 37–39.5).
 
 **AI Council is FORBIDDEN from narrowing these bounds** (loss_streak gate + anti-overfit post-mortem prompt).
 If AI Council writes to this file, check `logs/council/history.json` for the action.
@@ -188,7 +190,7 @@ Step 0 losses do NOT trigger a ban ("normal variance, letting MG handle").
 ### Trade Decision Prompt (`unified_ai_decision_engine`)
 - Located in `ai_engine.py` around `prompt = f"""Role: Act as CIO...`
 - Output JSON: `{"decision": "APPROVE"|"VETO", "confidence": float, "signal": "CALL"|"PUT"|"SKIP", "reason": "Thai"}`
-- **Confidence calibration bands** (v5.6.9): 0.65-0.70 weak, 0.75-0.85 standard, 0.90-0.99 perfect only
+- **Confidence SCORING MATRIX** (v5.7.2): 4-5 aligned → 0.90-0.95; 3 aligned + 1 neutral → 0.78-0.85; 2-3 + 1 conflict → 0.65-0.75; 1-2 + 2+ conflicts → 0.50-0.60. Deduct 0.05/conflict; cap 0.82 if conflicting_signals present.
 - Temperature: 0.3 (deterministic)
 
 ### Post-Mortem Prompt (`analyze_trade_loss`)
@@ -197,7 +199,7 @@ Step 0 losses do NOT trigger a ban ("normal variance, letting MG handle").
 - **Anti-overfit rules** (v5.7.0): FORBIDDEN from suggesting RSI/Stoch/MACD threshold changes
 - `actionable: true` only for macro trend violation or extreme-volatility asset pause
 - Temperature: 0.7 (analytical)
-- AI Council auto-fix only fires when `actionable=True AND loss_streak >= 5`
+- AI Council auto-fix only fires when `actionable=True AND loss_streak >= 3`
 
 ---
 
@@ -276,7 +278,7 @@ Check in order:
 1. **Never run with `DERIV_ACCOUNT_TYPE=real`** — bot.py aborts at startup if detected
 2. **Never commit `.env`** — contains live API keys and Deriv token
 3. **Never `await` shadow_tracker** calls — fire-and-forget only (`asyncio.create_task`)
-4. **Never raise AI Council trigger below loss_streak >= 5** — vicious cycle risk
+4. **Never lower AI Council trigger below loss_streak >= 3** — safe floor since v5.7.1 (anti-overfit prompt prevents RSI-narrowing)
 5. **Never narrow RSI bounds based on a single session's losses** — curve-fitting
 6. **Always use atomic writes for state files** — `tmp + os.replace()` pattern
 7. **Always bump `BOT_VERSION` + `CHANGELOG.md`** when making functional changes

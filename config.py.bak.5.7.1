@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
  # [Cleaned garbled comment]
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.7.2"     # [v5.7.2] SIDEWAYS pass-through + Confidence scoring matrix + R_75 TREND_FOLLOWING + TIER_COUNCIL lookback fix + REGIME_STRATEGY_HIGH_VOL fix
+BOT_VERSION = "5.7.1"     # [v5.7.1] RSI Guard dynamic range + AI fixes + Stream Veto tolerance + UNRESOLVED DRAW timeout
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -35,7 +35,7 @@ load_env_file()
 # Deriv Account
 DERIV_APP_ID = os.getenv("DERIV_APP_ID", "1089")
 DERIV_API_TOKEN = os.getenv("DERIV_API_TOKEN", "") 
-DERIV_ACCOUNT_TYPE = os.getenv("DERIV_ACCOUNT_TYPE", "demo")  # "demo" or "real" — set via .env only
+DERIV_ACCOUNT_TYPE = "real" # "demo" or "real"
 
 # ==========================================
  # [Cleaned garbled comment]
@@ -181,11 +181,6 @@ RSI_GUARD_EXTREME_LO   = 15.0   # Always block RSI below this (crash zone / mega
 RSI_GUARD_EXTREME_HI   = 90.0   # Always block RSI above this (mega overbought)
 RSI_GUARD_HIGH_VOL_EXPAND = 5.0 # Expand both bounds by this in HIGH_VOL regime
 
-# [v5.7.2] SIDEWAYS RSI directional pass-through (quasi-trend thresholds)
-# If slope is flat (SIDEWAYS) but RSI is clearly directional → pass to AI instead of hard-skip
-RSI_SIDEWAYS_UPBIAS = 55.0   # RSI > this in SIDEWAYS → treat as quasi-UPTREND (send to AI)
-RSI_SIDEWAYS_DNBIAS = 45.0   # RSI < this in SIDEWAYS → treat as quasi-DOWNTREND (send to AI)
-
 # [v5.1.6 LEGACY] RSI bounds below are NO LONGER USED by smart_trader.py
  # comment cleaned
 # Kept for backward compatibility with any external tools referencing these values
@@ -199,7 +194,7 @@ RSI_PUT_UPPER = 45.0
 # Regime thresholds below ARE still used by ai_engine.py regime detection
 MIN_ATR_THRESHOLD_PCT = 0.015
 MAX_ATR_THRESHOLD_PCT = 0.30
-MA_SLOPE_THRESHOLD_PCT = 0.015  # [v5.7.2] Lowered from 0.020 → 0.015 (fewer SIDEWAYS false-positives)
+MA_SLOPE_THRESHOLD_PCT = 0.020 # [Cleaned garbled comment]
 
 # [v5.0 Adaptive Engine] Regime Detection Thresholds
 # R_ assets (Volatility Index): lower ATR range
@@ -212,7 +207,7 @@ REGIME_LOW_VOL_THRESHOLD_1HZ  = float(os.getenv("REGIME_LOW_VOL_1HZ",  "0.030"))
 
 # [v5.0 Adaptive Engine] Strategy auto-selection per regime
 # When regime shifts, bot overrides profile strategy with these
-REGIME_STRATEGY_HIGH_VOL = os.getenv("REGIME_STRATEGY_HIGH_VOL", "TREND_FOLLOWING") # [v5.7.2] was PULLBACK_ENTRY → Tier 2 fallback now uses TREND_FOLLOWING
+REGIME_STRATEGY_HIGH_VOL = os.getenv("REGIME_STRATEGY_HIGH_VOL", "PULLBACK_ENTRY") # [Cleaned garbled comment]
 REGIME_STRATEGY_LOW_VOL  = os.getenv("REGIME_STRATEGY_LOW_VOL",  "PULLBACK_ENTRY")
 REGIME_STRATEGY_NORMAL   = os.getenv("REGIME_STRATEGY_NORMAL",   "AUTO")
  # [Cleaned garbled comment]
@@ -236,40 +231,24 @@ REGIME_MAX_FLIPS = 3                  # max allowed regime flips within the wind
 REGIME_COOLDOWN_CANDLES = 3           # if choppy detected, force skip for next N candles
 
 # Models
-GEMINI_MODEL = "gemini-2.5-flash"   # [v5.7.2] upgraded: API key นี้ migrate ไป Gemini 2.5 แล้ว (2.0 ทุกรุ่น 404)
-# [v5.7.2] Gemini multi-model fallback — rotate เมื่อ model ถูก 429/404
-# gemini-2.5-flash       = primary   (ฉลาดกว่า 2.0, ทดสอบ OK)
-# gemini-2.5-flash-lite  = fallback  (เบากว่า เร็วกว่า ทดสอบ OK)
-# gemini-flash-latest    = last resort alias (stable alias, ทดสอบ OK)
-GEMINI_FALLBACK_MODELS = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-flash-latest").split(",")
+GEMINI_MODEL = "gemini-2.0-flash"
 CHATGPT_MODEL = "gpt-4o"
-# [v5.7.2] Claude per-task model selection
-# AI_ANALYST → Haiku 4.5 (fast, low-cost, real-time trading decisions)
-# COUNCIL / everything else → Sonnet 4.5 (smart, deep-analysis)
-CLAUDE_MODEL_HAIKU  = os.getenv("CLAUDE_MODEL_HAIKU",  "claude-haiku-4-5-20251001")
-CLAUDE_MODEL_SONNET = os.getenv("CLAUDE_MODEL_SONNET", "claude-sonnet-4-5-20250929")
-CLAUDE_MODEL        = CLAUDE_MODEL_SONNET   # legacy fallback (unused when routing active)
-# Tasks that use Haiku — comma-separated override: CLAUDE_HAIKU_TASKS=AI_ANALYST,BET_GATE
-_haiku_tasks_env = os.getenv("CLAUDE_HAIKU_TASKS", "AI_ANALYST")
-CLAUDE_HAIKU_TASKS  = [t.strip() for t in _haiku_tasks_env.split(",") if t.strip()]
+CLAUDE_MODEL = "claude-sonnet-4-20250514"
 
 # Keys
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
-GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY", "")
-GEMINI_API_KEY2 = os.getenv("GEMINI_API_KEY2", "")  # [v5.7.2] Backup key — rotate เมื่อ key แรก quota หมด
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # AI Task Routing
 ENABLE_AI_TASK_ROUTING = True
 AI_TASK_ROUTING = {
-    # [v5.7.2] Provider names must match _PROVIDER_CALL_MAP keys: GEMINI, CHATGPT, CLAUDE, OLLAMA
-    # Haiku vs Sonnet selection is handled inside _claude_raw_call() via CLAUDE_HAIKU_TASKS
     "ASSET_SCANNER":        ["GEMINI", "CHATGPT"],
     "TREND_FILTER":         ["GEMINI", "CHATGPT"],
-    "AI_ANALYST":           ["GEMINI", "CLAUDE"],    # CLAUDE → Haiku (via CLAUDE_HAIKU_TASKS)
-    "BET_GATE":             ["CLAUDE", "GEMINI"],    # CLAUDE → Haiku (via CLAUDE_HAIKU_TASKS)
-    "RISK_MANAGER":         ["CLAUDE", "GEMINI"],    # CLAUDE → Sonnet (deep risk analysis)
-    "COUNCIL":              ["CLAUDE", "CHATGPT"],   # CLAUDE → Sonnet (deep council analysis)
+    "AI_ANALYST":           ["GEMINI"], # [Cleaned garbled comment]
+    "BET_GATE":             ["GEMINI"], # [Cleaned garbled comment]
+    "RISK_MANAGER":         ["GEMINI", "CLAUDE"],
+    "COUNCIL":              ["CLAUDE", "CHATGPT"],
 }
 COUNCIL_TASK_NAME = "COUNCIL"
 COUNCIL_MULTI_VOTE = True
@@ -290,9 +269,9 @@ METRICS_LOG_CONSOLE = bool(int(os.getenv("METRICS_LOG_CONSOLE", "0")))
 # Scanner Settings
 AI_PROVIDER_TIMEOUT_SECONDS = 60
 ENABLE_ASSET_ROTATION = True # [User Request] Re-enabled to Scan (R_75 + 1HZ50V)
-SCAN_INTERVAL_MINUTES = 120                   # [v5.7.1] Reduced scan noise: 10 → 30 min
-ASSET_SCAN_INTERVAL_MINS = 120               # [v5.7.1] Normal scan interval (was 10 min)
-ASSET_SCAN_INTERVAL_NO_TRADE_MINS = 60      # Inactivity trigger stays at 10 min
+SCAN_INTERVAL_MINUTES = 30                   # [v5.7.1] Reduced scan noise: 10 → 30 min
+ASSET_SCAN_INTERVAL_MINS = 30               # [v5.7.1] Normal scan interval (was 10 min)
+ASSET_SCAN_INTERVAL_NO_TRADE_MINS = 10      # Inactivity trigger stays at 10 min
 
  # [Cleaned garbled comment]
 ENABLE_MACD_MOMENTUM_GUARD = True
