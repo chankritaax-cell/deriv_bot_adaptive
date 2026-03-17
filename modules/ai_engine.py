@@ -687,6 +687,22 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
 
+        # [v5.7.3] PRE-AI RSI Soft Filter — block signal ที่ RSI ผิดฝั่งก่อน API call
+        # Backtest 3 (17-Mar-2026): กรอง 3 trades (ทั้งหมด LOSS) ประหยัด ~78 API calls/day
+        # CALL requires RSI >= PRE_AI_RSI_CALL_SOFT (default 50) — ต่ำกว่านี้ trend ยังไม่แข็ง
+        # PUT  requires RSI <= PRE_AI_RSI_PUT_SOFT  (default 50) — สูงกว่านี้ยังไม่ oversold
+        if rsi_val is not None:
+            _pre_call_soft = float(getattr(config, "PRE_AI_RSI_CALL_SOFT", 50.0))
+            _pre_put_soft  = float(getattr(config, "PRE_AI_RSI_PUT_SOFT",  50.0))
+            if det_trend == "UPTREND" and rsi_val < _pre_call_soft:
+                log_print(f"    PRE-AI SKIP (RSI Soft): CALL rejected. RSI {rsi_val:.1f} < {_pre_call_soft:.0f} (weak momentum in UPTREND) — API call saved 🛑")
+                _perf_metrics["pre_ai_skip_cycles"] += 1
+                return None
+            if det_trend == "DOWNTREND" and rsi_val > _pre_put_soft:
+                log_print(f"    PRE-AI SKIP (RSI Soft): PUT rejected. RSI {rsi_val:.1f} > {_pre_put_soft:.0f} (weak momentum in DOWNTREND) — API call saved 🛑")
+                _perf_metrics["pre_ai_skip_cycles"] += 1
+                return None
+
         # Calculate MACD Histogram before AI call
         macd_hist = 0.0
         try:

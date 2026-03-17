@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
  # [Cleaned garbled comment]
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.7.2"     # [v5.7.2] SIDEWAYS pass-through + Confidence scoring matrix + R_75 TREND_FOLLOWING + TIER_COUNCIL lookback fix + REGIME_STRATEGY_HIGH_VOL fix
+BOT_VERSION = "5.7.3"     # [v5.7.3] PRE-AI RSI Soft Filter + Gemini 2.5-flash + 503/500 handlers + Claude Haiku/Sonnet routing + send_trade_notification stub
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -185,6 +185,11 @@ RSI_GUARD_HIGH_VOL_EXPAND = 5.0 # Expand both bounds by this in HIGH_VOL regime
 # If slope is flat (SIDEWAYS) but RSI is clearly directional → pass to AI instead of hard-skip
 RSI_SIDEWAYS_UPBIAS = 55.0   # RSI > this in SIDEWAYS → treat as quasi-UPTREND (send to AI)
 RSI_SIDEWAYS_DNBIAS = 45.0   # RSI < this in SIDEWAYS → treat as quasi-DOWNTREND (send to AI)
+
+# [v5.7.3] PRE-AI RSI Soft Filter — block before LLM call if RSI ผิดฝั่ง
+# Backtest 17-Mar: 3 blocked trades = 3 LOSS → WR +1.0%, ~78 API calls saved/day
+PRE_AI_RSI_CALL_SOFT = float(os.getenv("PRE_AI_RSI_CALL_SOFT", "50.0"))  # CALL: RSI must be >= this
+PRE_AI_RSI_PUT_SOFT  = float(os.getenv("PRE_AI_RSI_PUT_SOFT",  "50.0"))  # PUT:  RSI must be <= this
 
 # [v5.1.6 LEGACY] RSI bounds below are NO LONGER USED by smart_trader.py
  # comment cleaned

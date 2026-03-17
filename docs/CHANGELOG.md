@@ -6,6 +6,47 @@ All notable changes to this project will be documented in this file.
 
 
 
+## [v5.7.3] - 2026-03-17
+### 🔧 PRE-AI RSI Soft Filter + Gemini 2.5 Migration + Claude Haiku/Sonnet Routing + Reliability Fixes
+
+**Root cause context**: Session analysis on 2026-03-17 — 1,098 candles, 39 trades, 23W/16L (59% WR). 7 improvements identified from log review.
+
+#### Fix 1 — PRE-AI RSI Soft Filter (`modules/ai_engine.py`, `config.py`)
+- **[NEW]** Added gate between Stoch Guard and LLM call: CALL blocked if RSI < 50 in UPTREND; PUT blocked if RSI > 50 in DOWNTREND.
+- **Backtest result** (17-Mar log): 3 trades blocked = 3 LOSS removed → WR 59% → 60%, ~78 API calls saved/day (estimated).
+- **Config keys**: `PRE_AI_RSI_CALL_SOFT = 50.0`, `PRE_AI_RSI_PUT_SOFT = 50.0` (overridable via .env)
+- **Log tag**: `PRE-AI SKIP (RSI Soft): CALL/PUT rejected. RSI X.X < Y (weak momentum) — API call saved 🛑`
+
+#### Fix 2 — Gemini 2.5-flash Migration (`config.py`, `modules/ai_providers.py`)
+- **[FIX]** `gemini-2.0-flash` returns HTTP 404 — API key migrated to Gemini 2.5 tier.
+- Changed `GEMINI_MODEL` to `gemini-2.5-flash`; fallback list: `["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"]`
+- Added `system_instruction="You are a JSON-only API..."` to force pure JSON from Gemini 2.5 (ignores `response_mime_type` alone).
+- Added `thinking_config=ThinkingConfig(thinking_budget=0)` — disables chain-of-thought to prevent token blowout at `max_output_tokens=300`.
+
+#### Fix 3 — Gemini 503/500 Error Handlers (`modules/ai_providers.py`)
+- **[FIX]** 503 UNAVAILABLE previously fell to generic `else` → `return None` → `_set_cooldown(provider, 15)` override.
+- Now: 503/UNAVAILABLE → 2-min model ban + rotate, continue to next model (not a 15-min full ban).
+- Now: 500 INTERNAL → 1-min model ban + rotate, continue.
+- When all models exhausted: sync both `GEMINI_DISABLED_UNTIL` and `_provider_cooldowns` so failover chain respects the wait time.
+
+#### Fix 4 — Claude Haiku/Sonnet Per-Task Routing (`config.py`, `modules/ai_providers.py`)
+- **[NEW]** `_claude_raw_call()` accepts `task_name` param; routes to Haiku for `CLAUDE_HAIKU_TASKS` (default: `["AI_ANALYST"]`), Sonnet for all others (COUNCIL, RISK_MANAGER).
+- **Config keys**: `CLAUDE_MODEL_HAIKU`, `CLAUDE_MODEL_SONNET`, `CLAUDE_HAIKU_TASKS`
+
+#### Fix 5 — `send_trade_notification` AttributeError Crash (`modules/telegram_bridge.py`)
+- **[FIX]** `bot.py` called `telegram.send_trade_notification()` at 3 sites — function never existed → `AttributeError` crash on every trade.
+- Added no-op stub: actual trade alerts handled by `notify_trades()` via `trade_log.jsonl` polling.
+
+#### Fix 6 — GEMINI_API_KEY2 Backup Key Rotation (`modules/ai_providers.py`, `config.py`)
+- **[NEW]** On 429 for any model, if `GEMINI_API_KEY2` is set, `client` is rebuilt with backup key before retrying.
+- Prevents quota exhaustion when primary key hits RPM/RPD limits.
+
+#### Fix 7 — DERIV_ACCOUNT_TYPE / CURRENCY Bug (`.env`)
+- **[FIX]** Missing `DERIV_ACCOUNT_TYPE` in `.env` → defaulted to `"demo"` → `CURRENCY="USD"` → buy rejected with "currency USD is not the default currency".
+- Root: `CURRENCY = "USD" if DERIV_ACCOUNT_TYPE == "demo" else "XRP"` in `config.py`. Added `DERIV_ACCOUNT_TYPE=real` to `.env`.
+
+---
+
 ## [v5.7.2] - 2026-03-17
 ### 🔧 5-Fix Pass: SIDEWAYS Pass-Through + Confidence Scoring + R_75 TREND_FOLLOWING + TIER_COUNCIL Lookback + REGIME_STRATEGY Fix
 

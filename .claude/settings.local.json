@@ -56,7 +56,10 @@
       "Bash(grep -v \"^$\")",
       "Bash(powershell -Command \"\\(Get-Content ''D:/SpProject/deriv_bot_v5_dev/.env''\\) -replace ''REGIME_STRATEGY_HIGH_VOL=PULLBACK_ENTRY'',''REGIME_STRATEGY_HIGH_VOL=TREND_FOLLOWING'' | Set-Content ''D:/SpProject/deriv_bot_v5_dev/.env''\")",
       "Bash(python -c \"import sys; sys.path.insert\\(0,''D:/SpProject/deriv_bot_v5_dev''\\); import config; print\\(''REGIME_STRATEGY_HIGH_VOL:'', config.REGIME_STRATEGY_HIGH_VOL\\)\")",
-      "Bash(python -c \"import google.genai; print\\(google.genai.__version__\\)\")"
+      "Bash(python -c \"import google.genai; print\\(google.genai.__version__\\)\")",
+      "Bash(ls D:/SpProject/deriv_bot_v5_dev/logs/*.py D:/SpProject/deriv_bot_v5_dev/*.py)",
+      "Bash(ls D:/SpProject/deriv_bot_v5_dev/logs/backtest_*.py D:/SpProject/deriv_bot_v5_dev/logs/*.py)",
+      "Bash(python logs/backtest_all_2026_03_17.py)"
     ]
   }
 }
