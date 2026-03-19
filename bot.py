@@ -390,18 +390,24 @@ async def run_streaming_bot(api, thb_suffix):
             human_time = datetime.datetime.fromtimestamp(current_epoch, tz=datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             
             # Cooldown Management
+            # [v5.7.5] Bug #1 Fix: UNKNOWN result (WebSocket disconnect) is treated as neutral —
+            # no cooldown penalty. Only WIN/LOSS trigger the cooldown timer.
             now = time.time()
             cd_any = getattr(config, "COOLDOWN_ANY_TRADE_MINS", 5)
             cd_loss = getattr(config, "COOLDOWN_LOSS_TRADE_MINS", 10)
-            required_minutes = cd_loss if last_trade_result == "LOSS" else cd_any
-            
-            elapsed_mins = (now - last_trade_time) / 60
-            if elapsed_mins < required_minutes:
-                if last_notified_cd_candle != current_epoch:
-                    rem = int(required_minutes - elapsed_mins)
-                    log_print(f"    Cooldown Active: {rem}m remaining (Last Trade: {last_trade_result})")
-                    last_notified_cd_candle = current_epoch
-                continue
+
+            if last_trade_result == "UNKNOWN":
+                # Unresolved trade — do NOT apply any cooldown, let next candle trade freely
+                pass
+            else:
+                required_minutes = cd_loss if last_trade_result == "LOSS" else cd_any
+                elapsed_mins = (now - last_trade_time) / 60
+                if elapsed_mins < required_minutes:
+                    if last_notified_cd_candle != current_epoch:
+                        rem = int(required_minutes - elapsed_mins)
+                        log_print(f"    Cooldown Active: {rem}m remaining (Last Trade: {last_trade_result})")
+                        last_notified_cd_candle = current_epoch
+                    continue
 
             # --- 6. Pre-AI Analysis ---
             # [v5.6.8] Post-Loss Cooldown — skip if MG recovery is in progress (mg_step > 0)

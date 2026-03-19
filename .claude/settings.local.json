@@ -59,7 +59,15 @@
       "Bash(python -c \"import google.genai; print\\(google.genai.__version__\\)\")",
       "Bash(ls D:/SpProject/deriv_bot_v5_dev/logs/*.py D:/SpProject/deriv_bot_v5_dev/*.py)",
       "Bash(ls D:/SpProject/deriv_bot_v5_dev/logs/backtest_*.py D:/SpProject/deriv_bot_v5_dev/logs/*.py)",
-      "Bash(python logs/backtest_all_2026_03_17.py)"
+      "Bash(python logs/backtest_all_2026_03_17.py)",
+      "Bash(find D:SpProjectderiv_bot_v5_dev -type f \\\\\\(-name *.txt -o -name *.jsonl -o -name *.json -o -name *.log \\\\\\))",
+      "Bash(grep -E \"\\\\.\\(txt|log|jsonl|json\\)$\")",
+      "Bash(where python:*)",
+      "Bash(where python3:*)",
+      "Bash(where py:*)",
+      "Bash(ls /c/Python*/python.exe)",
+      "Read(//c/Users/chank/AppData/Local/Programs/Python/**)",
+      "Bash(PYTHONIOENCODING=utf-8 /c/Users/chank/AppData/Local/Programs/Python/Python312/python.exe \"D:/SpProject/deriv_bot_v5_dev/logs/backtest_loss_analysis.py\")"
     ]
   }
 }

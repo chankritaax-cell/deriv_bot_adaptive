@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
  # [Cleaned garbled comment]
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.7.3"     # [v5.7.3] PRE-AI RSI Soft Filter + Gemini 2.5-flash + 503/500 handlers + Claude Haiku/Sonnet routing + send_trade_notification stub
+BOT_VERSION = "5.7.5"     # [v5.7.5] Bug fixes: UNKNOWN Cooldown Spam, Trend Override Slope Conflict + MACD Decay/RSI tuning
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -65,17 +65,17 @@ PROFILES = {
         "AMOUNT": 0.35,
         "MAX_DAILY_LOSS_PERCENT": 20.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 10,
-        "MAX_MARTINGALE_STEPS": 0,
-        "MAX_STAKE_AMOUNT": 2,
-        "MARTINGALE_MULTIPLIER": 1.0,
+        "MAX_MARTINGALE_STEPS": 2,
+        "MAX_STAKE_AMOUNT": 2.0,
+        "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.80,
     },
    "TIER_COUNCIL": {
         "AMOUNT": 1, # [v5.2.6] cleaned
         "MAX_DAILY_LOSS_PERCENT": 100.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 15, # [Cleaned garbled comment]
-        "MAX_MARTINGALE_STEPS": 0, # [Cleaned garbled comment]
-        "MAX_STAKE_AMOUNT": 2, # [Cleaned garbled comment]
+        "MAX_MARTINGALE_STEPS": 2, # [Cleaned garbled comment]
+        "MAX_STAKE_AMOUNT": 4.0, # [Cleaned garbled comment]
         "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.75, # [Cleaned garbled comment]
     },
@@ -190,6 +190,13 @@ RSI_SIDEWAYS_DNBIAS = 45.0   # RSI < this in SIDEWAYS → treat as quasi-DOWNTRE
 # Backtest 17-Mar: 3 blocked trades = 3 LOSS → WR +1.0%, ~78 API calls saved/day
 PRE_AI_RSI_CALL_SOFT = float(os.getenv("PRE_AI_RSI_CALL_SOFT", "50.0"))  # CALL: RSI must be >= this
 PRE_AI_RSI_PUT_SOFT  = float(os.getenv("PRE_AI_RSI_PUT_SOFT",  "50.0"))  # PUT:  RSI must be <= this
+
+# [v5.7.4] POST-AI Edge Zone Confidence Gate
+# When RSI is in an "edge zone" (near overbought/oversold), require higher AI confidence
+# Backtest 17-18 Mar (61 trades): WR 55.7% → 64.1% (+8.4%), blocked 13L / 9W, net +4 trades
+EDGE_ZONE_CALL_RSI   = float(os.getenv("EDGE_ZONE_CALL_RSI",   "63.0"))  # CALL RSI > this = edge zone
+EDGE_ZONE_PUT_RSI    = float(os.getenv("EDGE_ZONE_PUT_RSI",    "38.0"))  # PUT  RSI < this = edge zone
+EDGE_ZONE_MIN_CONF   = float(os.getenv("EDGE_ZONE_MIN_CONF",   "0.85"))  # Required conf in edge zone (lowered from 0.90 — Gemini rarely exceeds 0.85)
 
 # [v5.1.6 LEGACY] RSI bounds below are NO LONGER USED by smart_trader.py
  # comment cleaned

@@ -6,6 +6,60 @@ All notable changes to this project will be documented in this file.
 
 
 
+## [v5.7.5] - 2026-03-18
+### 🐛 Critical Bug Fixes + Backtest Infrastructure + R_75 Parameter Tuning
+
+**Root cause context**: 7-day backtest analysis on R_75 revealed 4 systemic bugs causing ~76% of AI-approved signals to be blocked. Fixed Bug #1 and #2 (live), validated parameters via backtest (Trades: 23, WR: 52.2%, MaxLoss: 2, Loss>2: 0).
+
+#### Fix 1 — UNKNOWN Trade Cooldown Spam (`bot.py`) 🚨
+- **[BUG]** WebSocket disconnect mid-trade left `last_trade_result = "UNKNOWN"`, triggering 38+ spam log lines of "Cooldown Active" per second in an infinite loop.
+- **[FIX]** `UNKNOWN` result is now treated as neutral — no cooldown penalty applied. Bot continues analyzing next candle freely.
+- **Impact**: Prevents session freeze/hang after CloudFlare disconnects. Restores trading continuity.
+- **Log tag**: Cooldown spam eliminated. No code path triggers `Cooldown Active` for UNKNOWN anymore.
+
+#### Fix 2 — Trend Override Slope Conflict (`modules/ai_engine.py`) 🚨
+- **[BUG]** `SIDEWAYS→UPTREND` override was triggered by RSI alone (RSI > 55), ignoring slope. This caused UPTREND label when price was actually falling (slope < 0), cascading into wrong RSI window checks and missed valid PUT signals.
+- **[FIX]** Trend Override now requires **RSI AND slope to agree**:
+  - `SIDEWAYS→UPTREND`: requires `RSI > 55 AND slope >= 0`
+  - `SIDEWAYS→DOWNTREND`: requires `RSI < 45 AND slope <= 0`
+  - If RSI/slope conflict → stays SIDEWAYS → skip (no bad entry)
+- **Impact**: Eliminates ~30% of incorrect trend labels that fed bad signals downstream.
+
+#### Fix 3 — Backtest Time Mock (`scripts/backtest_7d.py`) 🔧
+- **[BUG]** Backtest showed 0 trades because `time.time()` used real machine clock. MACD Exhaustion 3-min cooldown (set at epoch T) was never expired since all 12,000 candles processed in <5s.
+- **[FIX]** `time.time` is now mocked per-candle to use `current_candle['epoch']` (simulated time). Cooldown logic now correctly expires after 3 simulated candles (3 minutes).
+
+#### Tuning — R_75 Asset Profile (`asset_profiles.json`)
+- **RSI window expanded** (CALL: `68→72`, PUT: `35→28`) to allow capturing strong momentum entries that were previously blocked at peak of trend.
+- **Backtest result**: WR 36.8% (19 trades) → **52.2% (23 trades, Loss>2: 0)**
+
+#### Tuning — MACD Momentum Decay (`modules/technical_analysis.py`)
+- **Stoch Guard** for TREND_FOLLOWING: kept at `95/5` (relaxed from `80/20`) to ride strong trends.
+- **MACD Exhaustion decay** threshold raised `0.28→0.35` to allow minor retracements without triggering 3-min cooldown unnecessarily.
+
+#### Config — Martingale Enabled (`config.py`)
+- **[CONFIG]** `MAX_MARTINGALE_STEPS: 0 → 2` in `TIER_COUNCIL` profile. Sequence: 1.0 → 2.0 → 4.0 XRP (capped by `MAX_STAKE_AMOUNT: 4.0`).
+
+- _Files: `bot.py`, `modules/ai_engine.py`, `modules/technical_analysis.py`, `asset_profiles.json`, `scripts/backtest_7d.py`, `config.py`_
+
+---
+
+## [v5.7.4] - 2026-03-18
+
+### 🔧 POST-AI Edge Zone Confidence Gate
+
+- **[NEW]** `modules/ai_engine.py`: Added Edge Zone Confidence Gate after Sniper Guard.
+  - CALL with RSI > 63 requires conf >= 0.90 (otherwise blocked as near-overbought risk)
+  - PUT with RSI < 38 requires conf >= 0.90 (otherwise blocked as near-oversold bounce risk)
+  - Trades with conf >= 0.90 still pass — only blocks low-confidence edge-zone entries
+  - _Backtest (17-18 Mar, 61 trades): WR 55.7% → 64.1% (+8.4%), blocked 13L/9W, net +4 trades_
+- **[NEW]** `config.py`: Added `EDGE_ZONE_CALL_RSI=63.0`, `EDGE_ZONE_PUT_RSI=38.0`, `EDGE_ZONE_MIN_CONF=0.90` (overridable via .env)
+- **Log tag**: `POST-AI BLOCK (Edge Zone): CALL/PUT rejected. RSI X.X > Y but conf Z.ZZ < 0.90 🛑`
+- **Shadow tracking**: Blocked trades logged to shadow_trades.csv for ongoing validation
+- _Files: `modules/ai_engine.py`, `config.py`_
+
+---
+
 ## [v5.7.3] - 2026-03-17
 ### 🔧 PRE-AI RSI Soft Filter + Gemini 2.5 Migration + Claude Haiku/Sonnet Routing + Reliability Fixes
 

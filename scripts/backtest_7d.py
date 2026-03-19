@@ -12,10 +12,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from modules.smart_trader import SmartTrader
 from modules.technical_analysis import TechnicalConfirmation
+import modules.utils
 from modules.utils import log_print, ROOT
 
+# Mute noisy logs for backtest
+modules.utils.print = lambda *args, **kwargs: None
+
 # Assets to backtest
-ASSETS = ["R_75", "1HZ100V", "1HZ50V"]
+ASSETS = ["R_75"]
 
 async def fetch_7d_data(api, asset):
     """Fetches approx 10,080 candles by batching."""
@@ -151,6 +155,47 @@ async def run_backtest_7d():
                 strategy = regime_strategy_map.get(regime_state, "AUTO")
                 if strategy == "AUTO": 
                     strategy = profile.get("strategy", "TREND_FOLLOWING")
+
+                # Mock time for MACD Exhuastion cooldowns (3-min cooldown)
+                import time
+                time.time = lambda: float(current_candle['epoch'])
+
+                # --- [PRE-AI Filters] Mirror ai_engine.py logic ---
+                # 1. Slope-based Trend Detection (mirrors ai_engine.py lines 560-568)
+                det_trend = "SIDEWAYS"
+                rsi_val = TechnicalConfirmation.get_rsi(df_slice)
+                slope = 0.0
+                if len(df_slice) >= 7:
+                    sma = df_slice["close"].rolling(7).mean()
+                    slope_threshold = getattr(config, "MA_SLOPE_THRESHOLD_PCT", 0.015)
+                    if len(sma) >= 6 and not pd.isna(sma.iloc[-1]):
+                        current_ma = sma.iloc[-1]
+                        prev_ma = sma.iloc[-6]
+                        if prev_ma > 0:
+                            slope = (current_ma - prev_ma) / prev_ma * 100
+                        if slope > slope_threshold:   det_trend = "UPTREND"
+                        elif slope < -slope_threshold: det_trend = "DOWNTREND"
+
+                # 2. Trend Override (Bug #2 fix): RSI AND slope must agree (mirrors ai_engine.py lines 619-636)
+                if det_trend == "SIDEWAYS" and rsi_val is not None:
+                    _rsi_up = float(getattr(config, "RSI_SIDEWAYS_UPBIAS", 55.0))
+                    _rsi_dn = float(getattr(config, "RSI_SIDEWAYS_DNBIAS", 45.0))
+                    if rsi_val > _rsi_up and slope >= 0:
+                        det_trend = "UPTREND"
+                    elif rsi_val < _rsi_dn and slope <= 0:
+                        det_trend = "DOWNTREND"
+                    else:
+                        continue  # SIDEWAYS — skip candle
+
+                # 3. RSI Soft Guard (Bug #6 test): block signals where RSI contradicts trend
+                # PRE_AI_RSI_PUT_SOFT default=50 (current) vs 55 (proposed) — change to test Bug #6
+                if rsi_val is not None:
+                    _pre_call_soft = float(getattr(config, "PRE_AI_RSI_CALL_SOFT", 50.0))
+                    _pre_put_soft  = float(getattr(config, "PRE_AI_RSI_PUT_SOFT",  55.0))  # Bug #6 test: 50→55
+                    if det_trend == "UPTREND" and rsi_val < _pre_call_soft:
+                        continue  # CALL blocked — RSI too weak
+                    if det_trend == "DOWNTREND" and rsi_val > _pre_put_soft:
+                        continue  # PUT blocked — RSI too high (momentum not confirmed)
 
                 # --- Signal Check ---
                 # Check both directions

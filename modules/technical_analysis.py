@@ -336,14 +336,14 @@ class TechnicalConfirmation:
         if safe_config_get("ENABLE_MACD_MOMENTUM_GUARD", True):
             if signal == "CALL" and hist_now <= hist_prev:
                 decay = abs(hist_prev - hist_now) / abs(hist_prev) if hist_prev != 0 else 1.0
-                if decay >= 0.28:  # Only block on significant decay (28%+), not minor oscillation
+                if decay >= 0.35:  # Only block on significant decay (35%+), not minor oscillation
                     # [v5.6.7] Set 3-minute cooldown to prevent dead-cat-bounce second entries
                     if asset:
                         TechnicalConfirmation._exhaustion_cooldowns[f"{asset}_CALL"] = time.time() + 180
                     return False, f"Hard Block: CALL rejected. MACD Exhaustion ({hist_now:.4f}, decay {decay:.0%}) 🛑"
             if signal == "PUT" and hist_now >= hist_prev:
                 decay = abs(hist_now - hist_prev) / abs(hist_prev) if hist_prev != 0 else 1.0
-                if decay >= 0.28:
+                if decay >= 0.35:
                     # [v5.6.7] Set 3-minute cooldown to prevent dead-cat-bounce second entries
                     if asset:
                         TechnicalConfirmation._exhaustion_cooldowns[f"{asset}_PUT"] = time.time() + 180
@@ -379,14 +379,17 @@ class TechnicalConfirmation:
         if atr and price > 0 and (atr/price < 0.0001): return False, "Hard Block: Dead Market 🛑"
 
         # 4. Stochastic Bounce Guard (Prevent extreme oversold/overbought entries)
-        # [v5.2.2] CALL overbought: relaxed to 85 for TREND_FOLLOWING (strong uptrend keeps Stoch high naturally)
-        # [v5.2.3] PUT oversold: fixed back to 20 for all strategies — Stoch bouncing from 0-5 up to 15
-        #          is a BOUNCE signal, not a Downtrend continuation. Asymmetric by design.
+        # [v5.7.5] Adapted bounds strictly for TREND_FOLLOWING to allow momentum riding
         if safe_config_get("ENABLE_STOCHASTIC_BOUNCE_GUARD", True):
             stoch_k, stoch_d = TechnicalConfirmation.get_stochastic(df)
             if stoch_k is not None:
-                ob_threshold = 85 if strategy == "TREND_FOLLOWING" else 80  # CALL: relax in strong uptrend
-                os_threshold = 20  # PUT: always 20 — Stoch recovering from extreme oversold = bounce danger
+                if strategy == "TREND_FOLLOWING":
+                    ob_threshold = 95.0
+                    os_threshold = 5.0
+                else:
+                    ob_threshold = 80.0
+                    os_threshold = 20.0
+
                 if signal == "PUT" and stoch_k < os_threshold:
                     return False, f"Hard Block: PUT rejected. Stochastic in oversold bounce zone ({stoch_k:.1f} < {os_threshold}) 🛑"
                 if signal == "CALL" and stoch_k > ob_threshold:

@@ -7,8 +7,8 @@
         ],
         "rsi_bounds": {
             "call_min": 55.0,
-            "call_max": 68.0,
-            "put_min": 35.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
             "put_max": 45.0,
             "pullback_call_lo": 38.0,
             "pullback_call_hi": 55.0,
@@ -29,9 +29,9 @@
         ],
         "rsi_bounds": {
             "call_min": 58.0,
-            "call_max": 68.0,
-            "put_min": 35.0,
-            "put_max": 44.0,
+            "call_max": 72.0,
+            "put_min": 28.0,
+            "put_max": 45.0,
             "pullback_call_lo": 35.0,
             "pullback_call_hi": 52.0,
             "pullback_call_min": 25.0,
@@ -41,7 +41,7 @@
         },
         "bounce_limit": 12.0,
         "ma_slope_min": 0.02,
-        "notes": "[v5.7.1] Changed PULLBACK_ENTRY→TREND_FOLLOWING (was 74/74 blocked). Wider RSI bounds for HIGH_VOL momentum."
+        "notes": "[v5.7.5] Aligned put_max 44→45 to match R_75 NORMAL profile (Bug #1 fix). Wider RSI bounds for HIGH_VOL momentum."
     },
     "1HZ100V": {
         "strategy": "PULLBACK_ENTRY",

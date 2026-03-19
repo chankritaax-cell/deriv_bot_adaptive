@@ -393,8 +393,13 @@ def calculate_local_risk_score(metrics, signal, context):
     # Stoch (0.15)
     stoch_k = _fc_to_float(context.get("stoch_k"))
     if stoch_k is not None:
-        if signal == "CALL" and stoch_k < 80: score += 0.15
-        elif signal == "PUT" and stoch_k > 20: score += 0.15
+        _current_strategy = context.get("asset_profile", {}).get("strategy", "TREND_FOLLOWING") if context.get("asset_profile") else "TREND_FOLLOWING"
+        if _current_strategy == "TREND_FOLLOWING":
+            if signal == "CALL" and stoch_k < 95: score += 0.15
+            elif signal == "PUT" and stoch_k > 5: score += 0.15
+        else:
+            if signal == "CALL" and stoch_k < 80: score += 0.15
+            elif signal == "PUT" and stoch_k > 20: score += 0.15
 
     # MACD alignment bonus/penalty (+0.10 aligned / -0.15 contradicts) [v5.7.2]
     macd_hist = _fc_to_float(context.get("macd_hist"))
@@ -613,16 +618,19 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
 
             # [v5.7.2] SIDEWAYS RSI directional pass-through — check BEFORE range gates
             # If slope is flat but RSI is clearly directional → override det_trend for AI context
+            # [v5.7.5] Bug #2 Fix: Require slope to AGREE with RSI bias.
+            # If slope contradicts RSI, do NOT override — avoids UPTREND label when price is falling.
             if det_trend == "SIDEWAYS":
                 _rsi_up  = float(getattr(config, "RSI_SIDEWAYS_UPBIAS", 55.0))
                 _rsi_dn  = float(getattr(config, "RSI_SIDEWAYS_DNBIAS", 45.0))
-                if rsi_val > _rsi_up:
-                    det_trend = "UPTREND"   # quasi-UPTREND: slope flat but RSI bullish
+                if rsi_val > _rsi_up and slope >= 0:
+                    det_trend = "UPTREND"   # quasi-UPTREND: slope flat-to-up AND RSI bullish
                     log_print(f"    [Trend Override] SIDEWAYS→UPTREND (RSI {rsi_val:.1f} > {_rsi_up:.0f}, slope={slope:.4f}%)")
-                elif rsi_val < _rsi_dn:
-                    det_trend = "DOWNTREND"  # quasi-DOWNTREND: slope flat but RSI bearish
+                elif rsi_val < _rsi_dn and slope <= 0:
+                    det_trend = "DOWNTREND"  # quasi-DOWNTREND: slope flat-to-down AND RSI bearish
                     log_print(f"    [Trend Override] SIDEWAYS→DOWNTREND (RSI {rsi_val:.1f} < {_rsi_dn:.0f}, slope={slope:.4f}%)")
                 else:
+                    # RSI and slope conflict (or neutral) — stay SIDEWAYS, skip
                     log_print(f"    PRE-AI SKIP (Trend Guard): SIDEWAYS (Slope {slope:.4f}%) | RSI: {rsi_val:.1f} | Consecutive: {_sideways_counter.get(asset, 0)}")
                     _perf_metrics["pre_ai_skip_cycles"] += 1
                     return None
@@ -676,14 +684,20 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
         # Logic: in UPTREND only a CALL is viable; in DOWNTREND only a PUT is viable.
         # If Stoch already fails the strict rule for that direction, skip immediately.
         if stoch_k_val is not None:
-            _stoch_put_strict_pre = float(getattr(config, "STOCH_PUT_STRICT", 20))
-            _stoch_call_strict_pre = float(getattr(config, "STOCH_CALL_STRICT", 80))
+            _current_strategy = _early_profile.get("strategy", "TREND_FOLLOWING") if _early_profile else "TREND_FOLLOWING"
+            if _current_strategy == "TREND_FOLLOWING":
+                _stoch_put_strict_pre = 5.0
+                _stoch_call_strict_pre = 95.0
+            else:
+                _stoch_put_strict_pre = float(getattr(config, "STOCH_PUT_STRICT", 20))
+                _stoch_call_strict_pre = float(getattr(config, "STOCH_CALL_STRICT", 80))
+
             if det_trend == "DOWNTREND" and stoch_k_val < _stoch_put_strict_pre:
-                log_print(f"    PRE-AI SKIP (Stoch Guard): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict_pre:.0f} (oversold in DOWNTREND) — API call saved 🛑")
+                log_print(f"    PRE-AI SKIP (Stoch Guard): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict_pre:.0f} (oversold in DOWNTREND, {_current_strategy}) — API call saved 🛑")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
             if det_trend == "UPTREND" and stoch_k_val > _stoch_call_strict_pre:
-                log_print(f"    PRE-AI SKIP (Stoch Guard): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict_pre:.0f} (overbought in UPTREND) — API call saved 🛑")
+                log_print(f"    PRE-AI SKIP (Stoch Guard): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict_pre:.0f} (overbought in UPTREND, {_current_strategy}) — API call saved 🛑")
                 _perf_metrics["pre_ai_skip_cycles"] += 1
                 return None
 
@@ -791,16 +805,22 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 return None
 
             if stoch_k_val is not None:
-                _stoch_put_strict = float(getattr(config, "STOCH_PUT_STRICT", 20))
-                _stoch_call_strict = float(getattr(config, "STOCH_CALL_STRICT", 80))
+                _current_strategy = _early_profile.get("strategy", "TREND_FOLLOWING") if _early_profile else "TREND_FOLLOWING"
+                if _current_strategy == "TREND_FOLLOWING":
+                    _stoch_put_strict = 5.0
+                    _stoch_call_strict = 95.0
+                else:
+                    _stoch_put_strict = float(getattr(config, "STOCH_PUT_STRICT", 20))
+                    _stoch_call_strict = float(getattr(config, "STOCH_CALL_STRICT", 80))
+                    
                 if signal == "PUT" and stoch_k_val < _stoch_put_strict:
-                    log_print(f"    POST-AI BLOCK (Stoch Strict): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict:.0f}")
+                    log_print(f"    POST-AI BLOCK (Stoch Strict): PUT rejected. Stoch K={stoch_k_val:.1f} < {_stoch_put_strict:.0f} ({_current_strategy})")
                     _perf_metrics["post_ai_block_cycles"] += 1
                     # [v5.6.5] Shadow track Stoch-blocked trades
                     _shadow_fire(api, asset, signal, f"POST_AI_STOCH_STRICT: PUT stoch={stoch_k_val:.1f} < {_stoch_put_strict:.0f}", df_feat, rsi_val, macd_hist, stoch_k_val)
                     return None
                 if signal == "CALL" and stoch_k_val > _stoch_call_strict:
-                    log_print(f"    POST-AI BLOCK (Stoch Strict): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict:.0f}")
+                    log_print(f"    POST-AI BLOCK (Stoch Strict): CALL rejected. Stoch K={stoch_k_val:.1f} > {_stoch_call_strict:.0f} ({_current_strategy})")
                     _perf_metrics["post_ai_block_cycles"] += 1
                     # [v5.6.5] Shadow track Stoch-blocked trades
                     _shadow_fire(api, asset, signal, f"POST_AI_STOCH_STRICT: CALL stoch={stoch_k_val:.1f} > {_stoch_call_strict:.0f}", df_feat, rsi_val, macd_hist, stoch_k_val)
@@ -819,6 +839,24 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
                 # [v5.6.5] Shadow track confidence-blocked trades
                 _shadow_fire(api, asset, signal, f"SNIPER_GUARD: conf={confidence:.2f} < required={required_conf:.2f} mg_step={mg_step}", df_feat, rsi_val, macd_hist, stoch_k_val)
                 return None
+
+            # [v5.7.4] POST-AI Edge Zone Confidence Gate
+            # RSI ใกล้ overbought (CALL) หรือ oversold (PUT) → ต้องการ conf สูงกว่าปกติ
+            # Backtest 17-18 Mar: WR +8.4% (55.7→64.1%), blocked 13L/9W, net +4 trades
+            if rsi_val is not None:
+                _edge_call_rsi = float(getattr(config, "EDGE_ZONE_CALL_RSI", 63.0))
+                _edge_put_rsi  = float(getattr(config, "EDGE_ZONE_PUT_RSI", 38.0))
+                _edge_min_conf = float(getattr(config, "EDGE_ZONE_MIN_CONF", 0.90))
+                if signal == "CALL" and rsi_val > _edge_call_rsi and confidence < _edge_min_conf:
+                    log_print(f"    POST-AI BLOCK (Edge Zone): CALL rejected. RSI {rsi_val:.1f} > {_edge_call_rsi:.0f} but conf {confidence:.2f} < {_edge_min_conf:.2f} 🛑")
+                    _perf_metrics["post_ai_block_cycles"] += 1
+                    _shadow_fire(api, asset, signal, f"EDGE_ZONE: CALL RSI={rsi_val:.1f}>{_edge_call_rsi:.0f} conf={confidence:.2f}<{_edge_min_conf:.2f}", df_feat, rsi_val, macd_hist, stoch_k_val)
+                    return None
+                if signal == "PUT" and rsi_val < _edge_put_rsi and confidence < _edge_min_conf:
+                    log_print(f"    POST-AI BLOCK (Edge Zone): PUT rejected. RSI {rsi_val:.1f} < {_edge_put_rsi:.0f} but conf {confidence:.2f} < {_edge_min_conf:.2f} 🛑")
+                    _perf_metrics["post_ai_block_cycles"] += 1
+                    _shadow_fire(api, asset, signal, f"EDGE_ZONE: PUT RSI={rsi_val:.1f}<{_edge_put_rsi:.0f} conf={confidence:.2f}<{_edge_min_conf:.2f}", df_feat, rsi_val, macd_hist, stoch_k_val)
+                    return None
 
             _perf_metrics["ai_suggest_cycles"] += 1
         else:
@@ -842,7 +880,9 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
 
     if signal == "PUT" and not getattr(config, "ALLOW_PUT_SIGNALS", True): return None
     min_conf = float(getattr(config, "AI_CONFIDENCE_THRESHOLD", 0.6))
-    if float(confidence) < min_conf: return None
+    if float(confidence) < min_conf:
+        log_print(f"    POST-AI BLOCK (Min Conf): {signal} rejected. Conf {confidence:.2f} < threshold {min_conf:.2f} 🛑")
+        return None
 
     # --- SMART TRADER INTERVENTION ---
  # [v5.2.0] cleaned
