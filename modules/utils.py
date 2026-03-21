@@ -425,6 +425,101 @@ def log_print(msg, end="\n", flush=False):
 
 
 # ============================================================
+# 🧠 DYNAMIC PERFORMANCE LOGIC
+# ============================================================
+
+async def evaluate_dynamic_performance(hours_back=3, min_trades=4):
+    """
+    [v5.7.8] Analyze recent trade history to trigger Global Pause or Strategy Bans.
+    Returns: {"pause_trading": bool, "reason": str, "disabled_strategies": list}
+    """
+    result = {"pause_trading": False, "reason": "", "disabled_strategies": []}
+    
+    if not os.path.exists(TRADE_PERSISTENT_LOG):
+        return result
+        
+    try:
+        now = time.time()
+        cutoff_time = now - (hours_back * 3600)
+        recent_trades = []
+        
+        # 1. Read recent trades
+        with open(TRADE_PERSISTENT_LOG, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line: continue
+                try:
+                    trade = json.loads(line)
+                    # Support multiple time formats: float epoch or string ISO
+                    trade_ts = trade.get("time_ts", trade.get("timestamp", 0))
+                    if isinstance(trade_ts, str):
+                        try:
+                            # basic iso parsing fallback if needed, but normally it's epoch or absent
+                            import dateutil.parser
+                            trade_ts = dateutil.parser.parse(trade_ts).timestamp()
+                        except:
+                            trade_ts = 0
+                            
+                    # If time parsing failed or missing, use a rough heuristic or just include it if we don't have many
+                    if trade_ts == 0:
+                        recent_trades.append(trade) 
+                    elif trade_ts >= cutoff_time:
+                        recent_trades.append(trade)
+                except json.JSONDecodeError:
+                    pass
+                    
+        if not recent_trades:
+            return result
+            
+        # Optional: if we couldn't parse time for some, just take the last N trades assuming they are recent
+        if len([t for t in recent_trades if "time_ts" in t or "timestamp" in t]) == 0:
+            recent_trades = recent_trades[-20:] # Fallback to last 20 if no timestamps
+            
+        # 2. Global Performance Check (Overall WR)
+        if len(recent_trades) >= min_trades:
+            wins = sum(1 for t in recent_trades if t.get("result") == "WIN")
+            total = len(recent_trades)
+            # Exclude draws/unknowns from WR calc if desired, but for simplicity:
+            valid_trades = [t for t in recent_trades if t.get("result") in ["WIN", "LOSS"]]
+            if len(valid_trades) >= min_trades:
+                wins = sum(1 for t in valid_trades if t.get("result") == "WIN")
+                overall_wr = (wins / len(valid_trades)) * 100
+                if overall_wr < 40.0:
+                    result["pause_trading"] = True
+                    result["reason"] = f"Win Rate < 40% ({overall_wr:.1f}%) in last {hours_back}h (Total: {len(valid_trades)} trades)"
+                    return result # Immediate pause overrides strategy bans
+                    
+        # 3. Strategy Specific Performance
+        strategy_stats = {}
+        for trade in recent_trades:
+            strat = trade.get("strategy", "UNKNOWN")
+            res = trade.get("result", "UNKNOWN")
+            if res not in ["WIN", "LOSS"]: continue
+            
+            if strat not in strategy_stats:
+                strategy_stats[strat] = {"wins": 0, "losses": 0, "streak": 0}
+                
+            if res == "WIN":
+                strategy_stats[strat]["wins"] += 1
+                strategy_stats[strat]["streak"] = 0
+            else:
+                strategy_stats[strat]["losses"] += 1
+                strategy_stats[strat]["streak"] -= 1 # negative for loss streak
+                
+        # 4. Ban Bad Strategies
+        for strat, stats in strategy_stats.items():
+            total_strat = stats["wins"] + stats["losses"]
+            if total_strat >= 3:
+                wr = (stats["wins"] / total_strat) * 100
+                if wr < 30.0 or stats["streak"] <= -3:
+                    result["disabled_strategies"].append(strat)
+                    
+    except Exception as e:
+        log_print(f"⚠️ [Dynamic Guard] Evaluation error: {e}")
+        
+    return result
+
+# ============================================================
 # 📊 STRUCTURED METRICS LOGGER (JSONL)
 # ============================================================
 

@@ -523,6 +523,16 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
             _perf_metrics["pre_ai_skip_cycles"] += 1
             return None
 
+    # [v5.8.3] PRE-AI Hour Filter — block dead UTC hours (backtest: 47 trades WR 23.4%)
+    if safe_config_get("ENABLE_HOUR_FILTER", False):
+        import datetime as _dt_mod
+        _utc_hour = _dt_mod.datetime.utcnow().hour
+        _blocked_hours = getattr(config, "BLOCKED_UTC_HOURS", [])
+        if _utc_hour in _blocked_hours:
+            log_print(f"    PRE-AI SKIP (Hour Filter): UTC {_utc_hour:02d}:00 blocked (dead hour) — API call saved 🛑")
+            _perf_metrics["pre_ai_skip_cycles"] += 1
+            return None
+
         # 0.1 Technical Deterministic Pre-Check
     if df_feat is not None and len(df_feat) > 15:
         rsi_val = _SMART_TRADER.tech.get_rsi(df_feat)
@@ -969,7 +979,7 @@ async def analyze_and_decide(api, asset, market_data_summary, df_1m):
  # comment cleaned
             from modules.technical_analysis import TechnicalConfirmation
             _mg_rsi_bounds = asset_profile.get("rsi_bounds") if asset_profile else None
-            is_safe_for_mg, mg_block_reason = TechnicalConfirmation.check_hard_rules(df_feat, signal, "TREND_FOLLOWING", rsi_bounds=_mg_rsi_bounds)
+            is_safe_for_mg, mg_block_reason = TechnicalConfirmation.check_hard_rules(df_feat, signal, "TREND_FOLLOWING", rsi_bounds=_mg_rsi_bounds, mg_step=mg_step)
 
             if is_safe_for_mg:
                 mg_override_strategy = strategy_name if 'strategy_name' in locals() else "AI_RECOVERY"

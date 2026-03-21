@@ -1,5 +1,5 @@
 """
-Configuration Module (v5.6.0)
+Configuration Module (v5.8.0)
 Advanced AI Council & Premium Telegram Bridge
 """
 import os
@@ -7,7 +7,7 @@ import os
 # ---------------------------------------------------------
  # [Cleaned garbled comment]
 DATA_MODE = "STREAMING"  # Options: "POLLING", "STREAMING"
-BOT_VERSION = "5.7.5"     # [v5.7.5] Bug fixes: UNKNOWN Cooldown Spam, Trend Override Slope Conflict + MACD Decay/RSI tuning
+BOT_VERSION = "5.8.2"     # [v5.8.2] Disable MG in TIER_MASTER (backtest: WR 41.7% vs breakeven 76.8%, net -49 XRP)
 COUNCIL_REAL_ADVISORY_ONLY = False # [v5.4.0] Full Loop Autonomy: AI Council can now auto-fix on REAL accounts.
 ENABLE_THB_CONVERSION = True
 XRP_THB_RATE_FALLBACK = 43.91
@@ -40,7 +40,7 @@ DERIV_ACCOUNT_TYPE = os.getenv("DERIV_ACCOUNT_TYPE", "demo")  # "demo" or "real"
 # ==========================================
  # [Cleaned garbled comment]
 # ==========================================
-ACTIVE_PROFILE = "TIER_COUNCIL" 
+ACTIVE_PROFILE = "TIER_MASTER" 
 
 PROFILES = {
     "TIER_1": {
@@ -70,11 +70,11 @@ PROFILES = {
         "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.80,
     },
-   "TIER_COUNCIL": {
+   "TIER_MASTER": {
         "AMOUNT": 1, # [v5.2.6] cleaned
         "MAX_DAILY_LOSS_PERCENT": 100.0,
         "MAX_DAILY_LOSS_ABSOLUTE": 15, # [Cleaned garbled comment]
-        "MAX_MARTINGALE_STEPS": 2, # [Cleaned garbled comment]
+        "MAX_MARTINGALE_STEPS": 0, # [v5.8.2] Disabled MG — backtest shows WR 41.7% vs breakeven 76.8% needed, net -49 XRP across 36 sequences
         "MAX_STAKE_AMOUNT": 4.0, # [Cleaned garbled comment]
         "MARTINGALE_MULTIPLIER": 2.0,
         "AI_CONFIDENCE_THRESHOLD": 0.75, # [Cleaned garbled comment]
@@ -102,7 +102,7 @@ OLLAMA_COUNCIL_TIMEOUT_SECONDS = 180  # Longer timeout for Council's large promp
 # INITIAL_CAPITAL = 9999.6100  # [v3.6.6] Set this to your actual starting capital for accurate P/L tracking. Set to 0 to use current balance.
 
 CURRENCY = "USD" if DERIV_ACCOUNT_TYPE == "demo" else "XRP"
-INITIAL_CAPITAL = 9999.61 if DERIV_ACCOUNT_TYPE == "demo" else 19.50 
+INITIAL_CAPITAL = 9999.61 if DERIV_ACCOUNT_TYPE == "demo" else 12.344716
 ACTION_DELAY = 1
 
 # Helper to parse list from .env
@@ -114,13 +114,23 @@ def _parse_asset_list(env_var, default_val):
  # [v5.2.5] cleaned
 ASSETS_VOLATILITY = _parse_asset_list("ASSETS_VOLATILITY", "R_75,1HZ100V,1HZ50V,R_25,R_50,1HZ25V,1HZ10V")
 
-# [v3.6.7] Asset Priority Tiers (Recalculated from Trade History)
+# [v5.8.0] Sniper Mode Targets
+DAILY_PROFIT_TARGET = 3.0  # Stop for the day if up 3 XRP
+DAILY_LOSS_LIMIT = 4.0    # Stop for the day if down 4 XRP
+ENABLE_ADX_FILTER = True
+ADX_FILTER_THRESHOLD = 25
+
+# [v5.8.3] Hour Filter — block dead UTC hours (backtest: WR 23.4% across 47 trades in these hours)
+ENABLE_HOUR_FILTER = True
+BLOCKED_UTC_HOURS = [2, 9, 11, 12, 21]  # UTC hours to block trading
+
+# [v3.11.23] Global Shutdown state (Persisted in state for watchdog safety)
  # [Cleaned garbled comment]
 ASSET_PRIORITY_TIERS = {
     "TIER_1": _parse_asset_list("ASSET_TIER_1", "R_75,1HZ50V"),
     "TIER_2": _parse_asset_list("ASSET_TIER_2", "1HZ100V"),
     "TIER_3": _parse_asset_list("ASSET_TIER_3", "R_50,1HZ10V"),
-    "TIER_COUNCIL": _parse_asset_list("ASSET_TIER_COUNCIL", "R_75,R_100,R_50,R_25,R_10,1HZ50V,1HZ100V,1HZ75V,1HZ25V,1HZ10V")
+    "TIER_MASTER": _parse_asset_list("ASSET_TIER_MASTER", "R_75,R_100,R_50,R_25,R_10,1HZ50V,1HZ100V,1HZ75V,1HZ25V,1HZ10V")
 }
 ACTIVE_ASSET = os.getenv("ACTIVE_ASSET", "R_75") # [Cleaned garbled comment]
 
@@ -238,8 +248,8 @@ STOCH_CALL_STRICT = 80 # [Cleaned garbled comment]
 
 
 # [v3.11.17] Trade Cooldown Settings
-COOLDOWN_ANY_TRADE_MINS = 3      # Default 5 mins after any trade
-COOLDOWN_LOSS_TRADE_MINS = 0    # Default 10 mins after a loss
+COOLDOWN_ANY_TRADE_MINS = 3      # Default 3 mins after any trade
+COOLDOWN_LOSS_TRADE_MINS = 3     # Default 3 mins after a loss
 
 # [v3.11.41] Regime Stability Guard
 ENABLE_REGIME_STABILITY_GUARD = True

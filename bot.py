@@ -31,6 +31,9 @@ if os.path.exists(pycache_dir):
     try:
         shutil.rmtree(pycache_dir)
         print("  Cleared __pycache__ directory (loading fresh config)")
+    except (PermissionError, OSError):
+        # Common on Windows if the folder is open, synced by OneDrive, or recently used
+        print("  Note: __pycache__ is partially locked (loading existing cache/fresh config where possible)")
     except Exception as e:
         print(f"  Warning: Could not clear cache: {e}")
 
@@ -54,7 +57,7 @@ from modules import trade_engine
 from modules import ai_engine 
 from modules import ai_council
 from modules import telegram_bridge as telegram # [v3.9.0] Fix NameError
-from modules.utils import log_print, log_to_file, dashboard_update, dashboard_add_trade, dashboard_add_summary, dashboard_save_candles, dashboard_init_state, dashboard_get_state, get_crypto_thb_rate, ROOT, load_martingale_state, save_martingale_state, reset_martingale_state # [v3.11.28] Add ROOT & state
+from modules.utils import log_print, log_to_file, dashboard_update, dashboard_add_trade, dashboard_add_summary, dashboard_save_candles, dashboard_init_state, dashboard_get_state, get_crypto_thb_rate, ROOT, load_martingale_state, save_martingale_state, reset_martingale_state, evaluate_dynamic_performance # [v5.7.8] Added evaluate_dynamic_performance
 from modules.stream_manager import DerivStreamManager # [v4.0.0] New Streaming Manager
 COMMAND_FILE = os.path.join(ROOT, "logs", "commands.json") # [v3.11.28] Define COMMAND_FILE using ROOT
 
@@ -126,6 +129,28 @@ async def check_global_stop_loss(current_profit):
         await asyncio.sleep(2) # Allow Telegram time to log/send
         os._exit(42)
 
+async def check_sniper_targets(current_profit):
+    """
+    [v5.8.0] Sniper Mode Daily Targets Checker.
+    """
+    # 1. Profit Target (Absolute XRP)
+    profit_target = getattr(config, "DAILY_PROFIT_TARGET", 3.0)
+    if current_profit >= profit_target:
+        msg = "[Sniper Target] Goal Reached! Shutting down to lock in profits."
+        log_print(f"\n🎯 {msg}")
+        await send_telegram_alert(f"🎯 {msg} (+{current_profit:.2f} XRP)")
+        await asyncio.sleep(2)
+        os._exit(0) # Successful stop for the day
+
+    # 2. Loss Limit (Absolute XRP)
+    loss_limit = getattr(config, "DAILY_LOSS_LIMIT", 4.0)
+    if current_profit <= -loss_limit:
+        msg = f"🛑 [Sniper Mode] Daily Loss Limit Reached! ({current_profit:.2f} XRP). Halting to protect capital."
+        log_print(f"\n{'='*60}\n{msg}\n{'='*60}\n")
+        await send_telegram_alert(msg)
+        await asyncio.sleep(2)
+        os._exit(42) # Stop Loss halt
+
 def run_startup_audit():
     """[v3.11.28] System self-check: log paths, versions, and hashes to prevent environment conflicts."""
     log_print(" [System Audit] Starting self-check...")
@@ -151,7 +176,7 @@ async def run_streaming_bot(api, thb_suffix):
     [v4.0.0] New Streaming Logic (Part 4 - Full Trading Loop)
     Handles data assembly, AI analysis, and trade execution.
     """
-    asset = config.ACTIVE_ASSET
+    asset = getattr(config, "ACTIVE_ASSET", "R_75")
     global last_activity_time
     log_print(f" Entering STREAMING Mode for {asset}...")
 
@@ -181,13 +206,17 @@ async def run_streaming_bot(api, thb_suffix):
     _last_data_ts = time.time()
     while True:
         try:
+            # --- [v5.8.0] Sniper Mode Daily Targets (Check at start of every iteration) ---
+            ds = dashboard_get_state()
+            current_profit = ds.get("profit", 0.0)
+            await check_sniper_targets(current_profit)
+
             # --- [v5.5.x] Check for External Commands (Telegram) ---
             if os.path.exists(COMMAND_FILE):
                 try:
                     with open(COMMAND_FILE, 'r', encoding='utf-8') as f:
                         cmd_data = json.load(f)
                     cmd = cmd_data.get("command", "").upper()
-                    src = cmd_data.get("source", "UNKNOWN")
                     
                     if cmd == "STOP":
                         paused = True
@@ -229,6 +258,56 @@ async def run_streaming_bot(api, thb_suffix):
             if stream_manager.api_failed:
                 log_print(f"    Fatal API Error detected by stream manager. Exiting stream loop to reconnect...")
                 break # Break to outer loop, which will kill and restart the script
+
+            # --- [v5.7.8] Dynamic Performance Guard (Global Pause) ---
+            # 1. Check if we are currently in an active 60-min penalty
+            now = time.time()
+            pause_until = getattr(config, "_dynamic_global_pause_until", 0)
+            
+            if now < pause_until:
+                remaining_mins = int((pause_until - now) / 60)
+                _last_pause_log = getattr(config, "_dynamic_pause_last_log", 0)
+                
+                # Check if we should log (log roughly once every 5 minutes)
+                if now - _last_pause_log > 300:
+                    log_print(f"🛑 [Dynamic Guard] Bot is cooling down... {remaining_mins} mins remaining.")
+                    setattr(config, "_dynamic_pause_last_log", now)
+                    
+                dashboard_update("status", f"Paused ({remaining_mins}m left)")
+                last_activity_time = now # Pet the outer watchdog
+                await asyncio.sleep(30)
+                continue
+                
+            # [v5.7.9] Check if penalty just expired
+            if pause_until > 0:
+                log_print("🟢 [Dynamic Guard] Penalty period expired. Resuming and waiting for new data...")
+                setattr(config, "_dynamic_global_pause_until", 0)
+                setattr(config, "_dynamic_wait_for_trade", True)
+                setattr(config, "_dynamic_wait_log_ts", 0)
+
+            # 2. If no active penalty, evaluate the 3-hour history
+            dynamic_perf = await evaluate_dynamic_performance(hours_back=3, min_trades=4)
+            
+            # [v5.7.9] Loop Prevention: if waiting for new trade, override global pause
+            if getattr(config, "_dynamic_wait_for_trade", False) and dynamic_perf.get("pause_trading"):
+                _last_wait_log = getattr(config, "_dynamic_wait_log_ts", 0)
+                if now - _last_wait_log > 600:
+                    log_print("ℹ️ [Dynamic Guard] Data-lock active: Waiting for new trade to re-evaluate global pause.")
+                    setattr(config, "_dynamic_wait_log_ts", now)
+                dynamic_perf["pause_trading"] = False
+            
+            if dynamic_perf.get("pause_trading"):
+                # Trigger a new 60-min penalty
+                setattr(config, "_dynamic_global_pause_until", now + 3600)
+                log_print(f"🛑 [Dynamic Guard] Win Rate < 40%. Auto-pausing bot for 60 mins. Reason: {dynamic_perf.get('reason')}")
+                setattr(config, "_dynamic_pause_last_log", now) # Reset log timer
+                
+                dashboard_update("status", "Paused (60m left)")
+                last_activity_time = now # Pet watchdog
+                await asyncio.sleep(30)
+                continue
+                
+            disabled_strategies = dynamic_perf.get("disabled_strategies", [])
 
             # Wait for a fully closed candle from the stream (Short timeout to check commands frequently)
             try:
@@ -279,15 +358,15 @@ async def run_streaming_bot(api, thb_suffix):
                     try:
                         best = None
                         asset_symbols = []
-                        if getattr(config, "ACTIVE_PROFILE", "") == "TIER_COUNCIL":
+                        if getattr(config, "ACTIVE_PROFILE", "") == "TIER_MASTER":
                             from modules.asset_selector import AssetSelector
-                            log_print("    [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
+                            log_print("    [TIER_MASTER] Running Deep Simulation Scan for best asset...")
                             best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=6, min_trades=3)  # [v5.7.2] 12h→6h (recent data), 5→3 (lower bar)
 
                             if best_selector and wr_selector >= 48.0:  # [v5.7.1] relaxed from >50% to >=48%
                                 best = best_selector
                                 asset_symbols = [best]
-                                log_print(f"    TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
+                                log_print(f"    TIER_MASTER Best Asset: {best} (WR: {wr_selector:.1f}%)")
                             elif best_selector and best_selector != asset and wr_selector > 35.0:
                                 # [v5.2.4] Fallback: no >=48% asset, but different asset with >35% WR exists
                                 # Prefer switching to break "stuck-on-banned-asset" cycle
@@ -295,7 +374,7 @@ async def run_streaming_bot(api, thb_suffix):
                                 asset_symbols = [best]
                                 log_print(f"    No >=48% WR asset. Fallback  best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                             else:
-                                log_print("    No TIER_COUNCIL asset met criteria (>=3 trades, >=48% WR).")  # [v5.7.2]
+                                log_print("    No TIER_MASTER asset met criteria (>=3 trades, >=48% WR).")  # [v5.7.2]
                         else:
                             assets = await market_engine.scan_open_assets(api, smart_trader_instance=_SMART_TRADER)
                             # Exclude current asset if inactive
@@ -350,7 +429,7 @@ async def run_streaming_bot(api, thb_suffix):
                                 _s_sleeping, _s_remaining = market_engine.is_sleep_mode()
                                 _s_secs = max(30, min(int(_s_remaining), 600)) if _s_remaining > 0 else 600
                                 _s_mins = _s_secs / 60
-                                log_print(f"    Fallback Guard: {asset} is banned and no valid alternative in TIER_COUNCIL found. Sleeping {_s_mins:.1f}m (until earliest ban expires)...")
+                                log_print(f"    Fallback Guard: {asset} is banned and no valid alternative in TIER_MASTER found. Sleeping {_s_mins:.1f}m (until earliest ban expires)...")
                                 dashboard_update("status", f"Sleeping ({_s_mins:.1f}m Fallback)")
                                 # Sleep in 10s chunks for Watchdog heartbeat
                                 for _ in range(max(1, _s_secs // 10)):
@@ -393,8 +472,8 @@ async def run_streaming_bot(api, thb_suffix):
             # [v5.7.5] Bug #1 Fix: UNKNOWN result (WebSocket disconnect) is treated as neutral —
             # no cooldown penalty. Only WIN/LOSS trigger the cooldown timer.
             now = time.time()
-            cd_any = getattr(config, "COOLDOWN_ANY_TRADE_MINS", 5)
-            cd_loss = getattr(config, "COOLDOWN_LOSS_TRADE_MINS", 10)
+            cd_any = getattr(config, "COOLDOWN_ANY_TRADE_MINS", 3)
+            cd_loss = getattr(config, "COOLDOWN_LOSS_TRADE_MINS", 3)
 
             if last_trade_result == "UNKNOWN":
                 # Unresolved trade — do NOT apply any cooldown, let next candle trade freely
@@ -410,15 +489,24 @@ async def run_streaming_bot(api, thb_suffix):
                     continue
 
             # --- 6. Pre-AI Analysis ---
-            # [v5.6.8] Post-Loss Cooldown — skip if MG recovery is in progress (mg_step > 0)
-            _plc_mg_step, _, _ = load_martingale_state()
-            if _plc_mg_step == 0:
-                _plc_remaining = _loss_cooldowns.get(asset, 0) - time.time()
-                if _plc_remaining > 0:
-                    log_print(f"    [Post-Loss Cooldown] {asset} is resting for {int(_plc_remaining)}s after a recent LOSS. Skipping.")
-                    continue
+            # [v5.6.8] Post-Loss Cooldown (Applied to all trades including MG)
+            _plc_remaining = _loss_cooldowns.get(asset, 0) - time.time()
+            if _plc_remaining > 0:
+                log_print(f"    [Post-Loss Cooldown] {asset} is resting for {int(_plc_remaining)}s after a recent LOSS. Skipping.")
+                continue
 
             log_print(f"\n Analyzing {asset} (Closed Candle: {current_epoch} - {human_time})...")
+            
+            # --- [v5.8.0] Sniper Mode: ADX Filter (Pre-Analysis) ---
+            adx_val = 0.0
+            if getattr(config, "ENABLE_ADX_FILTER", True):
+                from modules.technical_analysis import TechnicalConfirmation
+                adx_val = TechnicalConfirmation.get_adx(df)
+                if adx_val < getattr(config, "ADX_FILTER_THRESHOLD", 25):
+                    log_print(f"    [Sniper Guard] ADX {adx_val:.1f} < 25 (Sideways). skipping.")
+                    dashboard_update("status", "Skip (ADX)")
+                    continue
+
             market_summary = market_engine.get_market_summary_from_df(df)
 
             # 7. AI Analysis & Guards (Internal to analyze_and_decide)
@@ -443,6 +531,29 @@ async def run_streaming_bot(api, thb_suffix):
                 dashboard_update("status", f"Skip ({direction})")
                 last_ai_signal = direction
                 continue
+
+            # --- [v5.7.8] Dynamic Strategy Ban ---
+            if strategy_name in disabled_strategies:
+                log_print(f"⛔ [Dynamic Guard] Strategy {strategy_name} is dynamically disabled due to poor recent performance. Skipping.")
+                dashboard_update("status", f"Guard Ban ({strategy_name})")
+                continue
+
+            # --- [v5.7.8] Dynamic Market Regime Guard ---
+            ai_regime = ai_engine._regime_state.get(asset, "UNKNOWN")
+            current_atr = details.get("snapshot", {}).get("atr", 0.0)
+            
+            # Retrieve max ATR allowed for the asset (fallback to reasonable guess if missing)
+            try:
+                _profiles = load_json_safe(os.path.join(ROOT, "asset_profiles.json"), {})
+                max_atr = _profiles.get(asset, {}).get("max_atr", 0.0)
+                # If regime is Choppy/Sideways and current ATR spikes above threshold
+                if ai_regime in ["CHOPPY", "SIDEWAYS"] and max_atr > 0 and current_atr > max_atr:
+                    log_print(f"⏸️ [Regime Guard] Market is currently {ai_regime} with erratic volatility (ATR: {current_atr:.4f} > Max: {max_atr}). Auto-skipping to protect capital.")
+                    dashboard_update("status", f"Regime Guard ({ai_regime})")
+                    continue
+            except Exception as e:
+                pass
+
 
             # --- 8. Post-AI Veto (Tick Velocity Guard) ---
             if getattr(config, "ENABLE_TICK_VELOCITY_GUARD", True):
@@ -485,7 +596,14 @@ async def run_streaming_bot(api, thb_suffix):
             mg_mult = smart.perf.get_martingale_multiplier(mg_step)
             final_multiplier = mg_mult
             
-            amount = max(config.AMOUNT * final_multiplier, getattr(config, "MIN_STAKE_AMOUNT", 1.0))
+            amount = max(getattr(config, "AMOUNT", 1.0) * final_multiplier, getattr(config, "MIN_STAKE_AMOUNT", 1.0))
+            
+            # --- [v5.8.0] Smart Stake Scaling ---
+            ai_conf = details.get("confidence", 0.0)
+            local_risk = details.get("local_risk_score", 0.0)
+            if direction in ["CALL", "PUT"] and ai_conf >= 0.88 and local_risk >= 0.80:
+                log_print(f"    [Smart Stake] 🔥 High Confidence ({ai_conf}). Scaling stake to {amount * 1.5} XRP.")
+                amount *= 1.5
             
             # Stake Cap
             max_stake = getattr(config, "MAX_STAKE_AMOUNT", 0.0)
@@ -538,6 +656,11 @@ async def run_streaming_bot(api, thb_suffix):
                 log_print(f"    Trade Finished: {result} | Profit: ${profit:.2f} (Entry: {entry_spot}, Exit: {exit_spot})")
                 
                 if result != "UNKNOWN":
+                    # [v5.7.9] Reset Dynamic Guard wait flag
+                    if getattr(config, "_dynamic_wait_for_trade", False):
+                        setattr(config, "_dynamic_wait_for_trade", False)
+                        log_print("✅ [Dynamic Guard] New trade recorded. Data-lock released.")
+
                     # Record for AI intelligence
                     is_override = details.get("is_override", False)
                     ai_engine.record_trade_result(asset, strategy_name, direction, result, profit, details.get("confidence", 0.0), is_override=is_override)
@@ -550,6 +673,11 @@ async def run_streaming_bot(api, thb_suffix):
                     dashboard_update("profit", current_profit)
                     await check_global_stop_loss(current_profit)
                     
+                    # --- [v5.7.6] Pending Result Note ---
+                    _analysis = ", ".join(map(str, details.get('reasons', [])))
+                    if result == "OPEN":
+                        _analysis += " | Result pending broker settlement... waiting for final data."
+
                     trade_info = {
                         "time": datetime.datetime.now().strftime("%H:%M:%S"),
                         "asset": asset,
@@ -560,10 +688,11 @@ async def run_streaming_bot(api, thb_suffix):
                         "profit": profit,
                         "entry_spot": entry_spot,
                         "exit_spot": exit_spot,
-                        "analysis": ", ".join(map(str, details.get('reasons', []))),
+                        "analysis": _analysis,
                         "timestamp": time.time()
                     }
-                    dashboard_add_trade(trade_info)
+                    if result != "OPEN":
+                        dashboard_add_trade(trade_info)
                     
                     # Handle Win/Loss Streaks
                     if result == "WIN":
@@ -578,8 +707,10 @@ async def run_streaming_bot(api, thb_suffix):
                         
                         # --- [v4.1.0] Persistent Martingale Memory ---
                         next_mg_step = mg_step + 1
-                        if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
-                            log_print(f"    Reached Max Martingale Steps ({getattr(config, 'MAX_MARTINGALE_STEPS', 0)}). Resetting stake.")
+                        _max_steps = getattr(config, "MAX_MARTINGALE_STEPS", 0)
+                        log_print(f"    DEBUG: Profile: {getattr(config, 'ACTIVE_PROFILE', 'N/A')} | MG Step: {mg_step} | Next: {next_mg_step} | Max: {_max_steps}")
+                        if next_mg_step > _max_steps:
+                            log_print(f"    Reached Max Martingale Steps ({_max_steps}). Resetting stake.")
                             reset_martingale_state()
                         else:
                             save_martingale_state(next_mg_step)
@@ -602,7 +733,7 @@ async def run_streaming_bot(api, thb_suffix):
                     else: # comment cleaned
                         log_print(f"    UNRESOLVED TRADE ({result}): Entering definitive wait loop for contract {contract_id}...")
                         _definitive_retries = 0
-                        _max_definitive_retries = 12  # [v5.7.1] 12 x 5s = 60s max wait (was 36 = 180s)
+                        _max_definitive_retries = 24  # [v5.7.1] 24 x 5s = 120s max wait (was 36 = 180s)
                         while _definitive_retries < _max_definitive_retries:
                             _definitive_retries += 1
                             for _ in range(5):  # 5s heartbeat to prevent watchdog kill
@@ -632,7 +763,13 @@ async def run_streaming_bot(api, thb_suffix):
                                 trade_info["profit"] = profit
                                 trade_info["entry_spot"] = entry_spot
                                 trade_info["exit_spot"] = exit_spot
-                                dashboard_add_trade(trade_info)
+                                trade_info["is_update"] = True 
+                                
+                                # --- [v5.7.6] Clean analysis (remove Pending note) ---
+                                if " | Result pending" in trade_info["analysis"]:
+                                    trade_info["analysis"] = trade_info["analysis"].split(" | Result pending")[0]
+
+                                # Removed dashboard_add_trade here as telegram.send_trade_notification() below handles logging.
 
                                 # Process WIN/LOSS/DRAW
                                 if result == "WIN":
@@ -640,14 +777,16 @@ async def run_streaming_bot(api, thb_suffix):
                                     dashboard_update("win_streak", ds.get("win_streak", 0) + 1)
                                     dashboard_update("loss_streak", 0)
                                     reset_martingale_state()
-                                    telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
+                                    telegram.send_trade_notification(trade_info, new_balance, current_profit, is_update=True)
                                 elif result == "LOSS":
                                     dashboard_update("total_losses", ds.get("total_losses", 0) + 1)
                                     dashboard_update("loss_streak", ds.get("loss_streak", 0) + 1)
                                     dashboard_update("win_streak", 0)
                                     next_mg_step = mg_step + 1
-                                    if next_mg_step > getattr(config, "MAX_MARTINGALE_STEPS", 0):
-                                        log_print(f"    Reached Max Martingale Steps. Resetting stake.")
+                                    _max_steps = getattr(config, "MAX_MARTINGALE_STEPS", 0)
+                                    log_print(f"    DEBUG: [Wait Loop] Profile: {getattr(config, 'ACTIVE_PROFILE', 'N/A')} | MG Step: {mg_step} | Next: {next_mg_step} | Max: {_max_steps}")
+                                    if next_mg_step > _max_steps:
+                                        log_print(f"    Reached Max Martingale Steps ({_max_steps}). Resetting stake.")
                                         reset_martingale_state()
                                     else:
                                         save_martingale_state(next_mg_step)
@@ -662,13 +801,14 @@ async def run_streaming_bot(api, thb_suffix):
                                     # [v5.6.8] Post-Loss Cooldown
                                     _loss_cooldowns[asset] = time.time() + 180
                                     log_print(f"    [Post-Loss Cooldown] {asset} cooldown set for 3 minutes.")
+                                    telegram.send_trade_notification(trade_info, new_balance, current_profit, is_update=True)
                                 else:  # DRAW
-                                    telegram.send_trade_notification(trade_info, ds.get("balance", 0), ds.get("profit", 0))
+                                    telegram.send_trade_notification(trade_info, new_balance, current_profit, is_update=True)
                                 break  # Exit the definitive wait loop
                             else:
                                 log_print(f"    Still {result}. Retrying in 5s... ({_definitive_retries}/{_max_definitive_retries}) (contract: {contract_id})")
                         else:
-                            # [v5.7.1] Timeout after 60s → DRAW (was: LOSS + MG step)
+                            # [v5.7.1] Timeout after 120s → DRAW (was: LOSS + MG step)
                             # No martingale step change; no loss cooldown; no streak penalty.
                             log_print(f"    [Definitive Wait] Timeout after {_max_definitive_retries * 5}s for contract {contract_id}. Recording as DRAW.")
                             last_trade_result = "DRAW"
@@ -745,8 +885,8 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
         except Exception:
             pass
 
-        api = DerivAPI(app_id=config.DERIV_APP_ID)
-        await api.authorize(config.DERIV_API_TOKEN)
+        api = DerivAPI(app_id=getattr(config, "DERIV_APP_ID", ""))
+        await api.authorize(getattr(config, "DERIV_API_TOKEN", ""))
         try:
             market_engine.reset_asset_cache()
         except Exception:
@@ -758,6 +898,11 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
     paused = False
 
     while True:
+        # --- [v5.8.0] Sniper Mode Daily Targets (Check at start of every iteration) ---
+        ds = dashboard_get_state()
+        current_profit = ds.get("profit", 0.0)
+        await check_sniper_targets(current_profit)
+
         last_activity_time = time.time()
         last_ai_signal = dashboard_get_state().get("signal", "None") # [v3.2.14] Track last signal
 
@@ -856,15 +1001,15 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                 try:
                     best = None
                     asset_symbols = []
-                    if getattr(config, "ACTIVE_PROFILE", "") == "TIER_COUNCIL":
+                    if getattr(config, "ACTIVE_PROFILE", "") == "TIER_MASTER":
                         from modules.asset_selector import AssetSelector
-                        log_print("    [TIER_COUNCIL] Running Deep Simulation Scan for best asset...")
+                        log_print("    [TIER_MASTER] Running Deep Simulation Scan for best asset...")
                         best_selector, wr_selector, _ = await AssetSelector.find_best_asset(api, lookback_hours=6, min_trades=3)  # [v5.7.2] 12h→6h, 8→3
 
                         if best_selector and wr_selector > 50.0:
                             best = best_selector
                             asset_symbols = [best]
-                            log_print(f"    TIER_COUNCIL Best Asset: {best} (WR: {wr_selector:.1f}%)")
+                            log_print(f"    TIER_MASTER Best Asset: {best} (WR: {wr_selector:.1f}%)")
                         elif best_selector and best_selector != config.ACTIVE_ASSET and wr_selector > 35.0:
                             # [v5.2.4] Fallback: no >50% asset, but different asset with >35% WR exists
                             # Prefer switching to break "stuck-on-banned-asset" cycle
@@ -872,7 +1017,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                             asset_symbols = [best]
                             log_print(f"    No >50% WR asset. Fallback  best available: {best} (WR: {wr_selector:.1f}%) to avoid returning to banned asset.")
                         else:
-                            log_print("    No TIER_COUNCIL asset met criteria (>=3 trades, >=48% WR).")  # [v5.7.2]
+                            log_print("    No TIER_MASTER asset met criteria (>=3 trades, >=48% WR).")  # [v5.7.2]
                     else:
                         assets = await market_engine.scan_open_assets(api, smart_trader_instance=_SMART_TRADER)
                         if excluded_asset:
@@ -914,7 +1059,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                 except Exception as e:
                     log_print(f"    Scanner Error: {e}")
         
-        asset = config.ACTIVE_ASSET
+        asset = getattr(config, "ACTIVE_ASSET", "R_75")
 
         # --- [v4.1.0] Circuit Breaker Pre-Scan Guard ---
         if time.time() < asset_pause_until.get(asset, 0):
@@ -987,8 +1132,8 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                 if cur_ts > last_ts or (cur_ts > 0 and last_ts == 0):
                     is_new_candle = (cur_ts > last_ts)
                     now = time.time()
-                    cd_any = getattr(config, "COOLDOWN_ANY_TRADE_MINS", 5)
-                    cd_loss = getattr(config, "COOLDOWN_LOSS_TRADE_MINS", 10)
+                    cd_any = getattr(config, "COOLDOWN_ANY_TRADE_MINS", 3)
+                    cd_loss = getattr(config, "COOLDOWN_LOSS_TRADE_MINS", 3)
                     required_minutes = cd_loss if last_trade_result == "LOSS" else cd_any
                     
                     elapsed_mins = (now - last_trade_time) / 60
@@ -1019,6 +1164,18 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                             continue
 
                     log_print(f"\n Analyzing {asset_name} ({asset}) (New Candle: {current_candle_time} - {human_time})...")
+                    
+                    # --- [v5.8.0] Sniper Mode: ADX Filter (Pre-Analysis) ---
+                    adx_val = 0.0
+                    if getattr(config, "ENABLE_ADX_FILTER", True):
+                        from modules.technical_analysis import TechnicalConfirmation
+                        adx_val = TechnicalConfirmation.get_adx(df)
+                        if adx_val < getattr(config, "ADX_FILTER_THRESHOLD", 25):
+                            log_print(f"    [Sniper Guard] ADX {adx_val:.1f} < 25 (Sideways). skipping.")
+                            dashboard_update("status", "Skip (ADX)")
+                            last_candle_time = current_candle_time
+                            continue
+
                     current_price = df['close'].iloc[-1]
                     log_print(f"   Price: {current_price}")
 
@@ -1034,6 +1191,8 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
 
                     if decision:
                         direction = decision.get("action")
+                        strategy_name = decision.get("strategy", "UNKNOWN")
+                        details = decision.get("details", {})
                         ds = dashboard_get_state()
                         loss_streak = ds.get("loss_streak", 0)
                         
@@ -1046,23 +1205,36 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
                         mg_mult = smart.perf.get_martingale_multiplier(mg_step)
                         final_multiplier = mg_mult
                         
-                        amount = max(config.AMOUNT * final_multiplier, getattr(config, "MIN_STAKE_AMOUNT", 1.0))
+                        amount = max(getattr(config, "AMOUNT", 1.0) * final_multiplier, getattr(config, "MIN_STAKE_AMOUNT", 1.0))
+            
+                        # --- [v5.8.0] Smart Stake Scaling ---
+                        ai_conf = details.get("confidence", 0.0)
+                        local_risk = details.get("local_risk_score", 0.0)
+                        if direction in ["CALL", "PUT"] and ai_conf >= 0.88 and local_risk >= 0.80:
+                            log_print(f"    [Smart Stake] 🔥 High Confidence ({ai_conf}). Scaling stake to {amount * 1.5} XRP.")
+                            amount *= 1.5
                         max_stake = getattr(config, "MAX_STAKE_AMOUNT", 0.0)
                         if max_stake > 0 and amount > max_stake:
                             log_print(f"    Risk Guard: Stake ${amount:.2f} exceeds Max ${max_stake}. Capping.")
                             amount = max_stake
                         
-                        details = decision.get("details", {})
                         snapshot = details.get("snapshot", {})
                         log_print(f"    [Snapshot] RSI: {snapshot.get('rsi', 0.0):.2f} | MA_Slope: {snapshot.get('slope', 0.0):.4f}% | ATR: {snapshot.get('atr_pct', 0.0):.4f}% | MACD_Hist: {snapshot.get('macd_hist', 0.0):.4f}")
-                        
-                        strategy_name = decision.get("strategy", "UNKNOWN")
                         
                         if direction not in ["CALL", "PUT"]:
                             reason_str = ", ".join(map(str, details.get('reasons', ['Skip signal'])))
                             log_print(f"    AI Decision: {direction} ({strategy_name}) | Reason: {reason_str}")
                             dashboard_update("status", f"Skip ({direction})")
                             continue
+
+                        # --- [v5.8.0] ADX Filter for TREND_FOLLOWING ---
+                        if getattr(config, "ENABLE_ADX_FILTER", True) and strategy_name == "TREND_FOLLOWING":
+                            from modules.technical_analysis import TechnicalConfirmation
+                            adx = TechnicalConfirmation.get_adx(df)
+                            if adx < getattr(config, "ADX_FILTER_THRESHOLD", 25):
+                                log_print(f"    [Sniper Guard] ADX {adx:.1f} too low (Sideways market). Skipping.")
+                                dashboard_update("status", "Skip (ADX)")
+                                continue
 
                         reason_str = ", ".join(map(str, details.get('reasons', [])))
                         log_print(f"    Signal: {direction} ({strategy_name}) | Strict MG x{final_multiplier:.2f}")
@@ -1267,7 +1439,7 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
         
         icons = ["", "", "", ""]
         icon = icons[int(time.time() * 2) % len(icons)]
-        status_text = f" [{config.ACTIVE_ASSET}] {config.ACTIVE_PROFILE}"
+        status_text = f" [{getattr(config, 'ACTIVE_ASSET', 'R_75')}] {getattr(config, 'ACTIVE_PROFILE', 'DEFAULT')}"
         
         if df is None:
             status_text += " |  Reconnecting..."
@@ -1288,21 +1460,21 @@ async def run_polling_bot(api, thb_suffix, thb_rate):
 
 async def main():
     # [v3.11.52] Prefetch THB Rate for Banner
-    thb_rate = get_crypto_thb_rate(config.CURRENCY) if getattr(config, "ENABLE_THB_CONVERSION", True) else 0.0
+    thb_rate = get_crypto_thb_rate(getattr(config, "CURRENCY", "XRP")) if getattr(config, "ENABLE_THB_CONVERSION", True) else 0.0
     thb_suffix = lambda val: f" ({val * thb_rate:,.2f})" if thb_rate > 0 else ""
 
     # --- Startup Banner ---
     print("\n" + "="*50)
-    log_print(f" DERIV AI TRADING BOT (V{config.BOT_VERSION})")
+    log_print(f" DERIV AI TRADING BOT (V{getattr(config, 'BOT_VERSION', '5.8.0')})")
     print("="*50)
-    log_print(f"    Account: {config.DERIV_ACCOUNT_TYPE.upper()} (App ID: {config.DERIV_APP_ID})")
-    log_print(f"    Asset: {config.ACTIVE_ASSET}")
-    log_print(f"    AI Provider: {config.AI_PROVIDER} (Routing: {config.ENABLE_AI_TASK_ROUTING})")
-    log_print(f"     Profile: {config.ACTIVE_PROFILE}")
-    log_print(f"    Stake: {config.AMOUNT} {config.CURRENCY}{thb_suffix(config.AMOUNT)} (Stop Loss: {config.MAX_DAILY_LOSS_PERCENT}%)")
+    log_print(f"    Account: {getattr(config, 'DERIV_ACCOUNT_TYPE', 'demo').upper()} (App ID: {getattr(config, 'DERIV_APP_ID', '')})")
+    log_print(f"    Asset: {getattr(config, 'ACTIVE_ASSET', 'R_75')}")
+    log_print(f"    AI Provider: {getattr(config, 'AI_PROVIDER', 'gemini')} (Routing: {getattr(config, 'ENABLE_AI_TASK_ROUTING', True)})")
+    log_print(f"     Profile: {getattr(config, 'ACTIVE_PROFILE', 'DEFAULT')}")
+    log_print(f"    Stake: {getattr(config, 'AMOUNT', 1.0)} {getattr(config, 'CURRENCY', 'XRP')}{thb_suffix(getattr(config, 'AMOUNT', 1.0))} (Stop Loss: {getattr(config, 'MAX_DAILY_LOSS_PERCENT', 20.0)}%)")
     if getattr(config, "INITIAL_CAPITAL", 0) > 0:
-        log_print(f"    Capital: {config.INITIAL_CAPITAL} {config.CURRENCY}{thb_suffix(config.INITIAL_CAPITAL)} (Profit Tracking Base)")
-    log_print(f"     Status: v{config.BOT_VERSION} (AI Council Auto-Fixer)")
+        log_print(f"    Capital: {getattr(config, 'INITIAL_CAPITAL', 0)} {getattr(config, 'CURRENCY', 'XRP')}{thb_suffix(getattr(config, 'INITIAL_CAPITAL', 0))} (Profit Tracking Base)")
+    log_print(f"     Status: v{getattr(config, 'BOT_VERSION', '5.8.0')} (AI Council Auto-Fixer)")
     print("="*50 + "\n")
     
     api = DerivAPI(app_id=config.DERIV_APP_ID)
@@ -1361,8 +1533,8 @@ async def main():
         else:
             log_print(f"  New Session Started")
         dashboard_update("status", "Running")
-        dashboard_update("ai_provider", config.AI_PROVIDER)
-        dashboard_update("account_type", config.DERIV_ACCOUNT_TYPE) # [v3.7.7]
+        dashboard_update("ai_provider", getattr(config, "AI_PROVIDER", "gemini"))
+        dashboard_update("account_type", getattr(config, "DERIV_ACCOUNT_TYPE", "demo")) # [v3.7.7]
         dashboard_update("bot_start_ts", time.time())
         # Initial Dashboard Asset Name
         initial_asset_name = market_engine.get_asset_name(config.ACTIVE_ASSET)

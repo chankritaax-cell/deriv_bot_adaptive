@@ -107,7 +107,7 @@ View live stats at: http://localhost:5001
 ## ⚙️ Configuration (`config.py`)
 
 *   **`ACTIVE_ASSET`**: Default asset to trade (e.g., `"R_75"` for Volatility 75).
-*   **`ACTIVE_PROFILE`**: Trading profile (`TIER_COUNCIL`, `TIER_1`, `TIER_2`, `TIER_MICRO`).
+*   **`ACTIVE_PROFILE`**: Trading profile (`TIER_MASTER`, `TIER_1`, `TIER_2`, `TIER_MICRO`).
 *   **`AI_PROVIDER`**: Choose `"CHATGPT"`, `"GEMINI"`, or `"CLAUDE"`.
 *   **`MIN_STAKE_AMOUNT`**: Minimum stake per trade (default `1.0`).
 *   **`CONFIDENCE_BASE` / `CONFIDENCE_MG_STEP_1` / `CONFIDENCE_MG_STEP_2`**: Sniper Recovery thresholds.

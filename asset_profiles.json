@@ -7,9 +7,9 @@
         ],
         "rsi_bounds": {
             "call_min": 55.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 45.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0,
             "pullback_call_lo": 38.0,
             "pullback_call_hi": 55.0,
             "pullback_call_min": 28.0,
@@ -19,7 +19,7 @@
         },
         "bounce_limit": 10.0,
         "ma_slope_min": 0.015,
-        "notes": "[v5.7.2] PULLBACK_ENTRY→TREND_FOLLOWING (was 100% blocked in NORMAL regime). Widened call 55-68 / put 35-45. pullback_* keys preserved."
+        "notes": "[v5.8.1] Fixed call_max 60→68 (was narrowed incorrectly, notes said 55-68 but value was 55-60). [v5.7.2] PULLBACK_ENTRY→TREND_FOLLOWING (was 100% blocked in NORMAL regime). Widened call 55-68 / put 35-45. pullback_* keys preserved."
     },
     "R_75_HIGH_VOL": {
         "strategy": "TREND_FOLLOWING",
@@ -28,10 +28,10 @@
             "PUT"
         ],
         "rsi_bounds": {
-            "call_min": 58.0,
-            "call_max": 72.0,
-            "put_min": 28.0,
-            "put_max": 45.0,
+            "call_min": 55.0,
+            "call_max": 68.0,
+            "put_min": 32.0,
+            "put_max": 48.0,
             "pullback_call_lo": 35.0,
             "pullback_call_hi": 52.0,
             "pullback_call_min": 25.0,
@@ -41,7 +41,7 @@
         },
         "bounce_limit": 12.0,
         "ma_slope_min": 0.02,
-        "notes": "[v5.7.5] Aligned put_max 44→45 to match R_75 NORMAL profile (Bug #1 fix). Wider RSI bounds for HIGH_VOL momentum."
+        "notes": "[v5.8.1] Fixed call_max 60→68 (same fix as R_75 NORMAL). [v5.7.5] Aligned put_max 44→45 to match R_75 NORMAL profile (Bug #1 fix). Wider RSI bounds for HIGH_VOL momentum."
     },
     "1HZ100V": {
         "strategy": "PULLBACK_ENTRY",

@@ -328,7 +328,12 @@ async def notify_trades(application):
                         lines = [l for l in data.split(b"\n") if l][:-1 if data[-1:] != b"\n" else None]
                         for line in lines[:5]:
                             try:
-                                await _send_trade_alert(application, json.loads(line.decode("utf-8")))
+                                trade_data = json.loads(line.decode("utf-8"))
+                                # --- [v5.7.6] Skip initial 'OPEN' alerts to prevent desync ---
+                                if trade_data.get("result") == "OPEN":
+                                    continue
+                                    
+                                await _send_trade_alert(application, trade_data)
                                 LAST_TRADE_TIME = time.time()
                                 await asyncio.sleep(1.5)
                             except: pass
@@ -399,6 +404,10 @@ async def _send_trade_alert(application, trade):
     res = trade.get("result", "UNKNOWN")
     icon = "✅ <b>WIN</b>" if res == "WIN" else "❌ <b>LOSS</b>" if res == "LOSS" else "ℹ️ <b>DRAW</b>"
     
+    # [v5.7.6] Re-sync Prefix logic
+    is_update = trade.get("is_update", False)
+    res_prefix = "🏁 <b>[FINAL SETTLEMENT]</b>\n" if is_update else ""
+
     # Load current state for context
     state = await _load_json_async(DASHBOARD_STATE_FILE) or {}
     balance = state.get("balance", 0.0)
@@ -416,7 +425,7 @@ async def _send_trade_alert(application, trade):
     def to_thb(val): return f" (฿{val*thb_rate:,.2f})" if thb_rate > 0 else ""
 
     msg = (
-        f"{icon}\n"
+        f"{res_prefix}{icon}\n"
         f"📊 <b>Asset:</b> <code>{trade.get('asset')}</code>\n"
         f"🎯 <b>Strategy:</b> <code>{trade.get('strategy', 'N/A')}</code>\n"
         f"💰 <b>Profit/Loss:</b> <code>{trade.get('profit', 0):+.4f} {currency}</code>{to_thb(trade.get('profit', 0))}\n"
@@ -457,13 +466,24 @@ async def _send_council_alert(application, entry):
         logging.error(f"_send_council_alert error: {e}")
 
 async def _send_summary_alert(application, summary):
+    # [v5.7.6] Route SYSTEM_ALERT away from Profit/WR summary formatting
+    if summary.get("type") == "SYSTEM_ALERT":
+        msg = f"⚠️ <b>SYSTEM ALERT</b>\n\n{_html_escape(summary.get('message', 'No content'))}"
+        await application.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=msg, parse_mode='HTML')
+        return
+
     msg = f" <b>Summary</b>\nProfit: <code>{summary.get('profit', 0):+.4f}</code>\nWR: <code>{summary.get('win_rate')}</code>"
     await application.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=msg, parse_mode='HTML')
 
-# [v5.7.2] Stub — bot.py calls this but actual notification is handled by notify_trades() monitoring trade_log.jsonl
-def send_trade_notification(trade_info, balance=0, profit=0):
-    """No-op: trade alerts are sent automatically by notify_trades() via trade_log.jsonl monitoring."""
-    pass
+# [v5.7.2] Implementation: sends trade notification to the bridge via dashboard log
+def send_trade_notification(trade_info, balance=0, profit=0, is_update=False):
+    """
+    Called by bot.py to trigger a Telegram trade alert.
+    Appends the trade info to the shared log which the bridge watcher monitors.
+    """
+    trade_info["is_update"] = is_update
+    from .utils import dashboard_add_trade
+    dashboard_add_trade(trade_info)
 
 async def post_init(application):
     asyncio.create_task(monitor_pending(application))

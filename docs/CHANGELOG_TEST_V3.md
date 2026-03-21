@@ -48,7 +48,7 @@ All notable changes to this project will be documented in this file.
 ---
 
 ## [v5.7.2] - 2026-03-17
-### 🔧 5-Fix Pass: SIDEWAYS Pass-Through + Confidence Scoring + R_75 TREND_FOLLOWING + TIER_COUNCIL Lookback + REGIME_STRATEGY Fix
+### 🔧 5-Fix Pass: SIDEWAYS Pass-Through + Confidence Scoring + R_75 TREND_FOLLOWING + TIER_MASTER Lookback + REGIME_STRATEGY Fix
 
 **Root cause context**: 22h run, 1,316 candles processed, only 16 trades (1.2% pass rate), 25% WR. Five independent pipeline blockages identified.
 
@@ -69,9 +69,9 @@ All notable changes to this project will be documented in this file.
 - **Problem**: R_75 base profile used PULLBACK_ENTRY strategy. Pullback conditions never met in NORMAL regime → 100% block rate. Fallback to TREND_FOLLOWING used tight bounds (call_min=61, call_max=65 = 4-point window) → still mostly blocked.
 - **Fix**: Strategy changed to `TREND_FOLLOWING`. Widened: `call_min=55, call_max=68, put_min=35, put_max=45`. `ma_slope_min=0.015`. `pullback_*` keys preserved for PULLBACK_ENTRY code path.
 
-#### Fix 4 — TIER_COUNCIL Lookback Too Long (`bot.py`)
+#### Fix 4 — TIER_MASTER Lookback Too Long (`bot.py`)
 - **Problem**: `lookback_hours=12` produced insufficient recent data for simulation scoring. With PULLBACK_ENTRY still on most profiles, `should_enter` returned False → 140/140 assets failed even with min_trades=5.
-- **Fix**: `lookback_hours` 12 → 6 (more recent, denser signal window). `min_trades` 5 → 3 (lower bar). Applied to both streaming (line ~285) and polling (line ~856) TIER_COUNCIL blocks.
+- **Fix**: `lookback_hours` 12 → 6 (more recent, denser signal window). `min_trades` 5 → 3 (lower bar). Applied to both streaming (line ~285) and polling (line ~856) TIER_MASTER blocks.
 
 #### Fix 5 — REGIME_STRATEGY_HIGH_VOL Fallback Broken (`config.py`)
 - **Problem**: `REGIME_STRATEGY_HIGH_VOL = "PULLBACK_ENTRY"` — when Tier 1 specific profile not found, Tier 2 fallback picked PULLBACK_ENTRY for all assets in HIGH_VOL regime → always blocked.
@@ -100,7 +100,7 @@ All notable changes to this project will be documented in this file.
 - **Problem**: `R_75_HIGH_VOL` used `PULLBACK_ENTRY` strategy but was blocked 74/74 times (no pullback conditions ever met in HIGH_VOL regime). Profile had no `call_min/call_max/put_min/put_max` for TREND_FOLLOWING fallback.
 - **Fix**: Changed strategy to `TREND_FOLLOWING` + added `call_min: 58.0, call_max: 68.0, put_min: 35.0, put_max: 44.0` (wider than normal R_75 for HIGH_VOL momentum).
 
-#### Fix 4 — TIER_COUNCIL Scanner Never Finds Assets (`bot.py` + `config.py`)
+#### Fix 4 — TIER_MASTER Scanner Never Finds Assets (`bot.py` + `config.py`)
 - **Problem**: Scanner criteria `>8 trades, >50% WR` almost never met in backtests.
 - **Fix**: Relaxed to `>=5 trades, >=48% WR`. Updated fallback message.
 - **Fix**: Scan interval `ASSET_SCAN_INTERVAL_MINS` increased from 10 min → 30 min (reduce scanner overhead when already on a good asset).
@@ -357,7 +357,7 @@ All notable changes to this project will be documented in this file.
 ## [v5.5.11] - 2026-03-14
 ### ✳️ Stability & Safety
 - **[FIX] RSI Bounds Restore (R_75)**: Corrected invalid RSI boundaries that were blocking trades (call_min/call_max and put_min/put_max).
-- **[CONFIG] Expanded TIER_COUNCIL**: Added R_25, R_10, 1HZ25V, 1HZ10V to the Council asset pool for higher availability.
+- **[CONFIG] Expanded TIER_MASTER**: Added R_25, R_10, 1HZ25V, 1HZ10V to the Council asset pool for higher availability.
 - **[GUARD] AI Council Math Check**: Rejects proposals that set impossible RSI bounds in asset_profiles.json.
 - **[TELEGRAM] Inactivity AI Report**: Sends a 4-hour inactivity alert with AI log summary for diagnosis.
 
@@ -377,7 +377,7 @@ All notable changes to this project will be documented in this file.
 
 ## [v5.5.8] - 2026-03-13
 ### ðŸ•µï¸ Asset Selector Relaxation
-- **[TIER_COUNCIL] Trust Baseline**: Further reduced the minimum trade requirement from 15 to **8 trades**. This allows the bot to switch assets much more aggressively when current conditions are unfavorable.
+- **[TIER_MASTER] Trust Baseline**: Further reduced the minimum trade requirement from 15 to **8 trades**. This allows the bot to switch assets much more aggressively when current conditions are unfavorable.
 - **[LOGGING] Awareness**: Updated all scanner log messages to reflect the new `(>8 trades, >50% WR)` criteria.
 
 
@@ -407,15 +407,15 @@ All notable changes to this project will be documented in this file.
 
 ## [v5.5.4] - 2026-03-12
 ### âš™ï¸ Final Quant Calibration
-- **[TIER_COUNCIL] Trust Baseline**: Standardized the asset trust requirement to 15 trades across the streaming and polling scanner modules.
+- **[TIER_MASTER] Trust Baseline**: Standardized the asset trust requirement to 15 trades across the streaming and polling scanner modules.
 - **[ASSET] Pool Stabilization**: Finalized the expanded asset list in `config.py` to ensure high availability during regime shifts.
 - **[CORE] Header Sync**: Unified internal module versions for `ai_engine` and `ai_council` to reflect the latest Quan developer optimizations.
 
 
 ## [v5.5.3] - 2026-03-12
 ### ðŸ•µï¸ Asset Selector Optimization
-- **[TIER_COUNCIL] Expanded Pool**: Added `R_100`, `R_50`, and `1HZ75V` to the Council's prioritized asset pool to increase trading frequency.
-- **[TIER_COUNCIL] Trust Threshold**: Lowered the minimum trade count requirement for asset switching from 30 to 15. This allows the bot to pivot to profitable assets faster on lower-volume timeframes.
+- **[TIER_MASTER] Expanded Pool**: Added `R_100`, `R_50`, and `1HZ75V` to the Council's prioritized asset pool to increase trading frequency.
+- **[TIER_MASTER] Trust Threshold**: Lowered the minimum trade count requirement for asset switching from 30 to 15. This allows the bot to pivot to profitable assets faster on lower-volume timeframes.
 - **[FIX] Sleep Mode Fatigue**: Reduced "excessive sleeping" by providing the bot with more valid alternatives when the primary asset is blacklisted.
 
 
@@ -591,7 +591,7 @@ All notable changes to this project will be documented in this file.
 
 ## [v4.1.0] - 2026-02-26
 ### ðŸ›¡ï¸ Profile-Aware Asset Scanner & Martingale Override
-- **[BUG FIX] market_engine.py**: Fixed critical bug where `scan_open_assets` used `ASSETS_VOLATILITY` (all assets) instead of respecting `ACTIVE_PROFILE`. When running `TIER_COUNCIL`, the scanner now only considers assets in that tier's list (e.g., `R_100, R_75, R_50, R_25, R_10`), preventing out-of-profile selections like `1HZ50V`.
+- **[BUG FIX] market_engine.py**: Fixed critical bug where `scan_open_assets` used `ASSETS_VOLATILITY` (all assets) instead of respecting `ACTIVE_PROFILE`. When running `TIER_MASTER`, the scanner now only considers assets in that tier's list (e.g., `R_100, R_75, R_50, R_25, R_10`), preventing out-of-profile selections like `1HZ50V`.
 - **[BUG FIX] ai_engine.py**: Fixed AI prompt in `choose_best_asset` to send `ALLOWED ASSETS` constraint based on the active profile, instead of hardcoded TIER_1/TIER_2/TIER_3 preferences that led AI to pick non-permitted assets.
 - **[FEATURE] ai_engine.py**: Implemented **Martingale Override** in `analyze_and_decide`. When `mg_step > 0` (recovery state), the Smart Trader / RL strategy blocking mechanism is bypassed. This prevents the critical conflict where `All strategies blocked` cancels Martingale recovery trades. Logged as `âš ï¸ Martingale Override`.
 - **[CONFIG] config.py**: Tuned RSI bounds (`RSI_CALL_MIN=52`, `RSI_PUT_UPPER=48`), reduced scanner interval to 10 minutes, set `MAX_DAILY_LOSS_PERCENT=100%` and `COOLDOWN_LOSS_TRADE_MINS=0` for aggressive recovery.
@@ -714,14 +714,14 @@ All notable changes to this project will be documented in this file.
 ### ðŸ›ï¸ AI Council Auto-Fix
 - **Adjust AI Confidence Threshold for Consecutive Losses**
 - **[CONFIG_CHANGE] config.py:** Lower AI confidence threshold to improve trade success rate
-- _Analysis: The AI confidence threshold for the TIER_COUNCIL profile is set too high, leading to consecutive losses in the current market conditions._
+- _Analysis: The AI confidence threshold for the TIER_MASTER profile is set too high, leading to consecutive losses in the current market conditions._
 - _Files: config.py_
 
 ## [v3.11.28] - 2026-02-21
 ### ðŸ›ï¸ AI Council Auto-Fix
-- **Lower AI Confidence Threshold for TIER_COUNCIL to Resume Trading**
-- **[CONFIG_CHANGE] config.py:** Lower AI_CONFIDENCE_THRESHOLD in TIER_COUNCIL profile to 0.65 to increase trade frequency.
-- _Analysis: The bot has been idle for 180 minutes, indicating that the AI Confidence Threshold is likely too high for the current market conditions. Lowering it within the TIER_COUNCIL profile should allow more trades to be executed._
+- **Lower AI Confidence Threshold for TIER_MASTER to Resume Trading**
+- **[CONFIG_CHANGE] config.py:** Lower AI_CONFIDENCE_THRESHOLD in TIER_MASTER profile to 0.65 to increase trade frequency.
+- _Analysis: The bot has been idle for 180 minutes, indicating that the AI Confidence Threshold is likely too high for the current market conditions. Lowering it within the TIER_MASTER profile should allow more trades to be executed._
 - _Files: config.py_
 
 ## [v3.11.28] - 2026-02-21
@@ -780,7 +780,7 @@ All notable changes to this project will be documented in this file.
 ## [v3.11.19] - 2026-02-21
 ### ðŸ›ï¸ AI Council Auto-Fix
 - **Increase RSI_PUT_MIN to 52 to avoid premature PUT entries**
-- **[CONFIG_CHANGE] config.py:** Increase RSI_PUT_MIN to 52 in TIER_COUNCIL profile.
+- **[CONFIG_CHANGE] config.py:** Increase RSI_PUT_MIN to 52 in TIER_MASTER profile.
 - **[CONFIG_CHANGE] config.py:** Bump config version to v3.11.19
 - _Analysis: The bot entered a PUT trade when the RSI was 45.5, which, in hindsight, wasn't sufficiently oversold. Increasing `RSI_PUT_MIN` to 52 will require a stronger oversold condition before entering PUT positions, potentially reducing losses in unclear market conditions. à¸ารà¹€à¸žิà¹ˆมà¸„à¹ˆา RSI_PUT_MIN à¸ˆะà¸Šà¹ˆวยà¹ƒหà¹‰มัà¹ˆà¸™à¹ƒà¸ˆà¹„à¸”à¹‰วà¹ˆาà¹€ราà¸ˆะà¹€à¸‚à¹‰าสูà¹ˆสà¸–าà¸™ะ PUT à¹€มืà¹ˆอà¸•ลาà¸”อยูà¹ˆà¹ƒà¸™ภาวะà¸‚ายมาà¸à¹€à¸ิà¸™à¹„à¸›อยà¹ˆาà¸‡à¸Šัà¸”à¹€à¸ˆà¸™à¹€à¸—à¹ˆาà¸™ัà¹‰à¸™ à¸‹ึà¹ˆà¸‡à¸ˆะà¸Šà¹ˆวยลà¸”à¸„วามà¹€สีà¹ˆยà¸‡à¹ƒà¸™à¸ารà¹€à¸‚à¹‰าสูà¹ˆสà¸–าà¸™ะà¹€รà¹‡วà¹€à¸ิà¸™à¹„à¸›_
 - _Files: config.py, config.py_
@@ -829,7 +829,7 @@ All notable changes to this project will be documented in this file.
 ## [v3.11.11] - 2026-02-21
 ### ðŸ›ï¸ AI Council Auto-Fix
 - **Increase RSI threshold to 60 to avoid overbought conditions**
-- **[CONFIG_CHANGE] config.py:** Increase RSI_OVERBOUGHT to 60 in TIER_COUNCIL profile.
+- **[CONFIG_CHANGE] config.py:** Increase RSI_OVERBOUGHT to 60 in TIER_MASTER profile.
 - **[CONFIG_CHANGE] config.py:** Bump config.py version to v3.11.11
 - **[CONFIG_CHANGE] config.py:** Update BOT_VERSION to v3.11.11
 - _Analysis: RSI threshold à¸›ัà¸ˆà¸ˆุà¸šัà¸™อาà¸ˆà¸ˆะà¸•à¹ˆำà¹€à¸ิà¸™à¹„à¸› à¸—ำà¹ƒหà¹‰à¹€à¸ิà¸”สัà¸à¸าà¸“à¸‹ืà¹‰อà¸‚ายมาà¸à¹€à¸ิà¸™à¹„à¸›à¹ƒà¸™สภาวะ overbought à¸ารà¹€à¸žิà¹ˆม threshold à¸ˆะà¸Šà¹ˆวยà¸รอà¸‡สัà¸à¸าà¸“à¸—ีà¹ˆà¹„มà¹ˆà¸”ีออà¸à¹„à¸›_
@@ -854,7 +854,7 @@ All notable changes to this project will be documented in this file.
 ## [v3.11.8] - 2026-02-20
 ### ðŸ›ï¸ AI Council Auto-Fix
 - **[CONSECUTIVE_LOSSES] Adjust AI Confidence and Enable Risk Guards**
-- **[CONFIG_CHANGE] config.py:** Lower AI confidence threshold and enable RSI guard for TIER_COUNCIL
+- **[CONFIG_CHANGE] config.py:** Lower AI confidence threshold and enable RSI guard for TIER_MASTER
 - **[CONFIG_CHANGE] config.py:** Enable RSI guard and adjust safety thresholds
 - **[CONFIG_CHANGE] config.py:** Update bot version for consecutive loss fix
 - _Analysis: à¸šอà¸—à¹€สียà¹€à¸‡ิà¸™ 3 à¹€à¸—รà¸”à¸•ิà¸”à¸•à¹ˆอà¸ัà¸™à¸”à¹‰วยà¸ลยุà¸—à¸˜à¹Œ AI_MOMENTUM à¸šà¸™ R_75 à¹สà¸”à¸‡วà¹ˆา AI confidence threshold สูà¸‡à¹€à¸ิà¸™à¹„à¸›à¹ละà¸•à¹‰อà¸‡à¹€à¸›ิà¸” safety guards à¹€à¸žิà¹ˆมà¹€à¸•ิม_
@@ -939,9 +939,9 @@ All notable changes to this project will be documented in this file.
 - **Rule Update**: Refined `AI_CODE_RULE_BASED.md` (v3.7.6) to allow critical parameter overrides only under direct user instruction.
 
 ## [v3.7.5] - 2026-02-19
-### ðŸ›ï¸ AI Council: Sandbox Strategy (TIER_COUNCIL)
-- **Council Sandbox Rule**: Established a dedicated `TIER_COUNCIL` profile in `config.py`. AI Council now exclusively modifies this profile for parameter tweaks, protecting other "Golden Profiles" (MICRO, MINI, etc.).
-- **Smart Steering**: Updated AI Council prompt to enforce this sandbox isolation and ensure `ACTIVE_PROFILE` is set to `TIER_COUNCIL` when optimizations are active.
+### ðŸ›ï¸ AI Council: Sandbox Strategy (TIER_MASTER)
+- **Council Sandbox Rule**: Established a dedicated `TIER_MASTER` profile in `config.py`. AI Council now exclusively modifies this profile for parameter tweaks, protecting other "Golden Profiles" (MICRO, MINI, etc.).
+- **Smart Steering**: Updated AI Council prompt to enforce this sandbox isolation and ensure `ACTIVE_PROFILE` is set to `TIER_MASTER` when optimizations are active.
 - **Rule Enforcement**: Updated `AI_CODE_RULE_BASED.md` with version 3.7.5 standards for profile-based parameter management.
 
 ## [v3.7.4] - 2026-02-19

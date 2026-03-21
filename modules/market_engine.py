@@ -305,7 +305,7 @@ def is_sleep_mode() -> tuple:
     Sleep ends when earliest banned council asset expires.
     [v5.0 BUG-08 FIX]
     """
-    council = list(getattr(config, "ASSET_PRIORITY_TIERS", {}).get("TIER_COUNCIL", ["R_75", "R_25"]))
+    council = list(getattr(config, "ASSET_PRIORITY_TIERS", {}).get("TIER_MASTER", ["R_75", "R_25"]))
     if not council:
         return False, 0.0
     all_banned = all(is_blacklisted(a) for a in council)

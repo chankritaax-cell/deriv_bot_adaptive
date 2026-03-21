@@ -67,7 +67,11 @@
       "Bash(where py:*)",
       "Bash(ls /c/Python*/python.exe)",
       "Read(//c/Users/chank/AppData/Local/Programs/Python/**)",
-      "Bash(PYTHONIOENCODING=utf-8 /c/Users/chank/AppData/Local/Programs/Python/Python312/python.exe \"D:/SpProject/deriv_bot_v5_dev/logs/backtest_loss_analysis.py\")"
+      "Bash(PYTHONIOENCODING=utf-8 /c/Users/chank/AppData/Local/Programs/Python/Python312/python.exe \"D:/SpProject/deriv_bot_v5_dev/logs/backtest_loss_analysis.py\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\(''asset_profiles.json''\\)\\); print\\(json.dumps\\(d.get\\(''R_75'', {}\\), indent=2\\)\\)\")",
+      "Bash(python -c \"import json; d=json.load\\(open\\(''asset_profiles.json''\\)\\); print\\(json.dumps\\(d.get\\(''R_75'', {}\\), indent=2\\)\\)\")",
+      "Bash(python -c \"import json; d=json.load\\(open\\(''asset_profiles.json'', encoding=''utf-8''\\)\\); r75=d.get\\(''R_75'', {}\\); print\\(''call_min:'', r75.get\\(''call_min''\\), ''call_max:'', r75.get\\(''call_max''\\), ''put_min:'', r75.get\\(''put_min''\\), ''put_max:'', r75.get\\(''put_max''\\)\\)\")",
+      "Bash(python -c \"import json; d=json.load\\(open\\(''asset_profiles.json'', encoding=''utf-8''\\)\\); print\\(list\\(d.keys\\(\\)\\)\\)\")"
     ]
   }
 }

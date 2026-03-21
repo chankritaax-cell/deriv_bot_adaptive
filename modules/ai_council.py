@@ -723,8 +723,8 @@ def _build_council_prompt(context):
         source_sections.append(
             " **STRATEGIC COMMAND: Council Sandbox (v3.7.5)**\n"
             "If you are tweaking trading parameters (AMOUNT, CONFIDENCE, etc.) to fix a streak of losses or no trades:\n"
-            "1. ONLY modify values within the `TIER_COUNCIL` dictionary in `config.py`.\n"
-            "2. Ensure `ACTIVE_PROFILE` is set to `'TIER_COUNCIL'`.\n"
+            "1. ONLY modify values within the `TIER_MASTER` dictionary in `config.py`.\n"
+            "2. Ensure `ACTIVE_PROFILE` is set to `'TIER_MASTER'`.\n"
             "3. DO NOT touch TIER_MICRO, TIER_1, or other golden profiles.\n"
             "4. [v3.11.13] Use `RSI_CALL_MAX` instead of `RSI_OVERBOUGHT` and `RSI_PUT_MIN` instead of `RSI_OVERSOLD`.\n"
             "   - RSI_CALL_MAX: Maximum RSI value allowed for a CALL trade (default 65).\n"

@@ -202,6 +202,56 @@ class TechnicalConfirmation:
         return rsi.iloc[-1]
 
     @staticmethod
+    def get_adx(df, window=14):
+        """
+        [v5.8.0] Calculate Average Directional Index (ADX) using Wilder's Smoothing.
+        Formula: RMA = (Current + (N-1) * PrevRMA) / N.
+        """
+        if df is None or len(df) < window * 2: return 0.0
+        try:
+            high = df['high']
+            low = df['low']
+            close = df['close']
+            
+            # --- Wilder's Directional Movement ---
+            plus_dm_raw = high.diff()
+            minus_dm_raw = low.shift(1) - low
+            
+            plus_dm = plus_dm_raw.where((plus_dm_raw > minus_dm_raw) & (plus_dm_raw > 0), 0.0)
+            minus_dm = minus_dm_raw.where((minus_dm_raw > plus_dm_raw) & (minus_dm_raw > 0), 0.0)
+            
+            # --- True Range ---
+            tr = pd.concat([
+                (high - low),
+                (high - close.shift(1)).abs(),
+                (low - close.shift(1)).abs()
+            ], axis=1).max(axis=1)
+            
+            # Wilder's Smoothing Calculation (RMA)
+            # Alpha for Wilder's is 1/window. RMAs start with SMA of the first 'window' periods.
+            def wilders_ewm(series, n):
+                if len(series) < n: return series
+                # standard EWM(1/N, adjust=False) is functionally equivalent to RMA
+                return series.ewm(alpha=1.0/n, adjust=False).mean()
+
+            tr_s = wilders_ewm(tr, window)
+            plus_dm_s = wilders_ewm(plus_dm, window)
+            minus_dm_s = wilders_ewm(minus_dm, window)
+            
+            plus_di = 100 * (plus_dm_s / tr_s.replace(0, 0.00001))
+            minus_di = 100 * (minus_dm_s / tr_s.replace(0, 0.00001))
+            
+            # --- ADX ---
+            dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, 0.00001)
+            adx_series = dx.iloc[window-1:].ewm(alpha=1.0/window, adjust=False).mean()
+            
+            if adx_series is None or adx_series.empty: return 0.0
+            val = adx_series.iloc[-1]
+            return float(val) if pd.notna(val) else 0.0
+        except Exception:
+            return 0.0
+
+    @staticmethod
     def get_ema(df, period=20):
         if df is None or len(df) < period: return None
         try:
@@ -283,7 +333,7 @@ class TechnicalConfirmation:
         }
 
     @staticmethod
-    def check_hard_rules(df, signal, strategy="", rsi_bounds=None, asset=""):
+    def check_hard_rules(df, signal, strategy="", rsi_bounds=None, asset="", mg_step=0):
         """
         [v5.2.2] Hard safety checks to prevent Reversal/Momentum losses.
         strategy param used to skip exhaustion guard for TREND_FOLLOWING.
@@ -296,7 +346,8 @@ class TechnicalConfirmation:
 
         # [v5.6.7] MACD Exhaustion Cooldown — Pre-flight check
         # Prevents "dead-cat bounce" second entries right after an exhaustion block.
-        if asset and signal in ("CALL", "PUT"):
+        # Skip if in Martingale Recovery (mg_step > 0).
+        if asset and signal in ("CALL", "PUT") and mg_step == 0:
             _cd_key = f"{asset}_{signal}"
             _cd_expiry = TechnicalConfirmation._exhaustion_cooldowns.get(_cd_key, 0)
             if time.time() < _cd_expiry:
@@ -329,11 +380,9 @@ class TechnicalConfirmation:
         if hist_prev < 0 and hist_now > 0:
             if signal == "PUT": return False, "Hard Block: MACD Bullish Cross 🛑"
 
-        # [v5.5.10] MACD Momentum Exhaustion Guard (Prevent late-trend entries)
-        # Applied UNIVERSALLY to all strategies to prevent exhaustion bypass.
-        # [v5.6.2] Raised threshold 20%→28%: 20% was too aggressive, blocking valid trades
-        # with mild/moderate decay (20-27%) that are still within healthy momentum range.
-        if safe_config_get("ENABLE_MACD_MOMENTUM_GUARD", True):
+        # [v5.8.0] MACD Momentum Exhaustion Guard (Prevent late-trend entries)
+        # Skip if in Martingale Recovery to allow recovery trades.
+        if safe_config_get("ENABLE_MACD_MOMENTUM_GUARD", True) and mg_step == 0:
             if signal == "CALL" and hist_now <= hist_prev:
                 decay = abs(hist_prev - hist_now) / abs(hist_prev) if hist_prev != 0 else 1.0
                 if decay >= 0.35:  # Only block on significant decay (35%+), not minor oscillation
@@ -355,14 +404,16 @@ class TechnicalConfirmation:
             if rsi_bounds:
                 call_min = float(rsi_bounds.get("call_min", safe_config_get("RSI_CALL_MIN", 55)))
                 call_max = float(rsi_bounds.get("call_max", safe_config_get("RSI_CALL_MAX", 60)))
-                put_lo = float(rsi_bounds.get("put_min", safe_config_get('RSI_PUT_LOWER', 32)))
-                put_hi = float(rsi_bounds.get("put_max", safe_config_get('RSI_PUT_UPPER', 48)))
+                put_min = float(rsi_bounds.get("put_min", safe_config_get('RSI_PUT_LOWER', 32)))
+                put_max = float(rsi_bounds.get("put_max", safe_config_get('RSI_PUT_UPPER', 48)))
             else:
-                call_min = safe_config_get("RSI_CALL_MIN", 55)
-                call_max = safe_config_get("RSI_CALL_MAX", 60)
-                put_lo = float(safe_config_get('RSI_PUT_LOWER', safe_config_get('RSI_PUT_MAX', 32)))
-                put_hi = float(safe_config_get('RSI_PUT_UPPER', safe_config_get('RSI_PUT_MIN', 52)))
-            put_min, put_max = (put_hi, put_lo) if put_lo <= put_hi else (put_lo, put_hi) # Nomenclature match for local vars
+                call_min = float(safe_config_get("RSI_CALL_MIN", 55))
+                call_max = float(safe_config_get("RSI_CALL_MAX", 60))
+                put_min = float(safe_config_get('RSI_PUT_LOWER', 32))
+                put_max = float(safe_config_get('RSI_PUT_UPPER', 48))
+            
+            # Ensure min < max for safety
+            if put_min > put_max: put_min, put_max = put_max, put_min
 
             sig = str(signal or "").upper()
 
@@ -370,8 +421,8 @@ class TechnicalConfirmation:
                 if not (call_min <= rsi <= call_max):
                     return False, f"Hard Block: RSI {rsi:.1f} not in CALL window {call_min}-{call_max} 🛑"
             elif sig == "PUT":
-                if not (put_max <= rsi <= put_min):
-                    return False, f"Hard Block: RSI {rsi:.1f} not in PUT window {put_max}-{put_min} (LOWER-UPPER) 🛑"
+                if not (put_min <= rsi <= put_max):
+                    return False, f"Hard Block: RSI {rsi:.1f} not in PUT window {put_min}-{put_max} 🛑"
 
         # 3. Dead Market
         atr = TechnicalConfirmation.get_atr(df)
@@ -428,9 +479,10 @@ class TechnicalConfirmation:
                     call_max = safe_config_get("RSI_CALL_MAX", 60)
                     
                     # [v3.11.42] New explicit keys
-                    put_lo = float(safe_config_get('RSI_PUT_LOWER', safe_config_get('RSI_PUT_MAX', 32)))
-                    put_hi = float(safe_config_get('RSI_PUT_UPPER', safe_config_get('RSI_PUT_MIN', 52)))
-                    put_min, put_max = (put_hi, put_lo) if put_lo <= put_hi else (put_lo, put_hi)
+                    # [v5.8.0] Explicit Sniper Bounds
+                    put_min = float(safe_config_get('RSI_PUT_LOWER', 32))
+                    put_max = float(safe_config_get('RSI_PUT_UPPER', 48))
+                    if put_min > put_max: put_min, put_max = put_max, put_min
 
                     sig = signal.upper()
 
@@ -442,12 +494,12 @@ class TechnicalConfirmation:
                         else:
                             score += 1.0; details.append(f"RSI OK ({call_min}-{call_max}) ✓")
                     elif sig == "PUT":
-                        if rsi_val < put_max:
-                            score -= 0.5; details.append(f"RSI too oversold ({rsi_val:.1f}) < {put_max} ✗")
-                        elif rsi_val > put_min:
-                            score -= 0.5; details.append(f"RSI reversal risk ({rsi_val:.1f}) > {put_min} ✗")
+                        if rsi_val < put_min:
+                            score -= 0.5; details.append(f"RSI too oversold ({rsi_val:.1f}) < {put_min} ✗")
+                        elif rsi_val > put_max:
+                            score -= 0.5; details.append(f"RSI reversal risk ({rsi_val:.1f}) > {put_max} ✗")
                         else:
-                            score += 1.0; details.append(f"RSI OK ({put_max}-{put_min}) ✓")
+                            score += 1.0; details.append(f"RSI OK ({put_min}-{put_max}) ✓")
 
             # --- 2. MACD ---
             if df_1m is not None and len(df_1m) >= 35:

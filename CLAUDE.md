@@ -220,7 +220,7 @@ Step 0 losses do NOT trigger a ban ("normal variance, letting MG handle").
 
 ```python
 # config.py
-BOT_VERSION = "5.7.0"   # [v5.7.0] Brief description of change
+BOT_VERSION = "5.7.7"   # [v5.7.7] Definitive wait increased (120s) + Sync [v5.7.6] Pending Result Note
 ```
 
 Increment: `5.6.x → 5.6.(x+1)` for fixes/features within a milestone.
